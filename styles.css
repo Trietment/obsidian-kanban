@@ -1,0 +1,518 @@
+/* Trietment Kanban — styles */
+
+.trietment-kanban-container {
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tk-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  gap: 10px;
+  flex-shrink: 0;
+}
+.tk-title {
+  margin: 0;
+  font-size: 1.1em;
+}
+.tk-filter {
+  flex: 1;
+  max-width: 280px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+.tk-hide-done {
+  font-size: 0.9em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.tk-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.tk-btn:hover {
+  background: var(--background-modifier-hover);
+}
+.tk-btn-cta {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.tk-btn-cta:hover {
+  background: var(--interactive-accent-hover);
+}
+
+.tk-board {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 12px;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.tk-column {
+  min-width: 280px;
+  width: 300px;
+  background: var(--background-secondary);
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  max-height: 100%;
+  border: 1px solid transparent;
+}
+.tk-column-done {
+  opacity: 0.85;
+}
+
+.tk-col-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding: 0 6px;
+  gap: 8px;
+}
+.tk-col-title {
+  font-weight: 600;
+  flex: 1;
+  text-transform: capitalize;
+  font-size: 0.95em;
+  letter-spacing: 0.02em;
+}
+.tk-col-count {
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 0.78em;
+  min-width: 24px;
+  text-align: center;
+}
+
+.tk-cards {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 60px;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.tk-cards.tk-drag-over {
+  background: var(--background-modifier-hover);
+  outline: 2px dashed var(--interactive-accent);
+  outline-offset: -4px;
+}
+
+.tk-card {
+  --tk-project-color: var(--background-modifier-border);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-left: 4px solid var(--tk-project-color);
+  border-radius: 8px;
+  padding: 10px 12px 8px;
+  margin-bottom: 8px;
+  cursor: grab;
+  position: relative;
+  transition: box-shadow 0.15s, transform 0.05s;
+  user-select: none;
+}
+.tk-card.tk-has-project {
+  /* Tint over de kaart zonder color-mix() (werkt ook op oudere Android WebViews). */
+  background-color: var(--background-primary);
+  background-image: linear-gradient(var(--tk-project-tint, transparent), var(--tk-project-tint, transparent));
+}
+.tk-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  border-color: var(--background-modifier-border-hover);
+  border-left-color: var(--tk-project-color);
+}
+.tk-card:active {
+  cursor: grabbing;
+}
+.tk-card.tk-dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+}
+.tk-card.tk-done .tk-card-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.tk-card.tk-prio-highest { border-top: 2px solid var(--color-red, #e53e3e); }
+.tk-card.tk-prio-high { border-top: 2px solid var(--color-orange, #dd6b20); }
+
+/* Project badge bovenaan de kaart */
+.tk-project-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+.tk-project-parent {
+  font-size: 0.7em;
+  color: var(--text-faint);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+.tk-project-badge {
+  display: inline-block;
+  font-size: 0.7em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--background-modifier-border);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  white-space: nowrap;
+}
+.tk-project-badge:hover {
+  filter: brightness(1.1);
+}
+
+/* Ingesprongen sub-project in instellingen */
+.tk-setting-child {
+  border-top: 1px dashed var(--background-modifier-border) !important;
+}
+.tk-setting-child .setting-item-name {
+  font-size: 0.95em;
+  color: var(--text-muted);
+}
+
+/* Due date krijgt nu een achtergrond-pill als hij overdue / vandaag is */
+.tk-card.tk-overdue .tk-due {
+  background: var(--color-red, #e53e3e);
+  color: white;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.tk-card.tk-due-today .tk-due {
+  background: var(--color-orange, #dd6b20);
+  color: white;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+/* Chips in modals (kies een bestaand project) */
+.tk-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 12px 0;
+  margin-top: -4px;
+}
+.tk-chip {
+  font-size: 0.78em;
+  padding: 3px 10px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  color: white;
+  background: var(--background-modifier-border);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.2);
+  text-transform: lowercase;
+}
+.tk-chip:hover { filter: brightness(1.1); }
+
+.tk-help-line {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin: -4px 0 12px 0;
+}
+
+.tk-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.tk-card-check {
+  margin-top: 3px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.tk-card-text {
+  font-size: 0.92em;
+  line-height: 1.4;
+  word-wrap: break-word;
+  flex: 1;
+  color: var(--text-normal);
+}
+
+.tk-card-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.78em;
+  color: var(--text-muted);
+  margin-top: 6px;
+  padding-left: 20px;
+}
+.tk-card.tk-overdue .tk-due {
+  color: var(--color-red, #e53e3e);
+  font-weight: 600;
+}
+.tk-card.tk-due-today .tk-due {
+  color: var(--color-orange, #dd6b20);
+  font-weight: 600;
+}
+
+.tk-card-source {
+  font-size: 0.72em;
+  color: var(--text-faint);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 4px;
+  padding-left: 20px;
+}
+
+.tk-card-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.tk-card:hover .tk-card-actions {
+  opacity: 1;
+}
+/* Op mobiel is er geen hover: acties altijd tonen. */
+.is-mobile .tk-card-actions {
+  opacity: 1;
+}
+.tk-card-actions button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 1em;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: 4px;
+}
+.tk-card-actions button:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.tk-col-add {
+  margin-top: 8px;
+  background: transparent;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+  width: 100%;
+  font-size: 0.85em;
+  transition: all 0.15s;
+}
+.tk-col-add:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
+
+/* Modal */
+.tk-modal {
+  padding: 8px;
+}
+.tk-modal-info {
+  padding: 10px 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+.tk-modal-sub {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  font-family: var(--font-monospace);
+}
+
+.tk-help pre {
+  background: var(--background-secondary);
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 0.85em;
+  overflow-x: auto;
+}
+
+/* -- Kaart-header: project links, subtaken/notitie/acties rechts ---------- */
+.tk-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.tk-card-header-left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+.tk-card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.tk-card-header .tk-project-wrap {
+  margin-bottom: 0;
+}
+
+/* -- Subtaken-badge (☑ 2/5) ----------------------------------------------- */
+.tk-subtask-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.72em;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 1px 7px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.tk-subtask-badge:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+.tk-subtask-badge .tk-subtask-icon {
+  font-size: 0.9em;
+  line-height: 1;
+}
+.tk-subtask-badge.tk-subtask-complete {
+  color: white;
+  background: var(--color-green, #22c55e);
+}
+
+/* -- Notitie-knop --------------------------------------------------------- */
+.tk-note-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95em;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  transition: opacity 0.15s, filter 0.15s;
+}
+.tk-note-btn:hover {
+  opacity: 1;
+  filter: none;
+  background: var(--background-modifier-hover);
+}
+.tk-note-btn.tk-has-note {
+  opacity: 1;
+  filter: none;
+}
+
+/* -- Subtaken in de edit-modal -------------------------------------------- */
+.tk-modal-subtasks {
+  margin: 4px 0 14px;
+}
+.tk-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.tk-subtask-check {
+  flex-shrink: 0;
+  cursor: pointer;
+  margin: 0;
+}
+.tk-subtask-text {
+  flex: 1;
+  font-size: 0.85em;
+  line-height: 1.3;
+  color: var(--text-normal);
+  word-break: break-word;
+}
+.tk-subtask-row.tk-subtask-done .tk-subtask-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.tk-subtask-del {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 1em;
+  line-height: 1;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+.tk-subtask-del:hover {
+  color: var(--color-red, #e53e3e);
+  background: var(--background-modifier-hover);
+}
+.tk-subtask-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.tk-subtask-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+.tk-subtask-addbtn {
+  flex-shrink: 0;
+  background: var(--background-modifier-border);
+  border: none;
+  cursor: pointer;
+  color: var(--text-normal);
+  font-size: 1em;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+}
+.tk-subtask-addbtn:hover {
+  background: var(--background-modifier-hover);
+}

@@ -1,0 +1,8 @@
+# Vault-specifieke runtime-data (hoort niet in de repo)
+data.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
