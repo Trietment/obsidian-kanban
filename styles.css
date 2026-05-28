@@ -141,6 +141,10 @@
   background-color: var(--background-primary);
   background-image: linear-gradient(var(--tk-project-tint, transparent), var(--tk-project-tint, transparent));
 }
+/* Sterkere tint in dark mode — 6% over zwart is bijna onzichtbaar, zeker op AMOLED. */
+.theme-dark .tk-card.tk-has-project {
+  background-image: linear-gradient(var(--tk-project-tint-dark, transparent), var(--tk-project-tint-dark, transparent));
+}
 .tk-card:hover {
   box-shadow: 0 2px 8px rgba(0,0,0,0.12);
   border-color: var(--background-modifier-border-hover);
@@ -207,17 +211,18 @@
   color: var(--text-muted);
 }
 
-/* Due date krijgt nu een achtergrond-pill als hij overdue / vandaag is */
+/* Due date krijgt een halfdoorzichtige pil + gekleurde tekst, zodat de datum
+   leesbaar blijft (eerder werd 'm onzichtbaar door een dubbele CSS-regel). */
 .tk-card.tk-overdue .tk-due {
-  background: var(--color-red, #e53e3e);
-  color: white;
+  background: rgba(229, 62, 62, 0.18);
+  color: var(--color-red, #e53e3e);
   padding: 1px 7px;
   border-radius: 10px;
   font-weight: 600;
 }
 .tk-card.tk-due-today .tk-due {
-  background: var(--color-orange, #dd6b20);
-  color: white;
+  background: rgba(221, 107, 32, 0.22);
+  color: var(--color-orange, #dd6b20);
   padding: 1px 7px;
   border-radius: 10px;
   font-weight: 600;
@@ -276,14 +281,6 @@
   color: var(--text-muted);
   margin-top: 6px;
   padding-left: 20px;
-}
-.tk-card.tk-overdue .tk-due {
-  color: var(--color-red, #e53e3e);
-  font-weight: 600;
-}
-.tk-card.tk-due-today .tk-due {
-  color: var(--color-orange, #dd6b20);
-  font-weight: 600;
 }
 
 .tk-card-source {

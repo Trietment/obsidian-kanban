@@ -912,8 +912,11 @@ class KanbanView extends ItemView {
       const color = this.plugin.getProjectColor(task.project);
       if (color) {
         card.style.setProperty('--tk-project-color', color);
-        const tint = hexToRgba(color, 0.06);
-        if (tint) card.style.setProperty('--tk-project-tint', tint);
+        // Aparte alpha voor light vs dark — op een donkere achtergrond is 6% nauwelijks zichtbaar.
+        const tintLight = hexToRgba(color, 0.06);
+        const tintDark = hexToRgba(color, 0.20);
+        if (tintLight) card.style.setProperty('--tk-project-tint', tintLight);
+        if (tintDark) card.style.setProperty('--tk-project-tint-dark', tintDark);
         card.addClass('tk-has-project');
       }
     }
