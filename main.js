@@ -1340,6 +1340,19 @@ class EditTaskModal extends Modal {
         if (this.newRecurrence !== (this.task.recurrence || '')) {
           await this.plugin.setRecurrence(this.task, this.newRecurrence || null);
         }
+        // Auto-verplaats: stond de kaart in de Bezig-kolom en is de due date naar
+        // de toekomst geschoven (en heeft de gebruiker de kolom niet zelf gewijzigd),
+        // dan terug naar de standaardkolom — anders blijft een uitgestelde taak ten
+        // onrechte 'Bezig' staan.
+        const inProg = this.plugin.settings.inProgressColumn;
+        const userKeptColumn = this.newColumn === (this.task.column || 'inbox');
+        if (
+          inProg && userKeptColumn &&
+          this.task.column === inProg &&
+          this.newDate && this.newDate > todayISO()
+        ) {
+          this.newColumn = this.plugin.settings.defaultColumn;
+        }
         if (this.newColumn !== (this.task.column || 'inbox')) {
           await this.plugin.moveTask(`${this.task.file}::${this.task.line}`, this.newColumn);
         }
