@@ -923,7 +923,7 @@ class KanbanView extends ItemView {
 
     card.addEventListener('dragstart', (e) => {
       // Niet slepen wanneer je op een knop of badge tikt.
-      if (e.target.closest('button, .tk-subtask-badge, .tk-project-badge')) {
+      if (e.target.closest('button, input, .tk-subtask-badge, .tk-project-badge, .tk-card-subs')) {
         e.preventDefault();
         return;
       }
@@ -1031,6 +1031,23 @@ class KanbanView extends ItemView {
     });
     top.createDiv({ cls: 'tk-card-text', text: task.text || '(lege taak)' });
 
+    // Compacte subtaken-lijst op de kaart zelf (afvinken kan hier; toevoegen/verwijderen via de modal).
+    if (subtasks.length) {
+      const subList = card.createDiv({ cls: 'tk-card-subs' });
+      for (const sub of subtasks) {
+        const row = subList.createEl('label', { cls: 'tk-card-sub' + (sub.done ? ' tk-card-sub-done' : '') });
+        const cb = row.createEl('input', { type: 'checkbox', cls: 'tk-card-sub-check' });
+        cb.checked = sub.done;
+        cb.onclick = (e) => e.stopPropagation();
+        cb.onchange = async (e) => {
+          e.stopPropagation();
+          await this.plugin.toggleSubtask(sub);
+          this.plugin.scheduleRefresh();
+        };
+        row.createSpan({ cls: 'tk-card-sub-text', text: sub.text || '(leeg)' });
+      }
+    }
+
     // Meta
     const meta = card.createDiv({ cls: 'tk-card-meta' });
     if (task.dueDate) {
@@ -1052,7 +1069,7 @@ class KanbanView extends ItemView {
 
     // Klik op de kaart opent de edit-modal (header-knoppen en checkbox hebben hun eigen actie).
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.tk-card-header') || e.target.closest('.tk-card-check')) return;
+      if (e.target.closest('.tk-card-header') || e.target.closest('.tk-card-check') || e.target.closest('.tk-card-subs')) return;
       openEdit();
     });
   }
