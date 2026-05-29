@@ -1012,7 +1012,20 @@ class KanbanView extends ItemView {
     const checkbox = top.createEl('input', { type: 'checkbox', cls: 'tk-card-check' });
     checkbox.checked = task.done;
     checkbox.addEventListener('click', (e) => e.stopPropagation());
+    // Blokkeer afvinken zolang er nog open subtaken zijn. Uitvinken mag altijd
+    // (voor het geval je per ongeluk had aangevinkt).
+    const openSubs = subtasks.filter((s) => !s.done).length;
+    const blockCheck = !task.done && openSubs > 0;
+    if (blockCheck) {
+      checkbox.addClass('tk-card-check-blocked');
+      checkbox.setAttr('title', `Eerst alle subtaken afvinken (${openSubs} van ${subtasks.length} nog open)`);
+    }
     checkbox.addEventListener('change', async () => {
+      if (blockCheck) {
+        checkbox.checked = task.done; // reset naar werkelijke status
+        new Notice(`Eerst alle subtaken afvinken — nog ${openSubs} open.`);
+        return;
+      }
       await this.plugin.toggleDone(task);
       this.plugin.scheduleRefresh();
     });

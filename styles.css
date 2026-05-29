@@ -265,6 +265,11 @@
   flex-shrink: 0;
   cursor: pointer;
 }
+/* Hoofdtaak kan niet af zolang er nog open subtaken zijn. */
+.tk-card-check.tk-card-check-blocked {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .tk-card-text {
   font-size: 0.92em;
   line-height: 1.4;
