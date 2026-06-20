@@ -4,6 +4,8 @@
 
 A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **every note in your vault**. Tasks are plain markdown checkboxes with optional metadata; the plugin shows them as draggable cards in columns. Works on desktop and mobile.
 
+![Trietment Kanban board](assets/board-preview.png)
+
 ## Features
 
 - **Tasks from your whole vault** — every `- [ ]` checkbox with a `#kanban/` tag appears on the board.
@@ -98,6 +100,8 @@ You can put tasks in **any** note in your vault — they are picked up automatic
 [English](#trietment-kanban) | **Nederlands**
 
 Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **alle notes in je vault**. Taken zijn gewone markdown-checkboxes met optionele metadata; de plugin toont ze als sleepbare kaarten in kolommen. Werkt op desktop én mobiel.
+
+![Trietment Kanban-bord](assets/board-preview.png)
 
 ## Functies
 
