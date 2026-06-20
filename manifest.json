@@ -1,9 +1,9 @@
 {
   "id": "trietment-kanban",
   "name": "Trietment Kanban",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "minAppVersion": "1.4.0",
-  "description": "Kanban-bord met drag-and-drop, due dates en taken die uit alle notes in je vault worden verzameld.",
+  "description": "Collect tasks from across your vault as draggable Kanban cards, with due dates, projects, priorities, subtasks and recurring tasks.",
   "author": "Trietment",
   "authorUrl": "",
   "isDesktopOnly": false
