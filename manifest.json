@@ -1,7 +1,7 @@
 {
   "id": "trietment-kanban",
   "name": "Trietment Kanban",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "minAppVersion": "1.4.0",
   "description": "Kanban-bord met drag-and-drop, due dates en taken die uit alle notes in je vault worden verzameld.",
   "author": "Trietment",
