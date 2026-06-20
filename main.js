@@ -1358,13 +1358,14 @@ class KanbanView extends ItemView {
     // Acties (verwijderen) — in de header zodat ze ook op mobiel bereikbaar zijn
     const actions = headRight.createDiv({ cls: 'tk-card-actions' });
     const delBtn = actions.createEl('button', { text: '×', title: this.plugin.t('delete') });
-    delBtn.onclick = async (e) => {
+    delBtn.onclick = (e) => {
       e.stopPropagation();
       const extra = subtasks.length ? this.plugin.t('delete_extra', { n: subtasks.length }) : '';
-      if (confirm(this.plugin.t('confirm_delete', { text: task.text, extra }))) {
+      const msg = this.plugin.t('confirm_delete', { text: task.text, extra });
+      new ConfirmModal(this.app, this.plugin, msg, async () => {
         await this.plugin.deleteTask(task);
         this.plugin.scheduleRefresh();
-      }
+      }).open();
     };
 
     // Checkbox + text
@@ -1467,7 +1468,7 @@ class AddTaskModal extends Modal {
         textInput = text;
         text.setPlaceholder(t('task_placeholder'))
           .onChange((v) => (this.task.text = v));
-        text.inputEl.style.width = '100%';
+        text.inputEl.addClass('tk-input-full');
       });
 
     new Setting(contentEl)
@@ -1756,6 +1757,32 @@ class EditTaskModal extends Modal {
   onClose() { this.contentEl.empty(); }
 }
 
+// -- Confirm Modal ----------------------------------------------------------
+
+class ConfirmModal extends Modal {
+  constructor(app, plugin, message, onConfirm) {
+    super(app);
+    this.plugin = plugin;
+    this.message = message;
+    this.onConfirm = onConfirm;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('tk-modal');
+    contentEl.createEl('p', { text: this.message });
+    const row = new Setting(contentEl);
+    row.addButton((b) => b.setButtonText(this.plugin.t('cancel')).onClick(() => this.close()));
+    row.addButton((b) => b.setButtonText(this.plugin.t('delete')).setWarning().onClick(async () => {
+      this.close();
+      await this.onConfirm();
+    }));
+  }
+
+  onClose() { this.contentEl.empty(); }
+}
+
 // -- Settings Tab -----------------------------------------------------------
 
 class KanbanSettingTab extends PluginSettingTab {
@@ -1768,10 +1795,9 @@ class KanbanSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const t = (k, v) => this.plugin.t(k, v);
     containerEl.empty();
-    containerEl.createEl('h2', { text: t('settings_title') });
 
     // -- Algemeen ------------------------------------------------------
-    containerEl.createEl('h3', { text: t('sec_general') });
+    new Setting(containerEl).setName(t('sec_general')).setHeading();
 
     new Setting(containerEl)
       .setName(t('language'))
@@ -1791,7 +1817,7 @@ class KanbanSettingTab extends PluginSettingTab {
       });
 
     // -- Kolommen ------------------------------------------------------
-    containerEl.createEl('h3', { text: t('sec_columns') });
+    new Setting(containerEl).setName(t('sec_columns')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('columns_help') });
 
     this.plugin.settings.columns.forEach((colId, index) => {
@@ -1937,7 +1963,7 @@ class KanbanSettingTab extends PluginSettingTab {
         }));
 
     // -- Gekoppelde notities -------------------------------------------
-    containerEl.createEl('h3', { text: t('sec_linked_notes') });
+    new Setting(containerEl).setName(t('sec_linked_notes')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('linked_notes_help') });
 
     new Setting(containerEl)
@@ -1963,7 +1989,7 @@ class KanbanSettingTab extends PluginSettingTab {
         }));
 
     // -- Automatisch verplaatsen ---------------------------------------
-    containerEl.createEl('h3', { text: t('sec_automove') });
+    new Setting(containerEl).setName(t('sec_automove')).setHeading();
 
     new Setting(containerEl)
       .setName(t('automove_today'))
@@ -2001,7 +2027,7 @@ class KanbanSettingTab extends PluginSettingTab {
         }));
 
     // -- Projects ------------------------------------------------------
-    containerEl.createEl('h3', { text: t('sec_projects') });
+    new Setting(containerEl).setName(t('sec_projects')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('projects_help') });
 
     new Setting(containerEl)
@@ -2009,7 +2035,7 @@ class KanbanSettingTab extends PluginSettingTab {
       .setDesc(t('scan_folders_desc'))
       .addTextArea((text) => {
         text.inputEl.rows = 3;
-        text.inputEl.style.width = '100%';
+        text.inputEl.addClass('tk-input-full');
         text
           .setPlaceholder(t('scan_folders_placeholder'))
           .setValue((this.plugin.settings.projectScanFolders || []).join('\n'))
@@ -2105,7 +2131,7 @@ class KanbanSettingTab extends PluginSettingTab {
     }
 
     // -- Help ----------------------------------------------------------
-    containerEl.createEl('h3', { text: t('sec_help') });
+    new Setting(containerEl).setName(t('sec_help')).setHeading();
     const help = containerEl.createDiv({ cls: 'tk-help' });
     help.createEl('p', { text: t('help_p1') });
     const example = help.createEl('pre');

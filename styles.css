@@ -551,3 +551,8 @@
 .tk-subtask-addbtn:hover {
   background: var(--background-modifier-hover);
 }
+
+/* Inputs die de volledige breedte van de modal/instelling vullen. */
+.tk-input-full {
+  width: 100%;
+}
