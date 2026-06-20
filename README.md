@@ -1,5 +1,102 @@
 # Trietment Kanban
 
+**English** | [Nederlands](#nederlands)
+
+A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **every note in your vault**. Tasks are plain markdown checkboxes with optional metadata; the plugin shows them as draggable cards in columns. Works on desktop and mobile.
+
+## Features
+
+- **Tasks from your whole vault** — every `- [ ]` checkbox with a `#kanban/` tag appears on the board.
+- **Dynamic columns** — defaults: To do / In progress / Waiting for response / Done. Add, rename, reorder or remove columns in the settings. Drag cards between columns (desktop) or change the column in the edit modal (mobile).
+- **Bilingual (EN/NL)** — the whole interface is available in English and Dutch. By default the plugin follows the Obsidian language; you can also choose manually.
+- **Projects with colors** — group with `#project/name`, each with its own color and optional label. Subprojects (`#project/client/acme`) are supported.
+- **Due dates & recurrence** — `📅 2026-05-28` and `🔁 every week`. Completed recurring tasks automatically create the next instance.
+- **Priorities** — `🔺 ⏫ 🔼 🔽 ⏬`.
+- **Subtasks** — indented checkboxes under a task. The board shows a `☑ 2/5` progress badge; add and check them in the edit modal.
+- **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it.
+- **Click = edit** — click a card for the edit modal: status/column, due date, project, recurrence, subtasks and note in one place.
+- **Automatic moving** — tasks due today (or overdue) move automatically to the In-progress column.
+- **Inbox** — quick entry of new tasks into a configurable inbox note.
+
+## Installation
+
+### Via BRAT (recommended, also for mobile)
+
+With [BRAT](https://github.com/TfTHacker/obsidian42-brat) you install and update the plugin on any device straight from this repo — independent of Obsidian Sync.
+
+1. Install the community plugin **BRAT** and enable it.
+2. Command palette → **BRAT: Add a beta plugin for testing**.
+3. Enter: `Trietment/obsidian-kanban`.
+4. Pick the latest version and confirm — BRAT installs the plugin.
+5. Enable **Trietment Kanban** under Settings → Community plugins.
+
+Repeat this on your phone. Updating is done via **BRAT: Check for updates**.
+
+### Manually
+
+1. Create the folder `<vault>/.obsidian/plugins/trietment-kanban/`.
+2. Copy `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Trietment/obsidian-kanban/releases) into it.
+3. Restart Obsidian and enable the plugin under Settings → Community plugins.
+
+## Task syntax
+
+A task is a plain markdown checkbox with optional metadata:
+
+```text
+- [ ] Draft quote 📅 2026-05-25 #project/aim #kanban/doing ⏫
+    - [ ] Request figures
+    - [x] Pick template
+- [ ] Onboarding call [[Acme onboarding]] #project/client/acme #kanban/todo
+- [x] Mail sent #project/client/beta #kanban/done
+```
+
+| Part | Meaning |
+|---|---|
+| `#kanban/<column>` | Which column the task is in (e.g. `#kanban/doing`) |
+| `#project/<name>` | Project; use `/` for subprojects (`#project/client/acme`) |
+| `📅 YYYY-MM-DD` | Due date |
+| `🔁 every week` | Recurrence (`every day/week/month/year`, also `every 2 weeks`) |
+| `🔺 ⏫ 🔼 🔽 ⏬` | Priority (highest → lowest) |
+| `[[Note]]` | Linked note |
+| indented `- [ ]` | Subtask of the task above it |
+
+You can put tasks in **any** note in your vault — they are picked up automatically.
+
+## Usage
+
+- **+ New task** (or the `+` under a column) adds a task, by default in the inbox note.
+- **Click a card** → edit modal with column/status, due date, project, recurrence, subtasks and the linked note.
+- **📄** creates/opens the linked note; **☑ 2/5** shows subtask progress.
+- **Drag** a card to another column (desktop) to update the `#kanban/` tag.
+- Click a **project badge** to filter on that project.
+
+## Settings
+
+- Add/rename/remove/reorder columns, default column, done column, inbox note, show inbox column.
+- Automatic moving (today → In progress, optionally also overdue).
+- Language (automatic / Dutch / English).
+- Projects & colors, with a button to scan the vault (or only specific scan folders) for `#project/` tags.
+- Linked notes: note folder and template file (empty = built-in template).
+
+## Files
+
+- `main.js` — the plugin
+- `manifest.json` — plugin metadata
+- `styles.css` — styling
+- `versions.json` — version ↔ minimum Obsidian version (for BRAT)
+
+> `data.json` (your personal settings and project colors) belongs to your vault and is deliberately **not** in this repo.
+
+## License
+
+[MIT](LICENSE).
+
+---
+
+# Nederlands
+
+[English](#trietment-kanban) | **Nederlands**
+
 Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **alle notes in je vault**. Taken zijn gewone markdown-checkboxes met optionele metadata; de plugin toont ze als sleepbare kaarten in kolommen. Werkt op desktop én mobiel.
 
 ## Functies
@@ -84,3 +181,7 @@ Je kunt taken in **elke** note van je vault zetten — ze worden vanzelf opgepik
 - `versions.json` — versie ↔ minimale Obsidian-versie (voor BRAT)
 
 > `data.json` (je persoonlijke instellingen en projectkleuren) hoort bij je vault en zit bewust **niet** in deze repo.
+
+## Licentie
+
+[MIT](LICENSE).
