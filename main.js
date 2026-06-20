@@ -6,8 +6,8 @@ const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, Markd
 const VIEW_TYPE_KANBAN = 'trietment-kanban-view';
 
 const DEFAULT_SETTINGS = {
-  columns: ['todo', 'doing', 'done'],
-  columnLabels: { todo: 'Te doen', doing: 'Bezig', done: 'Klaar' },
+  columns: ['todo', 'doing', 'waiting', 'done'],
+  columnLabels: { todo: 'Te doen', doing: 'Bezig', waiting: 'Wacht op reactie', done: 'Klaar' },
   defaultColumn: 'todo',
   doneColumn: 'done',
   inboxNote: 'Kanban Inbox.md',
@@ -363,6 +363,17 @@ module.exports = class KanbanPlugin extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+    // Eenmalige migratie: een onaangepast bord (de oude standaardkolommen)
+    // krijgt de nieuwe "Wacht op reactie"-kolom tussen Bezig en Klaar. Boarden
+    // die de gebruiker zelf heeft aangepast blijven onaangeroerd.
+    const cols = this.settings.columns;
+    if (cols.length === 3 && cols[0] === 'todo' && cols[1] === 'doing' && cols[2] === 'done'
+        && !this.settings.columnLabels.waiting) {
+      this.settings.columns = ['todo', 'doing', 'waiting', 'done'];
+      this.settings.columnLabels = Object.assign({ waiting: 'Wacht op reactie' }, this.settings.columnLabels);
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -1407,57 +1418,132 @@ class KanbanSettingTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.createEl('h2', { text: 'Trietment Kanban — instellingen' });
 
-    new Setting(containerEl)
-      .setName('Kolommen')
-      .setDesc('Kolom-IDs gescheiden door komma\'s. Gebruik lowercase, geen spaties. Bijv: todo,doing,review,done')
-      .addText((text) => text
-        .setValue(this.plugin.settings.columns.join(','))
-        .onChange(async (value) => {
-          this.plugin.settings.columns = value.split(',').map((s) => s.trim()).filter(Boolean);
+    // -- Kolommen ------------------------------------------------------
+    containerEl.createEl('h3', { text: 'Kolommen' });
+    containerEl.createEl('p', {
+      cls: 'tk-help-line',
+      text: 'Voeg kolommen toe, hernoem of verwijder ze en wijzig de volgorde. De ID wordt gebruikt in de #kanban/<id>-tag in je taken.',
+    });
+
+    this.plugin.settings.columns.forEach((colId, index) => {
+      const setting = new Setting(containerEl).setName(`#kanban/${colId}`);
+
+      // Toon welke speciale rol deze kolom heeft.
+      const flags = [];
+      if (colId === this.plugin.settings.defaultColumn) flags.push('standaard');
+      if (colId === this.plugin.settings.inProgressColumn) flags.push('bezig');
+      if (colId === this.plugin.settings.doneColumn) flags.push('klaar');
+      if (flags.length) setting.setDesc(flags.join(' · '));
+
+      // Weergave-label aanpassen.
+      setting.addText((text) => text
+        .setPlaceholder('Weergavenaam')
+        .setValue(this.plugin.settings.columnLabels[colId] || colId)
+        .onChange(async (v) => {
+          const name = v.trim();
+          if (name) this.plugin.settings.columnLabels[colId] = name;
+          else delete this.plugin.settings.columnLabels[colId];
           await this.plugin.saveSettings();
           this.plugin.refreshViews();
         }));
 
+      // Volgorde aanpassen.
+      setting.addExtraButton((b) => b
+        .setIcon('arrow-up')
+        .setTooltip('Omhoog')
+        .setDisabled(index === 0)
+        .onClick(async () => {
+          const cols = this.plugin.settings.columns;
+          [cols[index - 1], cols[index]] = [cols[index], cols[index - 1]];
+          await this.plugin.saveSettings();
+          this.display();
+          this.plugin.refreshViews();
+        }));
+
+      setting.addExtraButton((b) => b
+        .setIcon('arrow-down')
+        .setTooltip('Omlaag')
+        .setDisabled(index === this.plugin.settings.columns.length - 1)
+        .onClick(async () => {
+          const cols = this.plugin.settings.columns;
+          [cols[index + 1], cols[index]] = [cols[index], cols[index + 1]];
+          await this.plugin.saveSettings();
+          this.display();
+          this.plugin.refreshViews();
+        }));
+
+      // Kolom verwijderen (taken met deze tag blijven gewoon bestaan).
+      setting.addExtraButton((b) => b
+        .setIcon('trash')
+        .setTooltip('Kolom verwijderen')
+        .onClick(async () => {
+          if (this.plugin.settings.columns.length <= 1) {
+            new Notice('Je hebt minstens één kolom nodig.');
+            return;
+          }
+          this.plugin.settings.columns = this.plugin.settings.columns.filter((c) => c !== colId);
+          delete this.plugin.settings.columnLabels[colId];
+          // Speciale rollen die naar deze kolom wezen opnieuw toewijzen.
+          const cols = this.plugin.settings.columns;
+          if (this.plugin.settings.defaultColumn === colId) this.plugin.settings.defaultColumn = cols[0];
+          if (this.plugin.settings.doneColumn === colId) this.plugin.settings.doneColumn = cols[cols.length - 1];
+          if (this.plugin.settings.inProgressColumn === colId) this.plugin.settings.inProgressColumn = '';
+          await this.plugin.saveSettings();
+          this.display();
+          this.plugin.refreshViews();
+        }));
+    });
+
+    // Nieuwe kolom toevoegen.
+    let newColName = '';
     new Setting(containerEl)
-      .setName('Kolom-labels')
-      .setDesc('Weergave-labels per kolom. Eén per regel, formaat: id=Label')
-      .addTextArea((text) => {
-        text.inputEl.rows = 6;
-        text.inputEl.style.width = '100%';
-        text
-          .setValue(Object.entries(this.plugin.settings.columnLabels).map(([k, v]) => `${k}=${v}`).join('\n'))
-          .onChange(async (value) => {
-            const labels = {};
-            value.split('\n').forEach((line) => {
-              const eq = line.indexOf('=');
-              if (eq > 0) labels[line.substring(0, eq).trim()] = line.substring(eq + 1).trim();
-            });
-            this.plugin.settings.columnLabels = labels;
-            await this.plugin.saveSettings();
-            this.plugin.refreshViews();
-          });
-      });
+      .setName('Kolom toevoegen')
+      .setDesc('Typ een naam en klik op Toevoegen. De ID wordt automatisch afgeleid.')
+      .addText((text) => text
+        .setPlaceholder('bv. Wacht op reactie')
+        .onChange((v) => { newColName = v; }))
+      .addButton((b) => b
+        .setButtonText('Toevoegen')
+        .setCta()
+        .onClick(async () => {
+          const name = newColName.trim();
+          if (!name) { new Notice('Geef de kolom een naam.'); return; }
+          let id = name.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '');
+          if (!id) id = 'kolom';
+          const base = id;
+          let n = 2;
+          while (this.plugin.settings.columns.includes(id)) { id = `${base}-${n++}`; }
+          this.plugin.settings.columns.push(id);
+          this.plugin.settings.columnLabels[id] = name;
+          await this.plugin.saveSettings();
+          this.display();
+          this.plugin.refreshViews();
+        }));
 
     new Setting(containerEl)
       .setName('Standaardkolom')
       .setDesc('Kolom waarin nieuwe taken landen.')
-      .addText((text) => text
-        .setValue(this.plugin.settings.defaultColumn)
-        .onChange(async (v) => {
-          this.plugin.settings.defaultColumn = v.trim();
+      .addDropdown((dd) => {
+        for (const c of this.plugin.settings.columns) dd.addOption(c, this.plugin.settings.columnLabels[c] || c);
+        dd.setValue(this.plugin.settings.defaultColumn);
+        dd.onChange(async (v) => {
+          this.plugin.settings.defaultColumn = v;
           await this.plugin.saveSettings();
-        }));
+        });
+      });
 
     new Setting(containerEl)
-      .setName('Klaar-kolom (ID)')
+      .setName('Klaar-kolom')
       .setDesc('Taken die hierheen verplaatst worden krijgen [x].')
-      .addText((text) => text
-        .setValue(this.plugin.settings.doneColumn)
-        .onChange(async (v) => {
-          this.plugin.settings.doneColumn = v.trim();
+      .addDropdown((dd) => {
+        for (const c of this.plugin.settings.columns) dd.addOption(c, this.plugin.settings.columnLabels[c] || c);
+        dd.setValue(this.plugin.settings.doneColumn);
+        dd.onChange(async (v) => {
+          this.plugin.settings.doneColumn = v;
           await this.plugin.saveSettings();
           this.plugin.refreshViews();
-        }));
+        });
+      });
 
     new Setting(containerEl)
       .setName('Inbox-note')
@@ -1525,14 +1611,17 @@ class KanbanSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName('Bezig-kolom (ID)')
+      .setName('Bezig-kolom')
       .setDesc('Naar welke kolom due-taken verplaatst worden.')
-      .addText((text) => text
-        .setValue(this.plugin.settings.inProgressColumn)
-        .onChange(async (v) => {
-          this.plugin.settings.inProgressColumn = v.trim();
+      .addDropdown((dd) => {
+        dd.addOption('', '(geen)');
+        for (const c of this.plugin.settings.columns) dd.addOption(c, this.plugin.settings.columnLabels[c] || c);
+        dd.setValue(this.plugin.settings.inProgressColumn);
+        dd.onChange(async (v) => {
+          this.plugin.settings.inProgressColumn = v;
           await this.plugin.saveSettings();
-        }));
+        });
+      });
 
     new Setting(containerEl)
       .setName('Ook achterstallige taken')
