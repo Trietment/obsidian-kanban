@@ -22,17 +22,13 @@ A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **ev
 
 ## Installation
 
-### Via BRAT (recommended, also for mobile)
+### From Obsidian's community plugins (recommended)
 
-With [BRAT](https://github.com/TfTHacker/obsidian42-brat) you install and update the plugin on any device straight from this repo — independent of Obsidian Sync.
+1. Open **Settings → Community plugins** and make sure community plugins are enabled.
+2. Click **Browse** and search for **Trietment Kanban**.
+3. Click **Install**, then **Enable**.
 
-1. Install the community plugin **BRAT** and enable it.
-2. Command palette → **BRAT: Add a beta plugin for testing**.
-3. Enter: `Trietment/obsidian-kanban`.
-4. Pick the latest version and confirm — BRAT installs the plugin.
-5. Enable **Trietment Kanban** under Settings → Community plugins.
-
-Repeat this on your phone. Updating is done via **BRAT: Check for updates**.
+Works the same on desktop and mobile. Obsidian offers updates automatically.
 
 ### Manually
 
@@ -85,7 +81,7 @@ You can put tasks in **any** note in your vault — they are picked up automatic
 - `main.js` — the plugin
 - `manifest.json` — plugin metadata
 - `styles.css` — styling
-- `versions.json` — version ↔ minimum Obsidian version (for BRAT)
+- `versions.json` — version ↔ minimum Obsidian version
 
 > `data.json` (your personal settings and project colors) belongs to your vault and is deliberately **not** in this repo.
 
@@ -119,17 +115,13 @@ Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **a
 
 ## Installatie
 
-### Via BRAT (aanbevolen, ook voor mobiel)
+### Via de community-plugins (aanbevolen)
 
-Met [BRAT](https://github.com/TfTHacker/obsidian42-brat) installeer en update je de plugin op elk apparaat rechtstreeks vanuit deze repo — los van Obsidian Sync.
+1. Open **Instellingen → Community-plugins** en zorg dat community-plugins aan staan.
+2. Klik op **Bladeren** en zoek **Trietment Kanban**.
+3. Klik op **Installeren** en daarna **Inschakelen**.
 
-1. Installeer de community-plugin **BRAT** en zet 'm aan.
-2. Commandopalet → **BRAT: Add a beta plugin for testing**.
-3. Vul in: `Trietment/obsidian-kanban`.
-4. Kies de laatste versie en bevestig — BRAT installeert de plugin.
-5. Zet **Trietment Kanban** aan bij Instellingen → Community-plugins.
-
-Herhaal dit op je telefoon. Updaten gaat via **BRAT: Check for updates**.
+Werkt hetzelfde op desktop en mobiel. Obsidian biedt updates automatisch aan.
 
 ### Handmatig
 
@@ -182,7 +174,7 @@ Je kunt taken in **elke** note van je vault zetten — ze worden vanzelf opgepik
 - `main.js` — de plugin
 - `manifest.json` — plugin-metadata
 - `styles.css` — styling
-- `versions.json` — versie ↔ minimale Obsidian-versie (voor BRAT)
+- `versions.json` — versie ↔ minimale Obsidian-versie
 
 > `data.json` (je persoonlijke instellingen en projectkleuren) hoort bij je vault en zit bewust **niet** in deze repo.
 
