@@ -203,8 +203,8 @@
 }
 
 /* Ingesprongen sub-project in instellingen.
-   Hogere specificiteit (.setting-item.tk-setting-child) i.p.v. !important
-   om de standaard border van Obsidian-instellingen te overschrijven. */
+   Hogere specificiteit (.setting-item.tk-setting-child) om de standaard
+   border van Obsidian-instellingen te overschrijven. */
 .setting-item.tk-setting-child {
   border-top: 1px dashed var(--background-modifier-border);
 }
