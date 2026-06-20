@@ -1,0 +1,29 @@
+name: Release Obsidian plugin
+
+# Bouwt automatisch een GitHub Release zodra een versietag wordt gepusht.
+# De drie plugin-bestanden worden als assets toegevoegd, zodat BRAT de
+# nieuwe versie ziet en op desktop én mobiel kan installeren/updaten.
+on:
+  push:
+    tags:
+      - "*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            --title="$TAG" \
+            --notes="Automatische release voor $TAG." \
+            main.js manifest.json styles.css
