@@ -1,10 +1,10 @@
 {
   "id": "trietment-kanban",
   "name": "Trietment Kanban",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "minAppVersion": "1.4.0",
   "description": "Collect tasks from across your vault as draggable Kanban cards, with due dates, projects, priorities, subtasks and recurring tasks.",
   "author": "Trietment",
-  "authorUrl": "",
+  "authorUrl": "https://github.com/Trietment",
   "isDesktopOnly": false
 }
