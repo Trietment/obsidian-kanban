@@ -5,7 +5,7 @@ Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **a
 ## Functies
 
 - **Taken uit je hele vault** — elke `- [ ]` checkbox met een `#kanban/`-tag verschijnt op het bord.
-- **Kolommen** — vrij in te stellen (standaard: Te doen / Bezig / Klaar). Sleep kaarten tussen kolommen (desktop) of wijzig de kolom in de edit-modal (mobiel).
+- **Dynamische kolommen** — standaard: Te doen / Bezig / Wacht op reactie / Klaar. Voeg in de instellingen zelf kolommen toe, hernoem ze, wijzig de volgorde of verwijder ze. Sleep kaarten tussen kolommen (desktop) of wijzig de kolom in de edit-modal (mobiel).
 - **Projecten met kleuren** — groepeer met `#project/naam`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/acme`) worden ondersteund.
 - **Due dates & herhaling** — `📅 2026-05-28` en `🔁 every week`. Afgevinkte herhalende taken maken automatisch de volgende instance aan.
 - **Prioriteiten** — `🔺 ⏫ 🔼 🔽 ⏬`.
@@ -69,7 +69,7 @@ Je kunt taken in **elke** note van je vault zetten — ze worden vanzelf opgepik
 
 ## Instellingen
 
-- Kolommen + labels, standaardkolom, klaar-kolom, inbox-note, inbox-kolom tonen.
+- Kolommen toevoegen/hernoemen/verwijderen/herordenen, standaardkolom, klaar-kolom, inbox-note, inbox-kolom tonen.
 - Automatisch verplaatsen (vandaag → Bezig, optioneel ook overdue).
 - Projecten & kleuren, met een knop om de vault te scannen op `#project/`-tags.
 - Gekoppelde notities: notitie-map en template-bestand (leeg = ingebouwde template).
