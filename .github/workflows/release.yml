@@ -1,12 +1,20 @@
 name: Release Obsidian plugin
 
-# Bouwt automatisch een GitHub Release zodra een versietag wordt gepusht.
-# De drie plugin-bestanden worden als assets toegevoegd, zodat BRAT de
-# nieuwe versie ziet en op desktop én mobiel kan installeren/updaten.
+# Bouwt automatisch een GitHub Release met de drie plugin-bestanden als
+# assets, zodat BRAT de nieuwe versie ziet en op desktop én mobiel kan
+# installeren/updaten. Twee manieren om te starten:
+#   1. Een versietag pushen (bv. 1.7.0).
+#   2. Handmatig draaien via "Run workflow" met de versie als invoer
+#      (maakt de tag zelf aan op de gekozen branch).
 on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Versietag, bv. 1.7.0"
+        required: true
 
 permissions:
   contents: write
@@ -21,9 +29,10 @@ jobs:
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
           gh release create "$TAG" \
             --title="$TAG" \
             --notes="Automatische release voor $TAG." \
+            --target="$GITHUB_SHA" \
             main.js manifest.json styles.css
