@@ -16,6 +16,7 @@ A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **ev
 - **Projects with colors** — group with `#project/name`, each with its own color and optional label. Subprojects (`#project/client/acme`) are supported.
 - **Due dates & recurrence** — `📅 2026-05-28` and `🔁 every week`. Completed recurring tasks automatically create the next instance.
 - **Calendar view** — a month grid showing every task on its due date, with the same color coding as the board (red = overdue, orange = today). Open it from the ribbon (calendar icon), the command palette, or the 📅 button on the board. Click a day to add a task with that date prefilled; click a task to edit it.
+- **Outlook calendar (optional)** — connect one or more Microsoft/Outlook accounts via OAuth and see your appointments next to your tasks in the calendar view (read-only). See [Outlook setup](#outlook-calendar-setup).
 - **Priorities** — `🔺 ⏫ 🔼 🔽 ⏬`.
 - **Subtasks** — indented checkboxes under a task. The board shows a `☑ 2/5` progress badge; add and check them in the edit modal.
 - **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it.
@@ -78,6 +79,20 @@ You can put tasks in **any** note in your vault — they are picked up automatic
 - Language (automatic / Dutch / English).
 - Projects & colors, with a button to scan the vault (or only specific scan folders) for `#project/` tags.
 - Linked notes: note folder and template file (empty = built-in template).
+- Outlook calendar: Microsoft Client ID, show events toggle, connected accounts.
+
+## Outlook calendar setup
+
+The Outlook integration uses OAuth 2.0 (Authorization Code + PKCE) and Microsoft Graph. It is read-only — appointments are shown next to your tasks, nothing is written back.
+
+1. Go to the [Microsoft Entra admin center](https://entra.microsoft.com) → **App registrations** → **New registration**.
+2. Choose a supported account type. For personal and work/school accounts across organizations, pick *Accounts in any organizational directory and personal Microsoft accounts*.
+3. Under **Authentication → Add a platform → Mobile and desktop applications**, add the redirect URI `obsidian://trietment-kanban-auth`, and enable **Allow public client flows**.
+4. Under **API permissions**, add the delegated Microsoft Graph permissions `Calendars.Read` and `offline_access`.
+5. Copy the **Application (client) ID** and paste it into the plugin settings (Outlook calendar → Microsoft Client ID).
+6. Click **Connect** and sign in. Repeat to connect multiple accounts.
+
+Tokens are stored locally in the plugin data. Work/school accounts may require admin consent depending on your organization.
 
 ## Files
 
@@ -112,6 +127,7 @@ Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **a
 - **Projecten met kleuren** — groepeer met `#project/naam`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/acme`) worden ondersteund.
 - **Due dates & herhaling** — `📅 2026-05-28` en `🔁 every week`. Afgevinkte herhalende taken maken automatisch de volgende instance aan.
 - **Kalenderweergave** — een maandraster met elke taak op zijn due date, met dezelfde kleurcodering als het bord (rood = te laat, oranje = vandaag). Open hem via het lint (kalender-icoon), het commandopalet of de 📅-knop op het bord. Klik op een dag om een taak met die datum toe te voegen; klik op een taak om hem te bewerken.
+- **Outlook-agenda (optioneel)** — koppel een of meer Microsoft/Outlook-accounts via OAuth en zie je afspraken naast je taken in de kalenderweergave (alleen-lezen). Zie [Outlook instellen](#outlook-agenda-instellen).
 - **Prioriteiten** — `🔺 ⏫ 🔼 🔽 ⏬`.
 - **Subtaken** — ingesprongen checkboxes onder een taak. Het bord toont een `☑ 2/5`-voortgangsbadge; toevoegen en afvinken doe je in de edit-modal.
 - **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een `[[wikilink]]` in de taakregel). Bestaat hij al, dan opent de knop hem.
@@ -174,6 +190,20 @@ Je kunt taken in **elke** note van je vault zetten — ze worden vanzelf opgepik
 - Taal (automatisch / Nederlands / Engels).
 - Projecten & kleuren, met een knop om de vault (of alleen bepaalde scan-mappen) te scannen op `#project/`-tags.
 - Gekoppelde notities: notitie-map en template-bestand (leeg = ingebouwde template).
+- Outlook-agenda: Microsoft Client ID, events-toggle, gekoppelde accounts.
+
+## Outlook-agenda instellen
+
+De Outlook-koppeling gebruikt OAuth 2.0 (Authorization Code + PKCE) en Microsoft Graph. Het is alleen-lezen — afspraken worden naast je taken getoond, er wordt niets teruggeschreven.
+
+1. Ga naar het [Microsoft Entra-beheercentrum](https://entra.microsoft.com) → **App-registraties** → **Nieuwe registratie**.
+2. Kies een ondersteund accounttype. Voor persoonlijke én werk-/schoolaccounts over meerdere organisaties: *Accounts in elke organisatiemap en persoonlijke Microsoft-accounts*.
+3. Onder **Verificatie → Een platform toevoegen → Mobiele en desktop-applicaties** voeg je de redirect-URI `obsidian://trietment-kanban-auth` toe en zet je **Openbare clientstromen toestaan** aan.
+4. Onder **API-machtigingen** voeg je de gedelegeerde Microsoft Graph-rechten `Calendars.Read` en `offline_access` toe.
+5. Kopieer de **Application (client) ID** en plak die in de plugin-instellingen (Outlook-agenda → Microsoft Client ID).
+6. Klik op **Koppelen** en meld je aan. Herhaal dit om meerdere accounts te koppelen.
+
+Tokens worden lokaal in de plugin-data bewaard. Werk-/schoolaccounts vereisen soms goedkeuring van de beheerder, afhankelijk van je organisatie.
 
 ## Bestanden
 

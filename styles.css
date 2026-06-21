@@ -717,6 +717,51 @@
   padding: 0 6px;
 }
 
+/* Outlook-events: zelfde grootte als taken, maar herkenbaar met een
+   gekleurde stip i.p.v. de project-rand, en niet-doorstreepbaar. */
+.tcal-event {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78em;
+  line-height: 1.25;
+  padding: 1px 6px 1px 4px;
+  border-radius: 6px;
+  background: var(--background-secondary-alt);
+  color: var(--text-normal);
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tcal-event::before {
+  content: '';
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--tcal-color, var(--text-muted));
+}
+.tcal-event-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.tcal-event-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Gekleurde stip voor een gekoppeld account in de instellingen. */
+.tk-account-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
 /* Smalle schermen: compacter raster. */
 @media (max-width: 600px) {
   .tcal-day {

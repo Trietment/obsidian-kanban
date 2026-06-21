@@ -6,6 +6,19 @@ const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, Markd
 const VIEW_TYPE_KANBAN = 'trietment-kanban-view';
 const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
 
+// -- Microsoft / Outlook (OAuth2 + Microsoft Graph) -------------------------
+// "common" = elke organisatie + persoonlijke Microsoft-accounts (multi-tenant).
+const MS_AUTHORITY = 'https://login.microsoftonline.com/common';
+const MS_SCOPES = 'openid profile offline_access Calendars.Read';
+const MS_AUTH_PROTOCOL = 'trietment-kanban-auth';
+const MS_REDIRECT = `obsidian://${MS_AUTH_PROTOCOL}`;
+// Vul hier het Application (client) ID van een geregistreerde Azure-app in om
+// de koppeling voor álle gebruikers te laten werken zonder eigen registratie.
+// Leeg = elke gebruiker vult zijn eigen Client ID in via de instellingen.
+const DEFAULT_MS_CLIENT_ID = '';
+// Eigen kleurenpalet voor gekoppelde agenda's (los van de projectkleuren).
+const OUTLOOK_PALETTE = ['#2563eb', '#0891b2', '#7c3aed', '#db2777', '#ca8a04', '#16a34a'];
+
 const DEFAULT_SETTINGS = {
   columns: ['todo', 'doing', 'waiting', 'done'],
   columnLabels: { todo: 'Te doen', doing: 'Bezig', waiting: 'Wacht op reactie', done: 'Klaar' },
@@ -22,6 +35,12 @@ const DEFAULT_SETTINGS = {
   noteFolder: 'Kanban Notes', // map voor álle gekoppelde notities (leeg = bij de bron-note)
   noteTemplate: '',   // leeg = ingebouwde template hieronder
   language: 'auto',   // 'auto' (volg Obsidian) | 'nl' | 'en'
+
+  // Outlook / Microsoft Graph
+  outlookEnabled: false,        // events tonen in de kalender
+  microsoftClientId: '',        // eigen Azure app (leeg = ingebouwde standaard, indien meegeleverd)
+  outlookAccounts: [],          // [{ id, label, email, color, refreshToken, accessToken, expiresAt, needsReauth }]
+  outlookShowEvents: true,      // snelle aan/uit in de kalenderkop
 };
 
 // Engelse standaard-kolomlabels (alleen bij een verse installatie in het Engels).
@@ -73,6 +92,30 @@ const TRANSLATIONS = {
     cal_open_board: 'Open bord',
     open_calendar_tip: 'Open kalender',
     cal_more: '+{n} meer',
+    // Outlook
+    ol_section: 'Outlook-agenda',
+    ol_help: 'Koppel je Microsoft/Outlook-agenda en toon de afspraken naast je taken in de kalenderweergave (alleen-lezen).',
+    ol_client_id: 'Microsoft Client ID',
+    ol_client_id_desc: 'Application (client) ID van een Azure app-registratie. Registreer een app in het Microsoft Entra-portaal, voeg onder "Mobiele en desktop-applicaties" de redirect-URI obsidian://trietment-kanban-auth toe, sta publieke client-flows toe en geef de gedelegeerde rechten Calendars.Read + offline_access.',
+    ol_client_id_ph: 'Application (client) ID',
+    ol_show_events: 'Outlook-events tonen',
+    ol_show_events_desc: 'Toon de afspraken uit je gekoppelde agenda(s) in de kalenderweergave.',
+    ol_accounts: 'Gekoppelde accounts',
+    ol_no_accounts: 'Nog geen accounts gekoppeld.',
+    ol_add_account: 'Account koppelen',
+    ol_add_account_desc: 'Meld je aan bij Microsoft. Je kunt meerdere accounts koppelen.',
+    ol_connect: 'Koppelen',
+    ol_remove: 'Ontkoppelen',
+    ol_reauth_needed: 'opnieuw aanmelden nodig',
+    ol_need_client_id: 'Vul eerst een Microsoft Client ID in via de instellingen.',
+    ol_opening_browser: 'Browser openen om aan te melden…',
+    ol_connected: '{name} gekoppeld.',
+    ol_disconnected: 'Account ontkoppeld.',
+    ol_auth_failed: 'Aanmelden mislukt: {msg}',
+    ol_token_failed: 'Token ophalen mislukt: {msg}',
+    ol_state_mismatch: 'Aanmelding kwam niet overeen (state mismatch). Probeer opnieuw.',
+    ol_account: 'Account',
+    ol_event_untitled: '(geen titel)',
     cmd_add_inbox: 'Voeg Kanban-taak toe (inbox)',
     cmd_add_current: 'Voeg Kanban-taak toe aan huidige note',
     open_note_first: 'Open eerst een note.',
@@ -228,6 +271,30 @@ const TRANSLATIONS = {
     cal_open_board: 'Open board',
     open_calendar_tip: 'Open calendar',
     cal_more: '+{n} more',
+    // Outlook
+    ol_section: 'Outlook calendar',
+    ol_help: 'Connect your Microsoft/Outlook calendar and show its appointments alongside your tasks in the calendar view (read-only).',
+    ol_client_id: 'Microsoft Client ID',
+    ol_client_id_desc: 'Application (client) ID of an Azure app registration. Register an app in the Microsoft Entra portal, add the redirect URI obsidian://trietment-kanban-auth under "Mobile and desktop applications", allow public client flows, and grant the delegated permissions Calendars.Read + offline_access.',
+    ol_client_id_ph: 'Application (client) ID',
+    ol_show_events: 'Show Outlook events',
+    ol_show_events_desc: 'Show the appointments from your connected calendar(s) in the calendar view.',
+    ol_accounts: 'Connected accounts',
+    ol_no_accounts: 'No accounts connected yet.',
+    ol_add_account: 'Connect account',
+    ol_add_account_desc: 'Sign in with Microsoft. You can connect multiple accounts.',
+    ol_connect: 'Connect',
+    ol_remove: 'Disconnect',
+    ol_reauth_needed: 're-authentication needed',
+    ol_need_client_id: 'Enter a Microsoft Client ID in settings first.',
+    ol_opening_browser: 'Opening browser to sign in…',
+    ol_connected: '{name} connected.',
+    ol_disconnected: 'Account disconnected.',
+    ol_auth_failed: 'Sign-in failed: {msg}',
+    ol_token_failed: 'Token exchange failed: {msg}',
+    ol_state_mismatch: 'Sign-in did not match (state mismatch). Please try again.',
+    ol_account: 'Account',
+    ol_event_untitled: '(no title)',
     cmd_add_inbox: 'Add Kanban task (inbox)',
     cmd_add_current: 'Add Kanban task to current note',
     open_note_first: 'Open a note first.',
@@ -394,6 +461,29 @@ function isoFromDate(d) {
   return `${y}-${m}-${day}`;
 }
 
+// -- PKCE / OAuth-helpers ---------------------------------------------------
+
+// Willekeurige hex-string (voor de PKCE-verifier en de state-parameter).
+function randomString(len) {
+  const arr = new Uint8Array(Math.ceil(len / 2));
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('').slice(0, len);
+}
+
+// base64url zonder padding (voor de PKCE code_challenge).
+function base64UrlEncode(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let str = '';
+  for (const b of bytes) str += String.fromCharCode(b);
+  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function pkceChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(digest);
+}
+
 // Zet een hex-kleur om naar rgba() — voor de kaart-tint zonder color-mix().
 function hexToRgba(hex, alpha) {
   if (!hex || typeof hex !== 'string') return null;
@@ -520,6 +610,9 @@ module.exports = class KanbanPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
+    this.outlook = new OutlookManager(this);
+    this.registerObsidianProtocolHandler(MS_AUTH_PROTOCOL, (params) => this.outlook.handleRedirect(params));
+
     this.registerView(VIEW_TYPE_KANBAN, (leaf) => new KanbanView(leaf, this));
     this.registerView(VIEW_TYPE_CALENDAR, (leaf) => new CalendarView(leaf, this));
 
@@ -581,7 +674,8 @@ module.exports = class KanbanPlugin extends Plugin {
       },
     });
 
-    this.addSettingTab(new KanbanSettingTab(this.app, this));
+    this.settingTab = new KanbanSettingTab(this.app, this);
+    this.addSettingTab(this.settingTab);
 
     // Eén keer draaien zodra de vault klaar is, daarna periodiek (om middernacht-rollover op te vangen).
     this.app.workspace.onLayoutReady(() => {
@@ -1507,12 +1601,23 @@ class CalendarView extends ItemView {
   async render() {
     await this.loadTasks();
 
+    // Outlook-events ophalen voor het zichtbare bereik (faalt stil → alleen taken).
+    const days = this.buildDays();
+    const startISO = isoFromDate(days[0]);
+    const lastDay = days[days.length - 1];
+    const endISO = isoFromDate(new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate() + 1));
+    this.eventsByDay = {};
+    try {
+      const events = await this.plugin.outlook.fetchEvents(startISO, endISO);
+      for (const ev of events) (this.eventsByDay[ev.dayISO] = this.eventsByDay[ev.dayISO] || []).push(ev);
+    } catch (_) { /* agenda offline → toon alleen taken */ }
+
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass('trietment-calendar-container');
 
     this.renderHeader(container);
-    this.renderGrid(container);
+    this.renderGrid(container, days);
   }
 
   renderHeader(container) {
@@ -1541,6 +1646,22 @@ class CalendarView extends ItemView {
       this.render();
     });
     hideDoneLabel.createSpan({ text: this.plugin.t('hide_done') });
+
+    // Snelle Outlook aan/uit (alleen als er accounts gekoppeld zijn).
+    if (this.plugin.outlook && this.plugin.outlook.isConfigured() && this.plugin.outlook.accounts().length) {
+      const olLabel = header.createEl('label', { cls: 'tk-hide-done' });
+      const olInput = olLabel.createEl('input', { type: 'checkbox' });
+      olInput.checked = !!this.plugin.settings.outlookShowEvents;
+      olInput.addEventListener('change', async (e) => {
+        this.plugin.settings.outlookShowEvents = e.target.checked;
+        await this.plugin.saveSettings();
+        this.render();
+      });
+      olLabel.createSpan({ text: ' Outlook' });
+    }
+
+    const refreshBtn = header.createEl('button', { text: '↻', cls: 'tk-btn', title: this.plugin.t('refresh') });
+    refreshBtn.onclick = () => { if (this.plugin.outlook) this.plugin.outlook.clearCache(); this.render(); };
 
     const boardBtn = header.createEl('button', { text: this.plugin.t('cal_open_board'), cls: 'tk-btn' });
     boardBtn.onclick = () => this.plugin.activateView();
@@ -1578,7 +1699,7 @@ class CalendarView extends ItemView {
       .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
   }
 
-  renderGrid(container) {
+  renderGrid(container, days) {
     const grid = container.createDiv({ cls: 'tcal-grid' });
 
     const weekdays = grid.createDiv({ cls: 'tcal-weekdays' });
@@ -1588,9 +1709,9 @@ class CalendarView extends ItemView {
 
     const body = grid.createDiv({ cls: 'tcal-body' });
     const today = todayISO();
-    const MAX = 4; // taken per cel voordat we naar "+n meer" inklappen
+    const MAX = 4; // items per cel voordat we naar "+n meer" inklappen
 
-    for (const day of this.buildDays()) {
+    for (const day of days) {
       const iso = isoFromDate(day);
       const cell = body.createDiv({ cls: 'tcal-day' });
       if (day.getMonth() !== this.month) cell.addClass('tcal-other-month');
@@ -1601,7 +1722,7 @@ class CalendarView extends ItemView {
 
       // Klik op een lege plek in de cel → nieuwe taak met deze datum voorgevuld.
       cell.addEventListener('click', (e) => {
-        if (e.target.closest('.tcal-task') || e.target.closest('.tcal-more')) return;
+        if (e.target.closest('.tcal-task') || e.target.closest('.tcal-event') || e.target.closest('.tcal-more')) return;
         const modal = new AddTaskModal(this.app, this.plugin, async (task) => {
           await this.plugin.createTaskInFile(task, task.targetFile || this.plugin.settings.inboxNote);
           this.plugin.scheduleRefresh();
@@ -1611,13 +1732,29 @@ class CalendarView extends ItemView {
       });
 
       const list = cell.createDiv({ cls: 'tcal-day-tasks' });
+      // Eerst de Outlook-events (hele dag eerst, daarna op tijd), dan de taken.
+      const events = ((this.eventsByDay && this.eventsByDay[iso]) || []).slice().sort(
+        (a, b) => (a.allDay === b.allDay ? (a.time || '').localeCompare(b.time || '') : (a.allDay ? -1 : 1))
+      );
       const tasks = this.tasksForDay(iso);
-      const shown = tasks.slice(0, MAX);
-      for (const task of shown) this.renderTask(list, task, iso, today);
-      if (tasks.length > shown.length) {
-        list.createDiv({ cls: 'tcal-more', text: this.plugin.t('cal_more', { n: tasks.length - shown.length }) });
+      const total = events.length + tasks.length;
+
+      let budget = MAX;
+      for (const ev of events) { if (budget <= 0) break; this.renderEvent(list, ev); budget--; }
+      for (const task of tasks) { if (budget <= 0) break; this.renderTask(list, task, iso, today); budget--; }
+      if (total > MAX) {
+        list.createDiv({ cls: 'tcal-more', text: this.plugin.t('cal_more', { n: total - MAX }) });
       }
     }
+  }
+
+  renderEvent(parent, ev) {
+    const chip = parent.createDiv({ cls: 'tcal-event' });
+    chip.style.setProperty('--tcal-color', ev.color || 'var(--text-muted)');
+    if (!ev.allDay && ev.time) chip.createSpan({ cls: 'tcal-event-time', text: ev.time });
+    chip.createSpan({ cls: 'tcal-event-text', text: ev.subject });
+    chip.setAttr('title', (ev.time ? ev.time + ' · ' : '') + ev.subject);
+    chip.addEventListener('click', (e) => e.stopPropagation()); // alleen-lezen
   }
 
   renderTask(parent, task, iso, today) {
@@ -1654,6 +1791,232 @@ class CalendarView extends ItemView {
     this.year = now.getFullYear();
     this.month = now.getMonth();
     this.render();
+  }
+}
+
+// -- Outlook / Microsoft Graph ----------------------------------------------
+
+class OutlookManager {
+  constructor(plugin) {
+    this.plugin = plugin;
+    this.pending = null;                 // { verifier, state } tijdens een login
+    this.eventCache = new Map();         // key -> { at, events } (korte cache)
+  }
+
+  t(key, vars) { return this.plugin.t(key, vars); }
+
+  clientId() {
+    return (this.plugin.settings.microsoftClientId || '').trim() || DEFAULT_MS_CLIENT_ID;
+  }
+  isConfigured() { return !!this.clientId(); }
+  accounts() { return this.plugin.settings.outlookAccounts || []; }
+  enabled() { return this.plugin.settings.outlookEnabled && this.isConfigured() && this.accounts().length > 0; }
+
+  tokenUrl() { return `${MS_AUTHORITY}/oauth2/v2.0/token`; }
+
+  // ---- Aanmelden (Authorization Code + PKCE) ----
+  async startAuth() {
+    if (!this.isConfigured()) { new Notice(this.t('ol_need_client_id')); return; }
+    const verifier = randomString(64);
+    const challenge = await pkceChallenge(verifier);
+    const state = randomString(24);
+    this.pending = { verifier, state };
+
+    const params = new URLSearchParams({
+      client_id: this.clientId(),
+      response_type: 'code',
+      redirect_uri: MS_REDIRECT,
+      response_mode: 'query',
+      scope: MS_SCOPES,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      state,
+      prompt: 'select_account',
+    });
+    new Notice(this.t('ol_opening_browser'));
+    window.open(`${MS_AUTHORITY}/oauth2/v2.0/authorize?${params.toString()}`, '_blank');
+  }
+
+  // ---- Redirect terug van Microsoft (obsidian://trietment-kanban-auth) ----
+  async handleRedirect(params) {
+    try {
+      if (params.error) {
+        new Notice(this.t('ol_auth_failed', { msg: params.error_description || params.error }));
+        return;
+      }
+      if (!this.pending || !params.state || params.state !== this.pending.state) {
+        new Notice(this.t('ol_state_mismatch'));
+        return;
+      }
+      const verifier = this.pending.verifier;
+      this.pending = null;
+
+      const token = await this.exchangeCode(params.code, verifier);
+      if (!token) return;
+
+      const profile = await this.fetchProfile(token.access_token);
+      const email = (profile && (profile.mail || profile.userPrincipalName)) || '';
+      const label = (profile && profile.displayName) || email || this.t('ol_account');
+
+      const accounts = this.accounts();
+      let acc = accounts.find((a) => a.email && email && a.email.toLowerCase() === email.toLowerCase());
+      if (!acc) {
+        acc = { id: randomString(8), color: this.nextColor(accounts) };
+        accounts.push(acc);
+      }
+      acc.label = label;
+      acc.email = email;
+      acc.refreshToken = token.refresh_token || acc.refreshToken;
+      acc.accessToken = token.access_token;
+      acc.expiresAt = Date.now() + (token.expires_in || 3600) * 1000;
+      acc.needsReauth = false;
+
+      this.plugin.settings.outlookAccounts = accounts;
+      if (!this.plugin.settings.outlookEnabled) this.plugin.settings.outlookEnabled = true;
+      await this.plugin.saveSettings();
+      this.eventCache.clear();
+
+      new Notice(this.t('ol_connected', { name: label }));
+      this.plugin.refreshViews();
+      try { if (this.plugin.settingTab) this.plugin.settingTab.display(); } catch (_) {}
+    } catch (e) {
+      new Notice(this.t('ol_auth_failed', { msg: String((e && e.message) || e) }));
+    }
+  }
+
+  nextColor(accounts) {
+    const used = new Set((accounts || []).map((a) => a.color));
+    return OUTLOOK_PALETTE.find((c) => !used.has(c)) || OUTLOOK_PALETTE[(accounts || []).length % OUTLOOK_PALETTE.length];
+  }
+
+  async exchangeCode(code, verifier) {
+    const body = new URLSearchParams({
+      client_id: this.clientId(),
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: MS_REDIRECT,
+      code_verifier: verifier,
+      scope: MS_SCOPES,
+    });
+    const res = await obsidian.requestUrl({
+      url: this.tokenUrl(),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      throw: false,
+    });
+    if (res.status >= 400) {
+      new Notice(this.t('ol_token_failed', { msg: this.errMsg(res) }));
+      return null;
+    }
+    return res.json;
+  }
+
+  // Geldig access token (ververst automatisch via de refresh token).
+  async validToken(acc) {
+    if (acc.accessToken && acc.expiresAt && acc.expiresAt > Date.now() + 60000) return acc.accessToken;
+    return await this.refreshAccount(acc);
+  }
+
+  async refreshAccount(acc) {
+    if (!acc.refreshToken) { acc.needsReauth = true; return null; }
+    const body = new URLSearchParams({
+      client_id: this.clientId(),
+      grant_type: 'refresh_token',
+      refresh_token: acc.refreshToken,
+      redirect_uri: MS_REDIRECT,
+      scope: MS_SCOPES,
+    });
+    const res = await obsidian.requestUrl({
+      url: this.tokenUrl(),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      throw: false,
+    });
+    if (res.status >= 400) {
+      acc.needsReauth = true;
+      await this.plugin.saveSettings();
+      return null;
+    }
+    const token = res.json;
+    acc.accessToken = token.access_token;
+    if (token.refresh_token) acc.refreshToken = token.refresh_token;
+    acc.expiresAt = Date.now() + (token.expires_in || 3600) * 1000;
+    acc.needsReauth = false;
+    await this.plugin.saveSettings();
+    return acc.accessToken;
+  }
+
+  async fetchProfile(accessToken) {
+    const res = await obsidian.requestUrl({
+      url: 'https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      throw: false,
+    });
+    return res.status < 400 ? res.json : null;
+  }
+
+  // Events voor [startISO, endISO) over alle accounts, met korte cache (2 min).
+  async fetchEvents(startISO, endISO) {
+    if (!this.enabled() || !this.plugin.settings.outlookShowEvents) return [];
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
+    const all = [];
+    await Promise.all(this.accounts().map(async (acc) => {
+      const key = `${acc.id}:${startISO}:${endISO}`;
+      const cached = this.eventCache.get(key);
+      if (cached && Date.now() - cached.at < 120000) { all.push(...cached.events); return; }
+      try {
+        const token = await this.validToken(acc);
+        if (!token) return;
+        const url = 'https://graph.microsoft.com/v1.0/me/calendarView'
+          + `?startDateTime=${startISO}T00:00:00&endDateTime=${endISO}T00:00:00`
+          + '&$select=subject,start,end,isAllDay,showAs&$orderby=start/dateTime&$top=250';
+        const res = await obsidian.requestUrl({
+          url,
+          headers: { Authorization: `Bearer ${token}`, Prefer: `outlook.timezone="${tz}"` },
+          throw: false,
+        });
+        if (res.status >= 400) return;
+        const items = (res.json && res.json.value) || [];
+        const events = items.map((ev) => this.normalizeEvent(ev, acc)).filter(Boolean);
+        this.eventCache.set(key, { at: Date.now(), events });
+        all.push(...events);
+      } catch (_) { /* stil: agenda offline → toon alleen taken */ }
+    }));
+    return all;
+  }
+
+  normalizeEvent(ev, acc) {
+    const dt = ev.start && ev.start.dateTime;
+    if (!dt) return null;
+    return {
+      subject: ev.subject || this.t('ol_event_untitled'),
+      dayISO: dt.slice(0, 10),
+      time: ev.isAllDay ? null : dt.slice(11, 16),
+      allDay: !!ev.isAllDay,
+      accountId: acc.id,
+      color: acc.color,
+    };
+  }
+
+  async removeAccount(id) {
+    this.plugin.settings.outlookAccounts = this.accounts().filter((a) => a.id !== id);
+    this.eventCache.clear();
+    await this.plugin.saveSettings();
+    this.plugin.refreshViews();
+    new Notice(this.t('ol_disconnected'));
+  }
+
+  clearCache() { this.eventCache.clear(); }
+
+  errMsg(res) {
+    try {
+      const j = res.json;
+      return (j && (j.error_description || j.error)) || `HTTP ${res.status}`;
+    } catch (_) {
+      return `HTTP ${res.status}`;
+    }
   }
 }
 
@@ -2246,6 +2609,68 @@ class KanbanSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshViews();
         }));
+
+    // -- Outlook -------------------------------------------------------
+    new Setting(containerEl).setName(t('ol_section')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_help') });
+
+    new Setting(containerEl)
+      .setName(t('ol_client_id'))
+      .setDesc(t('ol_client_id_desc'))
+      .addText((text) => {
+        text.inputEl.addClass('tk-input-full');
+        text
+          .setPlaceholder(t('ol_client_id_ph'))
+          .setValue(this.plugin.settings.microsoftClientId || '')
+          .onChange(async (v) => {
+            this.plugin.settings.microsoftClientId = v.trim();
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(t('ol_show_events'))
+      .setDesc(t('ol_show_events_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.outlookShowEvents)
+        .onChange(async (v) => {
+          this.plugin.settings.outlookShowEvents = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+
+    // Gekoppelde accounts
+    new Setting(containerEl).setName(t('ol_accounts')).setHeading();
+    const accounts = this.plugin.outlook.accounts();
+    if (!accounts.length) {
+      containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_no_accounts') });
+    } else {
+      for (const acc of accounts) {
+        const row = new Setting(containerEl)
+          .setName(acc.label || acc.email || t('ol_account'))
+          .setDesc(acc.needsReauth ? `${acc.email || ''} — ${t('ol_reauth_needed')}` : (acc.email || ''));
+        if (acc.color) {
+          const dot = row.nameEl.createSpan({ cls: 'tk-account-dot' });
+          dot.style.background = acc.color;
+          row.nameEl.prepend(dot);
+        }
+        row.addExtraButton((b) => b
+          .setIcon('trash')
+          .setTooltip(t('ol_remove'))
+          .onClick(async () => {
+            await this.plugin.outlook.removeAccount(acc.id);
+            this.display();
+          }));
+      }
+    }
+
+    new Setting(containerEl)
+      .setName(t('ol_add_account'))
+      .setDesc(t('ol_add_account_desc'))
+      .addButton((b) => b
+        .setButtonText(t('ol_connect'))
+        .setCta()
+        .onClick(() => this.plugin.outlook.startAuth()));
 
     // -- Projects ------------------------------------------------------
     new Setting(containerEl).setName(t('sec_projects')).setHeading();
