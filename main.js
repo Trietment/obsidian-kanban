@@ -9,7 +9,7 @@ const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
 // -- Microsoft / Outlook (OAuth2 + Microsoft Graph) -------------------------
 // "common" = elke organisatie + persoonlijke Microsoft-accounts (multi-tenant).
 const MS_AUTHORITY = 'https://login.microsoftonline.com/common';
-const MS_SCOPES = 'openid profile offline_access Calendars.Read';
+const MS_SCOPES = 'openid profile offline_access Calendars.Read Calendars.Read.Shared';
 const MS_AUTH_PROTOCOL = 'trietment-kanban-auth';
 const MS_REDIRECT = `obsidian://${MS_AUTH_PROTOCOL}`;
 // Vul hier het Application (client) ID van een geregistreerde Azure-app in om
@@ -116,6 +116,11 @@ const TRANSLATIONS = {
     ol_state_mismatch: 'Aanmelding kwam niet overeen (state mismatch). Probeer opnieuw.',
     ol_account: 'Account',
     ol_event_untitled: '(geen titel)',
+    ol_calendars: 'Agenda’s',
+    ol_refresh_calendars: 'Agenda’s vernieuwen',
+    ol_loading_calendars: 'Agenda’s laden…',
+    ol_no_calendars: 'Geen agenda’s gevonden. Klik op vernieuwen of koppel opnieuw.',
+    ol_shared_note: 'Gedeelde agenda’s vereisen het recht Calendars.Read.Shared in je Azure-app. Voeg het toe en koppel het account opnieuw als gedeelde agenda’s ontbreken. Een gedeelde agenda verschijnt pas nadat je hem in Outlook hebt toegevoegd.',
     cmd_add_inbox: 'Voeg Kanban-taak toe (inbox)',
     cmd_add_current: 'Voeg Kanban-taak toe aan huidige note',
     open_note_first: 'Open eerst een note.',
@@ -295,6 +300,11 @@ const TRANSLATIONS = {
     ol_state_mismatch: 'Sign-in did not match (state mismatch). Please try again.',
     ol_account: 'Account',
     ol_event_untitled: '(no title)',
+    ol_calendars: 'Calendars',
+    ol_refresh_calendars: 'Refresh calendars',
+    ol_loading_calendars: 'Loading calendars…',
+    ol_no_calendars: 'No calendars found. Click refresh or reconnect.',
+    ol_shared_note: 'Shared calendars require the Calendars.Read.Shared permission in your Azure app. Add it and reconnect the account if shared calendars are missing. A shared calendar only appears after you add it in Outlook.',
     cmd_add_inbox: 'Add Kanban task (inbox)',
     cmd_add_current: 'Add Kanban task to current note',
     open_note_first: 'Open a note first.',
@@ -1876,6 +1886,9 @@ class OutlookManager {
       await this.plugin.saveSettings();
       this.eventCache.clear();
 
+      // Beschikbare agenda's ophalen (default-agenda wordt automatisch geselecteerd).
+      await this.fetchCalendars(acc);
+
       new Notice(this.t('ol_connected', { name: label }));
       this.plugin.refreshViews();
       try { if (this.plugin.settingTab) this.plugin.settingTab.display(); } catch (_) {}
@@ -1957,37 +1970,91 @@ class OutlookManager {
     return res.status < 400 ? res.json : null;
   }
 
-  // Events voor [startISO, endISO) over alle accounts, met korte cache (2 min).
+  // Normaliseer een hex-kleur uit Graph ("#rrggbb" of "rrggbb") of geef null.
+  normHex(c) {
+    if (!c || typeof c !== 'string') return null;
+    let h = c.trim();
+    if (!h) return null;
+    if (h[0] !== '#') h = '#' + h;
+    return /^#[0-9a-fA-F]{6}$/.test(h) ? h : null;
+  }
+
+  // Beschikbare agenda's van een account ophalen (incl. toegevoegde gedeelde
+  // agenda's). Zet bij de eerste keer de default-agenda als selectie.
+  async fetchCalendars(acc) {
+    try {
+      const token = await this.validToken(acc);
+      if (!token) { acc.calendars = acc.calendars || []; return acc.calendars; }
+      const res = await obsidian.requestUrl({
+        url: 'https://graph.microsoft.com/v1.0/me/calendars?$select=id,name,hexColor,isDefaultCalendar&$top=100',
+        headers: { Authorization: `Bearer ${token}` },
+        throw: false,
+      });
+      if (res.status >= 400) { acc.calendars = acc.calendars || []; await this.plugin.saveSettings(); return acc.calendars; }
+      const items = (res.json && res.json.value) || [];
+      acc.calendars = items.map((c, i) => ({
+        id: c.id,
+        name: c.name || this.t('ol_account'),
+        color: this.normHex(c.hexColor) || OUTLOOK_PALETTE[i % OUTLOOK_PALETTE.length],
+        isDefault: !!c.isDefaultCalendar,
+      }));
+      const ids = new Set(acc.calendars.map((c) => c.id));
+      if (!Array.isArray(acc.selected)) {
+        const def = acc.calendars.find((c) => c.isDefault);
+        acc.selected = def ? [def.id] : acc.calendars.map((c) => c.id);
+      } else {
+        acc.selected = acc.selected.filter((id) => ids.has(id));
+      }
+      this.eventCache.clear();
+      await this.plugin.saveSettings();
+      return acc.calendars;
+    } catch (_) {
+      acc.calendars = acc.calendars || [];
+      return acc.calendars;
+    }
+  }
+
+  // Events voor [startISO, endISO) over alle geselecteerde agenda's, met korte cache (2 min).
   async fetchEvents(startISO, endISO) {
     if (!this.enabled() || !this.plugin.settings.outlookShowEvents) return [];
     const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
     const all = [];
     await Promise.all(this.accounts().map(async (acc) => {
-      const key = `${acc.id}:${startISO}:${endISO}`;
-      const cached = this.eventCache.get(key);
-      if (cached && Date.now() - cached.at < 120000) { all.push(...cached.events); return; }
-      try {
-        const token = await this.validToken(acc);
-        if (!token) return;
-        const url = 'https://graph.microsoft.com/v1.0/me/calendarView'
-          + `?startDateTime=${startISO}T00:00:00&endDateTime=${endISO}T00:00:00`
-          + '&$select=subject,start,end,isAllDay,showAs&$orderby=start/dateTime&$top=250';
-        const res = await obsidian.requestUrl({
-          url,
-          headers: { Authorization: `Bearer ${token}`, Prefer: `outlook.timezone="${tz}"` },
-          throw: false,
-        });
-        if (res.status >= 400) return;
-        const items = (res.json && res.json.value) || [];
-        const events = items.map((ev) => this.normalizeEvent(ev, acc)).filter(Boolean);
-        this.eventCache.set(key, { at: Date.now(), events });
-        all.push(...events);
-      } catch (_) { /* stil: agenda offline → toon alleen taken */ }
+      const token = await this.validToken(acc);
+      if (!token) return;
+
+      // Geselecteerde agenda's; val terug op de default-agenda voor accounts
+      // die nog van vóór de agenda-kiezer komen.
+      const selected = (acc.calendars || []).filter((c) => (acc.selected || []).includes(c.id));
+      const targets = selected.length
+        ? selected.map((c) => ({ path: `/me/calendars/${c.id}/calendarView`, color: c.color }))
+        : [{ path: '/me/calendarView', color: acc.color }];
+
+      await Promise.all(targets.map(async (tgt) => {
+        const key = `${acc.id}:${tgt.path}:${startISO}:${endISO}`;
+        const cached = this.eventCache.get(key);
+        if (cached && Date.now() - cached.at < 120000) { all.push(...cached.events); return; }
+        try {
+          const url = `https://graph.microsoft.com/v1.0${tgt.path}`
+            + `?startDateTime=${startISO}T00:00:00&endDateTime=${endISO}T00:00:00`
+            + '&$select=subject,start,end,isAllDay,showAs&$orderby=start/dateTime&$top=250';
+          const res = await obsidian.requestUrl({
+            url,
+            headers: { Authorization: `Bearer ${token}`, Prefer: `outlook.timezone="${tz}"` },
+            throw: false,
+          });
+          if (res.status >= 400) return;
+          const items = (res.json && res.json.value) || [];
+          const events = items.map((ev) => this.normalizeEvent(ev, tgt.color)).filter(Boolean);
+          this.eventCache.set(key, { at: Date.now(), events });
+          all.push(...events);
+        } catch (_) { /* stil: agenda offline → toon alleen taken */ }
+      }));
     }));
     return all;
   }
 
-  normalizeEvent(ev, acc) {
+  normalizeEvent(ev, color) {
     const dt = ev.start && ev.start.dateTime;
     if (!dt) return null;
     return {
@@ -1995,8 +2062,7 @@ class OutlookManager {
       dayISO: dt.slice(0, 10),
       time: ev.isAllDay ? null : dt.slice(11, 16),
       allDay: !!ev.isAllDay,
-      accountId: acc.id,
-      color: acc.color,
+      color,
     };
   }
 
@@ -2645,6 +2711,7 @@ class KanbanSettingTab extends PluginSettingTab {
     if (!accounts.length) {
       containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_no_accounts') });
     } else {
+      containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_shared_note') });
       for (const acc of accounts) {
         const row = new Setting(containerEl)
           .setName(acc.label || acc.email || t('ol_account'))
@@ -2655,12 +2722,46 @@ class KanbanSettingTab extends PluginSettingTab {
           row.nameEl.prepend(dot);
         }
         row.addExtraButton((b) => b
+          .setIcon('refresh-cw')
+          .setTooltip(t('ol_refresh_calendars'))
+          .onClick(async () => {
+            await this.plugin.outlook.fetchCalendars(acc);
+            this.plugin.refreshViews();
+            this.display();
+          }));
+        row.addExtraButton((b) => b
           .setIcon('trash')
           .setTooltip(t('ol_remove'))
           .onClick(async () => {
             await this.plugin.outlook.removeAccount(acc.id);
             this.display();
           }));
+
+        // Agenda-kiezer: per agenda een toggle (aan = tonen in de kalender).
+        if (!Array.isArray(acc.calendars)) {
+          containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_loading_calendars') });
+          // Eenmalig laden; daarna opnieuw tekenen (zet altijd een array, geen loop).
+          this.plugin.outlook.fetchCalendars(acc).then(() => this.display());
+        } else if (!acc.calendars.length) {
+          containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_no_calendars') });
+        } else {
+          for (const cal of acc.calendars) {
+            const cs = new Setting(containerEl).setName(cal.name).setClass('tk-setting-child');
+            const cdot = cs.nameEl.createSpan({ cls: 'tk-account-dot' });
+            cdot.style.background = cal.color;
+            cs.nameEl.prepend(cdot);
+            cs.addToggle((tg) => tg
+              .setValue((acc.selected || []).includes(cal.id))
+              .onChange(async (v) => {
+                const sel = new Set(acc.selected || []);
+                if (v) sel.add(cal.id); else sel.delete(cal.id);
+                acc.selected = [...sel];
+                await this.plugin.saveSettings();
+                this.plugin.outlook.clearCache();
+                this.plugin.refreshViews();
+              }));
+          }
+        }
       }
     }
 
