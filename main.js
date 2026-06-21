@@ -4,6 +4,7 @@ const obsidian = require('obsidian');
 const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, MarkdownView } = obsidian;
 
 const VIEW_TYPE_KANBAN = 'trietment-kanban-view';
+const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
 
 const DEFAULT_SETTINGS = {
   columns: ['todo', 'doing', 'waiting', 'done'],
@@ -64,6 +65,14 @@ const TRANSLATIONS = {
     // Commands / ribbon / view
     open_board: 'Open Kanban-bord',
     board_title: 'Kanban-bord',
+    open_calendar: 'Open kalender',
+    calendar_title: 'Kalender',
+    cal_today: 'Vandaag',
+    cal_prev: 'Vorige maand',
+    cal_next: 'Volgende maand',
+    cal_open_board: 'Open bord',
+    open_calendar_tip: 'Open kalender',
+    cal_more: '+{n} meer',
     cmd_add_inbox: 'Voeg Kanban-taak toe (inbox)',
     cmd_add_current: 'Voeg Kanban-taak toe aan huidige note',
     open_note_first: 'Open eerst een note.',
@@ -211,6 +220,14 @@ const TRANSLATIONS = {
   en: {
     open_board: 'Open Kanban board',
     board_title: 'Kanban board',
+    open_calendar: 'Open calendar',
+    calendar_title: 'Calendar',
+    cal_today: 'Today',
+    cal_prev: 'Previous month',
+    cal_next: 'Next month',
+    cal_open_board: 'Open board',
+    open_calendar_tip: 'Open calendar',
+    cal_more: '+{n} more',
     cmd_add_inbox: 'Add Kanban task (inbox)',
     cmd_add_current: 'Add Kanban task to current note',
     open_note_first: 'Open a note first.',
@@ -504,13 +521,21 @@ module.exports = class KanbanPlugin extends Plugin {
     await this.loadSettings();
 
     this.registerView(VIEW_TYPE_KANBAN, (leaf) => new KanbanView(leaf, this));
+    this.registerView(VIEW_TYPE_CALENDAR, (leaf) => new CalendarView(leaf, this));
 
     this.addRibbonIcon('square-kanban', this.t('open_board'), () => this.activateView());
+    this.addRibbonIcon('calendar-days', this.t('open_calendar'), () => this.activateCalendarView());
 
     this.addCommand({
       id: 'open-kanban',
       name: this.t('open_board'),
       callback: () => this.activateView(),
+    });
+
+    this.addCommand({
+      id: 'open-calendar',
+      name: this.t('open_calendar'),
+      callback: () => this.activateCalendarView(),
     });
 
     this.addCommand({
@@ -595,6 +620,9 @@ module.exports = class KanbanPlugin extends Plugin {
   refreshViews() {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN).forEach((leaf) => {
       if (leaf.view instanceof KanbanView) leaf.view.render();
+    });
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_CALENDAR).forEach((leaf) => {
+      if (leaf.view instanceof CalendarView) leaf.view.render();
     });
   }
 
@@ -694,6 +722,16 @@ module.exports = class KanbanPlugin extends Plugin {
     if (!leaf) {
       leaf = workspace.getLeaf('tab');
       await leaf.setViewState({ type: VIEW_TYPE_KANBAN, active: true });
+    }
+    workspace.revealLeaf(leaf);
+  }
+
+  async activateCalendarView() {
+    const { workspace } = this.app;
+    let leaf = workspace.getLeavesOfType(VIEW_TYPE_CALENDAR)[0];
+    if (!leaf) {
+      leaf = workspace.getLeaf('tab');
+      await leaf.setViewState({ type: VIEW_TYPE_CALENDAR, active: true });
     }
     workspace.revealLeaf(leaf);
   }
@@ -1163,6 +1201,9 @@ class KanbanView extends ItemView {
       }).open();
     };
 
+    const calBtn = header.createEl('button', { text: '📅', cls: 'tk-btn', title: this.plugin.t('open_calendar_tip') });
+    calBtn.onclick = () => this.plugin.activateCalendarView();
+
     const refreshBtn = header.createEl('button', { text: '↻', cls: 'tk-btn', title: this.plugin.t('refresh') });
     refreshBtn.onclick = () => this.render();
 
@@ -1433,6 +1474,186 @@ class KanbanView extends ItemView {
       if (e.target.closest('.tk-card-header') || e.target.closest('.tk-card-check') || e.target.closest('.tk-card-subs')) return;
       openEdit();
     });
+  }
+}
+
+// -- Calendar View ----------------------------------------------------------
+
+class CalendarView extends ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+    this.tasks = [];
+    this.hideDone = false;
+    const now = new Date();
+    this.year = now.getFullYear();
+    this.month = now.getMonth(); // 0-11
+  }
+
+  getViewType() { return VIEW_TYPE_CALENDAR; }
+  getDisplayText() { return this.plugin.t('calendar_title'); }
+  getIcon() { return 'calendar-days'; }
+
+  async onOpen() { await this.render(); }
+  async onClose() {}
+
+  async loadTasks() {
+    this.tasks = await this.plugin.scanTasks();
+  }
+
+  // Locale voor maand-/weekdagnamen, afgeleid van de plugintaal.
+  locale() { return this.plugin.lang === 'nl' ? 'nl-NL' : 'en-US'; }
+
+  async render() {
+    await this.loadTasks();
+
+    const container = this.containerEl.children[1];
+    container.empty();
+    container.addClass('trietment-calendar-container');
+
+    this.renderHeader(container);
+    this.renderGrid(container);
+  }
+
+  renderHeader(container) {
+    const header = container.createDiv({ cls: 'tcal-header' });
+
+    const nav = header.createDiv({ cls: 'tcal-nav' });
+    const prev = nav.createEl('button', { text: '‹', cls: 'tk-btn', title: this.plugin.t('cal_prev') });
+    prev.onclick = () => this.shiftMonth(-1);
+    const todayBtn = nav.createEl('button', { text: this.plugin.t('cal_today'), cls: 'tk-btn' });
+    todayBtn.onclick = () => this.goToday();
+    const next = nav.createEl('button', { text: '›', cls: 'tk-btn', title: this.plugin.t('cal_next') });
+    next.onclick = () => this.shiftMonth(1);
+
+    let title = new Intl.DateTimeFormat(this.locale(), { month: 'long', year: 'numeric' })
+      .format(new Date(this.year, this.month, 1));
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+    header.createEl('h2', { text: title, cls: 'tcal-title' });
+
+    header.createDiv({ cls: 'tcal-spacer' });
+
+    const hideDoneLabel = header.createEl('label', { cls: 'tk-hide-done' });
+    const hideDoneInput = hideDoneLabel.createEl('input', { type: 'checkbox' });
+    hideDoneInput.checked = this.hideDone;
+    hideDoneInput.addEventListener('change', (e) => {
+      this.hideDone = e.target.checked;
+      this.render();
+    });
+    hideDoneLabel.createSpan({ text: this.plugin.t('hide_done') });
+
+    const boardBtn = header.createEl('button', { text: this.plugin.t('cal_open_board'), cls: 'tk-btn' });
+    boardBtn.onclick = () => this.plugin.activateView();
+  }
+
+  // Weekdagnamen, maandag-start (2024-01-01 is een maandag).
+  weekdayNames() {
+    const fmt = new Intl.DateTimeFormat(this.locale(), { weekday: 'short' });
+    const names = [];
+    for (let i = 0; i < 7; i++) names.push(fmt.format(new Date(2024, 0, 1 + i)));
+    return names;
+  }
+
+  // Alle dagcellen voor de zichtbare maand, aangevuld tot hele weken (maandag-start).
+  buildDays() {
+    const weekStart = 1; // maandag
+    const first = new Date(this.year, this.month, 1);
+    const lead = (first.getDay() - weekStart + 7) % 7;
+    const lastDate = new Date(this.year, this.month + 1, 0).getDate();
+    const end = new Date(this.year, this.month, lastDate);
+    const trail = (weekStart + 6 - end.getDay() + 7) % 7;
+    const days = [];
+    const d = new Date(this.year, this.month, 1 - lead);
+    const endCell = new Date(this.year, this.month, lastDate + trail);
+    while (d <= endCell) {
+      days.push(new Date(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return days;
+  }
+
+  tasksForDay(iso) {
+    return this.tasks
+      .filter((t) => t.dueDate === iso && !(this.hideDone && t.done))
+      .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
+  }
+
+  renderGrid(container) {
+    const grid = container.createDiv({ cls: 'tcal-grid' });
+
+    const weekdays = grid.createDiv({ cls: 'tcal-weekdays' });
+    for (const name of this.weekdayNames()) {
+      weekdays.createDiv({ cls: 'tcal-weekday', text: name });
+    }
+
+    const body = grid.createDiv({ cls: 'tcal-body' });
+    const today = todayISO();
+    const MAX = 4; // taken per cel voordat we naar "+n meer" inklappen
+
+    for (const day of this.buildDays()) {
+      const iso = isoFromDate(day);
+      const cell = body.createDiv({ cls: 'tcal-day' });
+      if (day.getMonth() !== this.month) cell.addClass('tcal-other-month');
+      if (iso === today) cell.addClass('tcal-today');
+
+      const head = cell.createDiv({ cls: 'tcal-day-head' });
+      head.createSpan({ cls: 'tcal-day-num', text: String(day.getDate()) });
+
+      // Klik op een lege plek in de cel → nieuwe taak met deze datum voorgevuld.
+      cell.addEventListener('click', (e) => {
+        if (e.target.closest('.tcal-task') || e.target.closest('.tcal-more')) return;
+        const modal = new AddTaskModal(this.app, this.plugin, async (task) => {
+          await this.plugin.createTaskInFile(task, task.targetFile || this.plugin.settings.inboxNote);
+          this.plugin.scheduleRefresh();
+        });
+        modal.task.dueDate = iso;
+        modal.open();
+      });
+
+      const list = cell.createDiv({ cls: 'tcal-day-tasks' });
+      const tasks = this.tasksForDay(iso);
+      const shown = tasks.slice(0, MAX);
+      for (const task of shown) this.renderTask(list, task, iso, today);
+      if (tasks.length > shown.length) {
+        list.createDiv({ cls: 'tcal-more', text: this.plugin.t('cal_more', { n: tasks.length - shown.length }) });
+      }
+    }
+  }
+
+  renderTask(parent, task, iso, today) {
+    const chip = parent.createDiv({ cls: 'tcal-task' });
+    if (task.done) chip.addClass('tcal-task-done');
+    else if (iso < today) chip.addClass('tcal-overdue');
+    else if (iso === today) chip.addClass('tcal-due-today');
+
+    const color = this.plugin.getProjectColor(task.project);
+    if (color) chip.style.setProperty('--tcal-color', color);
+    else chip.addClass('tcal-no-color');
+
+    if (task.priority && PRIORITY_ICONS[task.priority]) {
+      chip.createSpan({ cls: 'tcal-task-prio', text: PRIORITY_ICONS[task.priority] });
+    }
+    chip.createSpan({ cls: 'tcal-task-text', text: task.text || this.plugin.t('empty_task') });
+    chip.setAttr('title', task.text || this.plugin.t('empty_task'));
+
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      new EditTaskModal(this.app, this.plugin, task, () => this.plugin.scheduleRefresh()).open();
+    });
+  }
+
+  shiftMonth(delta) {
+    this.month += delta;
+    while (this.month < 0) { this.month += 12; this.year--; }
+    while (this.month > 11) { this.month -= 12; this.year++; }
+    this.render();
+  }
+
+  goToday() {
+    const now = new Date();
+    this.year = now.getFullYear();
+    this.month = now.getMonth();
+    this.render();
   }
 }
 

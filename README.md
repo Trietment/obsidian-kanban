@@ -15,6 +15,7 @@ A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **ev
 - **Bilingual (EN/NL)** — the whole interface is available in English and Dutch. By default the plugin follows the Obsidian language; you can also choose manually.
 - **Projects with colors** — group with `#project/name`, each with its own color and optional label. Subprojects (`#project/client/acme`) are supported.
 - **Due dates & recurrence** — `📅 2026-05-28` and `🔁 every week`. Completed recurring tasks automatically create the next instance.
+- **Calendar view** — a month grid showing every task on its due date, with the same color coding as the board (red = overdue, orange = today). Open it from the ribbon (calendar icon), the command palette, or the 📅 button on the board. Click a day to add a task with that date prefilled; click a task to edit it.
 - **Priorities** — `🔺 ⏫ 🔼 🔽 ⏬`.
 - **Subtasks** — indented checkboxes under a task. The board shows a `☑ 2/5` progress badge; add and check them in the edit modal.
 - **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it.
@@ -110,6 +111,7 @@ Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **a
 - **Tweetalig (NL/EN)** — de hele interface is beschikbaar in het Nederlands en het Engels. Standaard volgt de plugin de taal van Obsidian; je kunt ook handmatig kiezen.
 - **Projecten met kleuren** — groepeer met `#project/naam`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/acme`) worden ondersteund.
 - **Due dates & herhaling** — `📅 2026-05-28` en `🔁 every week`. Afgevinkte herhalende taken maken automatisch de volgende instance aan.
+- **Kalenderweergave** — een maandraster met elke taak op zijn due date, met dezelfde kleurcodering als het bord (rood = te laat, oranje = vandaag). Open hem via het lint (kalender-icoon), het commandopalet of de 📅-knop op het bord. Klik op een dag om een taak met die datum toe te voegen; klik op een taak om hem te bewerken.
 - **Prioriteiten** — `🔺 ⏫ 🔼 🔽 ⏬`.
 - **Subtaken** — ingesprongen checkboxes onder een taak. Het bord toont een `☑ 2/5`-voortgangsbadge; toevoegen en afvinken doe je in de edit-modal.
 - **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een `[[wikilink]]` in de taakregel). Bestaat hij al, dan opent de knop hem.

@@ -558,3 +558,171 @@
 .tk-input-full {
   width: 100%;
 }
+
+/* -- Kalenderweergave ----------------------------------------------------- */
+
+.trietment-calendar-container {
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tcal-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  gap: 10px;
+  flex-shrink: 0;
+}
+.tcal-nav {
+  display: flex;
+  gap: 4px;
+}
+.tcal-title {
+  margin: 0;
+  font-size: 1.1em;
+  min-width: 9em;
+}
+.tcal-spacer {
+  flex: 1;
+}
+
+.tcal-grid {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tcal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex-shrink: 0;
+}
+.tcal-weekday {
+  padding: 6px 8px;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: capitalize;
+  text-align: left;
+}
+
+.tcal-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-auto-rows: 1fr;
+  overflow-y: auto;
+}
+.tcal-day {
+  border-right: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+  min-height: 92px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.tcal-day:hover {
+  background: var(--background-modifier-hover);
+}
+.tcal-day:nth-child(7n) {
+  border-right: none;
+}
+.tcal-other-month {
+  background: var(--background-secondary);
+  opacity: 0.6;
+}
+.tcal-day-head {
+  display: flex;
+  justify-content: flex-end;
+}
+.tcal-day-num {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  width: 1.6em;
+  height: 1.6em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.tcal-today .tcal-day-num {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 600;
+}
+
+.tcal-day-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+.tcal-task {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.78em;
+  line-height: 1.25;
+  padding: 1px 6px;
+  border-radius: 6px;
+  border-left: 3px solid var(--tcal-color, var(--interactive-accent));
+  background: var(--background-secondary-alt);
+  color: var(--text-normal);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tcal-task:hover {
+  filter: brightness(1.08);
+}
+.tcal-task-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tcal-task-prio {
+  flex-shrink: 0;
+  font-size: 0.9em;
+}
+.tcal-no-color {
+  border-left-color: var(--background-modifier-border);
+}
+/* Zelfde kleurcodering als op het bord: rood = te laat, oranje = vandaag. */
+.tcal-task.tcal-overdue {
+  border-left-color: var(--color-red, #e53e3e);
+  background: rgba(229, 62, 62, 0.16);
+  color: var(--color-red, #e53e3e);
+  font-weight: 600;
+}
+.tcal-task.tcal-due-today {
+  border-left-color: var(--color-orange, #dd6b20);
+  background: rgba(221, 107, 32, 0.18);
+  color: var(--color-orange, #dd6b20);
+  font-weight: 600;
+}
+.tcal-task.tcal-task-done {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.tcal-more {
+  font-size: 0.72em;
+  color: var(--text-muted);
+  padding: 0 6px;
+}
+
+/* Smalle schermen: compacter raster. */
+@media (max-width: 600px) {
+  .tcal-day {
+    min-height: 64px;
+  }
+  .tcal-task {
+    font-size: 0.72em;
+  }
+}
