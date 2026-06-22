@@ -12,10 +12,10 @@ const MS_AUTHORITY = 'https://login.microsoftonline.com/common';
 const MS_SCOPES = 'openid profile offline_access Calendars.Read Calendars.Read.Shared';
 const MS_AUTH_PROTOCOL = 'trietment-kanban-auth';
 const MS_REDIRECT = `obsidian://${MS_AUTH_PROTOCOL}`;
-// Vul hier het Application (client) ID van een geregistreerde Azure-app in om
-// de koppeling voor álle gebruikers te laten werken zonder eigen registratie.
-// Leeg = elke gebruiker vult zijn eigen Client ID in via de instellingen.
-const DEFAULT_MS_CLIENT_ID = '';
+// Application (client) ID van de geregistreerde Azure-app, zodat de koppeling
+// voor álle gebruikers werkt zonder eigen registratie. Het Client ID is publiek
+// (geen geheim). Gebruikers kunnen dit desgewenst overschrijven in de instellingen.
+const DEFAULT_MS_CLIENT_ID = '9a17bc84-20cf-46e7-b761-d52aadcd92ac';
 // Eigen kleurenpalet voor gekoppelde agenda's (los van de projectkleuren).
 const OUTLOOK_PALETTE = ['#2563eb', '#0891b2', '#7c3aed', '#db2777', '#ca8a04', '#16a34a'];
 
