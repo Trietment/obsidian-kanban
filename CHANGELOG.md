@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.10.2
+
+- **Outlook tokens are now stored per device** — sign-in tokens are kept in device-local storage instead of `data.json`, so they are never copied by Obsidian Sync and cannot cause refresh-token conflicts between devices. Your account list and calendar choices still sync; you just sign in once per device. Existing tokens migrate automatically on first load.
+
+> NL: Outlook-tokens worden nu per apparaat bewaard (device-lokaal i.p.v. in `data.json`), zodat ze niet meesyncen met Obsidian Sync en er geen token-botsingen tussen apparaten ontstaan. Je accountlijst en agenda-keuzes syncen wél; je meldt je alleen één keer per apparaat aan. Bestaande tokens verhuizen automatisch.
+
 ## 1.10.1
 
 - **Rename connected accounts** — give each Outlook account a recognizable name in settings, so it is clear which account is which.

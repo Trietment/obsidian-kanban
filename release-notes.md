@@ -1,8 +1,7 @@
-## Rename connected Outlook accounts
+## Outlook tokens stored per device
 
-A small follow-up to 1.10.0.
+A privacy/robustness follow-up to 1.10.1.
 
-- **Rename accounts** — give each connected Outlook account a recognizable name in settings, so it is clear which account is which.
-- **Better automatic names** — the account name and email are now filled in automatically on connect (added the `User.Read` permission). Existing connections show "Account" until you reconnect, or you can just type your own name.
-
-If you self-host your own Client ID, add the `User.Read` delegated permission in your Azure app (it is usually present by default).
+- **Tokens no longer sync** — Outlook sign-in tokens are now kept in device-local storage instead of `data.json`. Obsidian Sync no longer copies them across devices, which also prevents refresh-token conflicts between devices.
+- Your account list and calendar selection still sync as before — you just sign in once per device.
+- Existing tokens migrate automatically on first load; no action needed.

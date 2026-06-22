@@ -105,7 +105,7 @@ The Outlook integration uses OAuth 2.0 (Authorization Code + PKCE) and Microsoft
 6. Click **Connect** and sign in. Repeat to connect multiple accounts.
 7. Under each connected account, use the calendar picker to choose which calendars to show. Shared calendars appear once you have added them in Outlook; use the refresh button to reload the list. Each calendar gets its own color.
 
-Tokens are stored locally in the plugin data. Work/school accounts may require admin consent depending on your organization.
+Sign-in tokens are stored per device (in local storage, not in `data.json`), so they are never copied by Obsidian Sync — you sign in once per device. Work/school accounts may require admin consent depending on your organization.
 
 ## Files
 
@@ -229,7 +229,7 @@ De Outlook-koppeling gebruikt OAuth 2.0 (Authorization Code + PKCE) en Microsoft
 6. Klik op **Koppelen** en meld je aan. Herhaal dit om meerdere accounts te koppelen.
 7. Onder elk gekoppeld account kies je met de agenda-kiezer welke agenda's je toont. Gedeelde agenda's verschijnen zodra je ze in Outlook hebt toegevoegd; gebruik de vernieuwen-knop om de lijst opnieuw te laden. Elke agenda krijgt een eigen kleur.
 
-Tokens worden lokaal in de plugin-data bewaard. Werk-/schoolaccounts vereisen soms goedkeuring van de beheerder, afhankelijk van je organisatie.
+Aanmeld-tokens worden per apparaat bewaard (in lokale opslag, niet in `data.json`), zodat Obsidian Sync ze niet meeneemt — je meldt je één keer per apparaat aan. Werk-/schoolaccounts vereisen soms goedkeuring van de beheerder, afhankelijk van je organisatie.
 
 ## Bestanden
 

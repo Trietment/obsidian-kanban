@@ -39,7 +39,7 @@ const DEFAULT_SETTINGS = {
   // Outlook / Microsoft Graph
   outlookEnabled: false,        // events tonen in de kalender
   microsoftClientId: '',        // eigen Azure app (leeg = ingebouwde standaard, indien meegeleverd)
-  outlookAccounts: [],          // [{ id, label, email, color, refreshToken, accessToken, expiresAt, needsReauth }]
+  outlookAccounts: [],          // [{ id, label, email, customName, color, calendars, selected, needsReauth }] — tokens staan device-lokaal (localStorage), niet hier
   outlookShowEvents: true,      // snelle aan/uit in de kalenderkop
 };
 
@@ -633,6 +633,7 @@ module.exports = class KanbanPlugin extends Plugin {
     await this.loadSettings();
 
     this.outlook = new OutlookManager(this);
+    this.outlook.migrateTokens(); // tokens uit data.json naar device-lokale opslag
     this.registerObsidianProtocolHandler(MS_AUTH_PROTOCOL, (params) => this.outlook.handleRedirect(params));
 
     this.registerView(VIEW_TYPE_KANBAN, (leaf) => new KanbanView(leaf, this));
@@ -1836,6 +1837,47 @@ class OutlookManager {
 
   tokenUrl() { return `${MS_AUTHORITY}/oauth2/v2.0/token`; }
 
+  // ---- Device-lokale tokenopslag (localStorage, per vault gescoped) --------
+  // Tokens staan bewust NIET in data.json, zodat Obsidian Sync ze niet meeneemt
+  // en er geen refresh-token-botsingen tussen apparaten ontstaan.
+  tokenStoreKey() {
+    const vault = (this.plugin.app && this.plugin.app.appId) || 'vault';
+    return `trietment-kanban:outlook-tokens:${vault}`;
+  }
+  loadTokens() {
+    try { return JSON.parse(window.localStorage.getItem(this.tokenStoreKey()) || '{}') || {}; }
+    catch (_) { return {}; }
+  }
+  saveTokens(map) {
+    try { window.localStorage.setItem(this.tokenStoreKey(), JSON.stringify(map)); } catch (_) {}
+  }
+  getToken(id) { return this.loadTokens()[id] || null; }
+  setToken(id, tok) {
+    const map = this.loadTokens();
+    if (tok) map[id] = tok; else delete map[id];
+    this.saveTokens(map);
+  }
+
+  // Eenmalige migratie: tokens die nog in data.json staan (van vóór deze versie)
+  // verhuizen naar de device-lokale opslag en worden uit data.json verwijderd.
+  migrateTokens() {
+    let changed = false;
+    for (const acc of this.accounts()) {
+      if ('refreshToken' in acc || 'accessToken' in acc || 'expiresAt' in acc) {
+        if (acc.refreshToken || acc.accessToken) {
+          this.setToken(acc.id, {
+            refreshToken: acc.refreshToken,
+            accessToken: acc.accessToken,
+            expiresAt: acc.expiresAt,
+          });
+        }
+        delete acc.refreshToken; delete acc.accessToken; delete acc.expiresAt;
+        changed = true;
+      }
+    }
+    if (changed) this.plugin.saveSettings();
+  }
+
   // ---- Aanmelden (Authorization Code + PKCE) ----
   async startAuth() {
     if (!this.isConfigured()) { new Notice(this.t('ol_need_client_id')); return; }
@@ -1888,10 +1930,14 @@ class OutlookManager {
       }
       acc.label = label;
       acc.email = email;
-      acc.refreshToken = token.refresh_token || acc.refreshToken;
-      acc.accessToken = token.access_token;
-      acc.expiresAt = Date.now() + (token.expires_in || 3600) * 1000;
       acc.needsReauth = false;
+      // Tokens worden device-lokaal bewaard (niet in data.json → syncen niet mee).
+      const existing = this.getToken(acc.id) || {};
+      this.setToken(acc.id, {
+        refreshToken: token.refresh_token || existing.refreshToken,
+        accessToken: token.access_token,
+        expiresAt: Date.now() + (token.expires_in || 3600) * 1000,
+      });
 
       this.plugin.settings.outlookAccounts = accounts;
       if (!this.plugin.settings.outlookEnabled) this.plugin.settings.outlookEnabled = true;
@@ -1939,19 +1985,21 @@ class OutlookManager {
 
   // Geldig access token (ververst automatisch via de refresh token).
   async validToken(acc) {
-    if (acc.accessToken && acc.expiresAt && acc.expiresAt > Date.now() + 60000) return acc.accessToken;
+    const tok = this.getToken(acc.id);
+    if (tok && tok.accessToken && tok.expiresAt && tok.expiresAt > Date.now() + 60000) return tok.accessToken;
     return await this.refreshAccount(acc);
   }
 
   async refreshAccount(acc) {
-    if (!acc.refreshToken) { acc.needsReauth = true; return null; }
+    const tok = this.getToken(acc.id);
+    if (!tok || !tok.refreshToken) { await this.markReauth(acc); return null; }
     // Bewust géén scope meesturen: een refresh hergebruikt de oorspronkelijk
     // toegestemde scopes. Zo blijven bestaande koppelingen werken ook nadat we
     // later een scope (zoals User.Read) toevoegen — die geldt pas na herkoppelen.
     const body = new URLSearchParams({
       client_id: this.clientId(),
       grant_type: 'refresh_token',
-      refresh_token: acc.refreshToken,
+      refresh_token: tok.refreshToken,
       redirect_uri: MS_REDIRECT,
     });
     const res = await obsidian.requestUrl({
@@ -1961,18 +2009,19 @@ class OutlookManager {
       body: body.toString(),
       throw: false,
     });
-    if (res.status >= 400) {
-      acc.needsReauth = true;
-      await this.plugin.saveSettings();
-      return null;
-    }
+    if (res.status >= 400) { await this.markReauth(acc); return null; }
     const token = res.json;
-    acc.accessToken = token.access_token;
-    if (token.refresh_token) acc.refreshToken = token.refresh_token;
-    acc.expiresAt = Date.now() + (token.expires_in || 3600) * 1000;
-    acc.needsReauth = false;
-    await this.plugin.saveSettings();
-    return acc.accessToken;
+    this.setToken(acc.id, {
+      refreshToken: token.refresh_token || tok.refreshToken,
+      accessToken: token.access_token,
+      expiresAt: Date.now() + (token.expires_in || 3600) * 1000,
+    });
+    if (acc.needsReauth) { acc.needsReauth = false; await this.plugin.saveSettings(); }
+    return token.access_token;
+  }
+
+  async markReauth(acc) {
+    if (!acc.needsReauth) { acc.needsReauth = true; await this.plugin.saveSettings(); }
   }
 
   async fetchProfile(accessToken) {
@@ -2081,6 +2130,7 @@ class OutlookManager {
   }
 
   async removeAccount(id) {
+    this.setToken(id, null); // device-lokale token ook wissen
     this.plugin.settings.outlookAccounts = this.accounts().filter((a) => a.id !== id);
     this.eventCache.clear();
     await this.plugin.saveSettings();
