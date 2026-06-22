@@ -8,6 +8,18 @@ A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **ev
 
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
+### New in 1.10 — Calendar view & Outlook sync
+
+See every task on its due date in a month calendar, and optionally overlay your Outlook appointments next to them.
+
+![Calendar view with tasks and Outlook events — dark theme](assets/calendar-preview.png)
+
+![Calendar view — light theme](assets/calendar-preview-light.png)
+
+![Outlook calendar connection with the calendar picker — dark theme](assets/outlook-preview.png)
+
+![Outlook calendar connection — light theme](assets/outlook-preview-light.png)
+
 ## Features
 
 - **Tasks from your whole vault** — every `- [ ]` checkbox with a `#kanban/` tag appears on the board.
@@ -119,6 +131,18 @@ Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **a
 ![Trietment Kanban-bord — donker thema](assets/board-preview.png)
 
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
+
+### Nieuw in 1.10 — Kalenderweergave & Outlook-sync
+
+Zie elke taak op zijn due date in een maandkalender, en leg er optioneel je Outlook-afspraken naast.
+
+![Kalenderweergave met taken en Outlook-events — donker thema](assets/calendar-preview.png)
+
+![Kalenderweergave — licht thema](assets/calendar-preview-light.png)
+
+![Outlook-koppeling met de agenda-kiezer — donker thema](assets/outlook-preview.png)
+
+![Outlook-koppeling — licht thema](assets/outlook-preview-light.png)
 
 ## Functies
 

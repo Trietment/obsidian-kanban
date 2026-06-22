@@ -41,8 +41,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
+          # Gebruik release-notes.md als release-tekst (zo zien gebruikers in
+          # Obsidian/BRAT wat er nieuw is); val terug op een generieke tekst.
+          if [ -f release-notes.md ]; then
+            NOTES=(--notes-file release-notes.md)
+          else
+            NOTES=(--notes="Automated release for $TAG. See the README for details.")
+          fi
           gh release create "$TAG" \
             --title="$TAG" \
-            --notes="Automated release for $TAG. See the README for details." \
+            "${NOTES[@]}" \
             --target="$GITHUB_SHA" \
             main.js manifest.json styles.css
