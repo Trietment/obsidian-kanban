@@ -1945,12 +1945,14 @@ class OutlookManager {
 
   async refreshAccount(acc) {
     if (!acc.refreshToken) { acc.needsReauth = true; return null; }
+    // Bewust géén scope meesturen: een refresh hergebruikt de oorspronkelijk
+    // toegestemde scopes. Zo blijven bestaande koppelingen werken ook nadat we
+    // later een scope (zoals User.Read) toevoegen — die geldt pas na herkoppelen.
     const body = new URLSearchParams({
       client_id: this.clientId(),
       grant_type: 'refresh_token',
       refresh_token: acc.refreshToken,
       redirect_uri: MS_REDIRECT,
-      scope: MS_SCOPES,
     });
     const res = await obsidian.requestUrl({
       url: this.tokenUrl(),
