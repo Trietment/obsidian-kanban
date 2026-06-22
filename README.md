@@ -100,7 +100,7 @@ The Outlook integration uses OAuth 2.0 (Authorization Code + PKCE) and Microsoft
 1. Go to the [Microsoft Entra admin center](https://entra.microsoft.com) → **App registrations** → **New registration**.
 2. Choose a supported account type. For personal and work/school accounts across organizations, pick *Accounts in any organizational directory and personal Microsoft accounts*.
 3. Under **Authentication → Add a platform → Mobile and desktop applications**, add the redirect URI `obsidian://trietment-kanban-auth`, and enable **Allow public client flows**.
-4. Under **API permissions**, add the delegated Microsoft Graph permissions `Calendars.Read`, `Calendars.Read.Shared` and `offline_access`.
+4. Under **API permissions**, add the delegated Microsoft Graph permissions `User.Read`, `Calendars.Read`, `Calendars.Read.Shared` and `offline_access`.
 5. Copy the **Application (client) ID** and paste it into the plugin settings (Outlook calendar → Microsoft Client ID).
 6. Click **Connect** and sign in. Repeat to connect multiple accounts.
 7. Under each connected account, use the calendar picker to choose which calendars to show. Shared calendars appear once you have added them in Outlook; use the refresh button to reload the list. Each calendar gets its own color.
@@ -224,7 +224,7 @@ De Outlook-koppeling gebruikt OAuth 2.0 (Authorization Code + PKCE) en Microsoft
 1. Ga naar het [Microsoft Entra-beheercentrum](https://entra.microsoft.com) → **App-registraties** → **Nieuwe registratie**.
 2. Kies een ondersteund accounttype. Voor persoonlijke én werk-/schoolaccounts over meerdere organisaties: *Accounts in elke organisatiemap en persoonlijke Microsoft-accounts*.
 3. Onder **Verificatie → Een platform toevoegen → Mobiele en desktop-applicaties** voeg je de redirect-URI `obsidian://trietment-kanban-auth` toe en zet je **Openbare clientstromen toestaan** aan.
-4. Onder **API-machtigingen** voeg je de gedelegeerde Microsoft Graph-rechten `Calendars.Read`, `Calendars.Read.Shared` en `offline_access` toe.
+4. Onder **API-machtigingen** voeg je de gedelegeerde Microsoft Graph-rechten `User.Read`, `Calendars.Read`, `Calendars.Read.Shared` en `offline_access` toe.
 5. Kopieer de **Application (client) ID** en plak die in de plugin-instellingen (Outlook-agenda → Microsoft Client ID).
 6. Klik op **Koppelen** en meld je aan. Herhaal dit om meerdere accounts te koppelen.
 7. Onder elk gekoppeld account kies je met de agenda-kiezer welke agenda's je toont. Gedeelde agenda's verschijnen zodra je ze in Outlook hebt toegevoegd; gebruik de vernieuwen-knop om de lijst opnieuw te laden. Elke agenda krijgt een eigen kleur.

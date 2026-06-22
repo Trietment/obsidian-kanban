@@ -9,7 +9,7 @@ const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
 // -- Microsoft / Outlook (OAuth2 + Microsoft Graph) -------------------------
 // "common" = elke organisatie + persoonlijke Microsoft-accounts (multi-tenant).
 const MS_AUTHORITY = 'https://login.microsoftonline.com/common';
-const MS_SCOPES = 'openid profile offline_access Calendars.Read Calendars.Read.Shared';
+const MS_SCOPES = 'openid profile offline_access User.Read Calendars.Read Calendars.Read.Shared';
 const MS_AUTH_PROTOCOL = 'trietment-kanban-auth';
 const MS_REDIRECT = `obsidian://${MS_AUTH_PROTOCOL}`;
 // Application (client) ID van de geregistreerde Azure-app, zodat de koppeling
@@ -119,6 +119,8 @@ const TRANSLATIONS = {
     ol_token_failed: 'Token ophalen mislukt: {msg}',
     ol_state_mismatch: 'Aanmelding kwam niet overeen (state mismatch). Probeer opnieuw.',
     ol_account: 'Account',
+    ol_account_name: 'Naam',
+    ol_account_name_hint: 'Geef dit account een herkenbare naam',
     ol_event_untitled: '(geen titel)',
     ol_calendars: 'Agenda’s',
     ol_refresh_calendars: 'Agenda’s vernieuwen',
@@ -307,6 +309,8 @@ const TRANSLATIONS = {
     ol_token_failed: 'Token exchange failed: {msg}',
     ol_state_mismatch: 'Sign-in did not match (state mismatch). Please try again.',
     ol_account: 'Account',
+    ol_account_name: 'Name',
+    ol_account_name_hint: 'Give this account a recognizable name',
     ol_event_untitled: '(no title)',
     ol_calendars: 'Calendars',
     ol_refresh_calendars: 'Refresh calendars',
@@ -2732,14 +2736,27 @@ class KanbanSettingTab extends PluginSettingTab {
     } else {
       containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_shared_note') });
       for (const acc of accounts) {
+        // Automatische naam uit Graph (displayName/e-mail); 'Account' telt als leeg.
+        const autoName = (acc.label && acc.label !== t('ol_account')) ? acc.label : (acc.email || '');
         const row = new Setting(containerEl)
-          .setName(acc.label || acc.email || t('ol_account'))
+          .setName(t('ol_account_name'))
           .setDesc(acc.needsReauth ? `${acc.email || ''} — ${t('ol_reauth_needed')}` : (acc.email || ''));
         if (acc.color) {
           const dot = row.nameEl.createSpan({ cls: 'tk-account-dot' });
           dot.style.background = acc.color;
           row.nameEl.prepend(dot);
         }
+        // Bewerkbare, herkenbare naam (overschrijft de automatische naam).
+        row.addText((text) => {
+          text.inputEl.addClass('tk-account-name-input');
+          text
+            .setPlaceholder(autoName || t('ol_account_name_hint'))
+            .setValue(acc.customName || '')
+            .onChange(async (v) => {
+              acc.customName = v.trim();
+              await this.plugin.saveSettings();
+            });
+        });
         row.addExtraButton((b) => b
           .setIcon('refresh-cw')
           .setTooltip(t('ol_refresh_calendars'))

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.1
+
+- **Rename connected accounts** — give each Outlook account a recognizable name in settings, so it is clear which account is which.
+- **Better automatic names** — added the `User.Read` permission so the account name and email are filled in automatically on connect. Existing connections show "Account" until you reconnect (or just type your own name).
+
+> NL: Outlook-accounts hernoemen — geef elk account een herkenbare naam in de instellingen. Daarnaast worden naam en e-mail voortaan automatisch ingevuld (`User.Read`); bestaande koppelingen tonen "Account" tot je opnieuw koppelt of zelf een naam typt.
+
 ## 1.10.0
 
 **New: Calendar view + Outlook calendar sync**

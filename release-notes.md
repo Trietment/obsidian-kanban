@@ -1,9 +1,8 @@
-## Calendar view + Outlook calendar sync
+## Rename connected Outlook accounts
 
-This release adds a calendar to Trietment Kanban.
+A small follow-up to 1.10.0.
 
-- **Calendar view** — a month grid showing every task on its due date, with the board's color coding (red = overdue, orange = today). Open it from the ribbon, the command palette, or the 📅 button on the board. Click a day to add a task; click a task to edit it.
-- **Outlook calendar (optional)** — connect one or more Microsoft/Outlook accounts via OAuth and see your appointments next to your tasks (read-only). Works on desktop and mobile; signing in needs no setup thanks to a built-in Client ID.
-- **Calendar picker** — choose per account which calendars to show, including shared calendars, each with its own color.
+- **Rename accounts** — give each connected Outlook account a recognizable name in settings, so it is clear which account is which.
+- **Better automatic names** — the account name and email are now filled in automatically on connect (added the `User.Read` permission). Existing connections show "Account" until you reconnect, or you can just type your own name.
 
-One-time Azure app registration is only needed if you host your own Client ID — see the README ("Outlook calendar setup"). Existing Kanban features are unchanged.
+If you self-host your own Client ID, add the `User.Read` delegated permission in your Azure app (it is usually present by default).

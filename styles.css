@@ -762,6 +762,11 @@
   color: var(--text-warning, var(--color-orange, #dd6b20));
 }
 
+/* Bewerkbaar naamveld voor een gekoppeld account. */
+.tk-account-name-input {
+  min-width: 220px;
+}
+
 /* Gekleurde stip voor een gekoppeld account in de instellingen. */
 .tk-account-dot {
   display: inline-block;
