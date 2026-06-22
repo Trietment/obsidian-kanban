@@ -98,6 +98,10 @@ const TRANSLATIONS = {
     ol_client_id: 'Microsoft Client ID',
     ol_client_id_desc: 'Application (client) ID van een Azure app-registratie. Registreer een app in het Microsoft Entra-portaal, voeg onder "Mobiele en desktop-applicaties" de redirect-URI obsidian://trietment-kanban-auth toe, sta publieke client-flows toe en geef de gedelegeerde rechten Calendars.Read + offline_access.',
     ol_client_id_ph: 'Application (client) ID',
+    ol_client_id_ph_builtin: 'Leeg = ingebouwde Client ID gebruiken',
+    ol_client_id_builtin: '✓ Ingebouwde Client ID is actief — je hoeft hier niets in te vullen. Vul alleen een eigen ID in om die te overschrijven.',
+    ol_client_id_custom: '✓ Eigen Client ID actief (overschrijft de ingebouwde).',
+    ol_client_id_none: '⚠ Nog geen Client ID — vul er een in om te kunnen koppelen.',
     ol_show_events: 'Outlook-events tonen',
     ol_show_events_desc: 'Toon de afspraken uit je gekoppelde agenda(s) in de kalenderweergave.',
     ol_accounts: 'Gekoppelde accounts',
@@ -282,6 +286,10 @@ const TRANSLATIONS = {
     ol_client_id: 'Microsoft Client ID',
     ol_client_id_desc: 'Application (client) ID of an Azure app registration. Register an app in the Microsoft Entra portal, add the redirect URI obsidian://trietment-kanban-auth under "Mobile and desktop applications", allow public client flows, and grant the delegated permissions Calendars.Read + offline_access.',
     ol_client_id_ph: 'Application (client) ID',
+    ol_client_id_ph_builtin: 'Empty = use built-in Client ID',
+    ol_client_id_builtin: '✓ Built-in Client ID is active — you do not need to fill this in. Only enter your own ID to override it.',
+    ol_client_id_custom: '✓ Custom Client ID active (overrides the built-in one).',
+    ol_client_id_none: '⚠ No Client ID yet — enter one to be able to connect.',
     ol_show_events: 'Show Outlook events',
     ol_show_events_desc: 'Show the appointments from your connected calendar(s) in the calendar view.',
     ol_accounts: 'Connected accounts',
@@ -2686,13 +2694,24 @@ class KanbanSettingTab extends PluginSettingTab {
       .addText((text) => {
         text.inputEl.addClass('tk-input-full');
         text
-          .setPlaceholder(t('ol_client_id_ph'))
+          .setPlaceholder(DEFAULT_MS_CLIENT_ID ? t('ol_client_id_ph_builtin') : t('ol_client_id_ph'))
           .setValue(this.plugin.settings.microsoftClientId || '')
           .onChange(async (v) => {
             this.plugin.settings.microsoftClientId = v.trim();
             await this.plugin.saveSettings();
+            if (statusEl) {
+              statusEl.setText(clientStatus());
+              statusEl.toggleClass('tk-client-status-warn', !this.plugin.outlook.isConfigured());
+            }
           });
       });
+    const clientStatus = () => {
+      if ((this.plugin.settings.microsoftClientId || '').trim()) return t('ol_client_id_custom');
+      if (DEFAULT_MS_CLIENT_ID) return t('ol_client_id_builtin');
+      return t('ol_client_id_none');
+    };
+    const statusEl = containerEl.createEl('p', { cls: 'tk-client-status', text: clientStatus() });
+    if (!this.plugin.outlook.isConfigured()) statusEl.addClass('tk-client-status-warn');
 
     new Setting(containerEl)
       .setName(t('ol_show_events'))

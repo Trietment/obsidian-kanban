@@ -752,6 +752,16 @@
   text-overflow: ellipsis;
 }
 
+/* Statusregel onder het Client ID-veld (ingebouwd/eigen/ontbreekt). */
+.tk-client-status {
+  margin: -6px 0 14px;
+  font-size: 0.85em;
+  color: var(--text-success, var(--color-green, #16a34a));
+}
+.tk-client-status-warn {
+  color: var(--text-warning, var(--color-orange, #dd6b20));
+}
+
 /* Gekleurde stip voor een gekoppeld account in de instellingen. */
 .tk-account-dot {
   display: inline-block;
