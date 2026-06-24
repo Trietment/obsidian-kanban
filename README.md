@@ -4,6 +4,8 @@
 
 A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **every note in your vault**. Tasks are plain markdown checkboxes with optional metadata; the plugin shows them as draggable cards in columns. Works on desktop and mobile.
 
+![Trietment Kanban — board, calendar and Outlook demo](assets/demo.gif)
+
 <a href="https://buymeacoffee.com/trietment" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
 
 If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.com/trietment) — thank you!
@@ -14,7 +16,11 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 
 ### New in 1.11 — Week & day views, times on cards, and note archiving
 
-The calendar now has **Week** and **Day** views next to Month; you can give a task a **time** that appears on one timeline with your appointments; and a completed card can **archive its linked note** automatically. The month calendar and optional Outlook sync introduced in 1.10 are shown below.
+The calendar now has **Week** and **Day** views next to Month; you can give a task a **time** that appears on one timeline with your appointments; and a completed card can **archive its linked note** automatically. Below: the board next to the Week agenda with Outlook events and timed tasks on one timeline, plus the month calendar and Outlook sync introduced in 1.10.
+
+![Board next to the Week agenda with Outlook events and timed tasks — dark theme](assets/split-preview.png)
+
+![Board next to the Week agenda — light theme](assets/split-preview-light.png)
 
 ![Calendar view with tasks and Outlook events — dark theme](assets/calendar-preview.png)
 
@@ -133,6 +139,8 @@ Sign-in tokens are stored per device (in local storage, not in `data.json`), so 
 
 Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **alle notes in je vault**. Taken zijn gewone markdown-checkboxes met optionele metadata; de plugin toont ze als sleepbare kaarten in kolommen. Werkt op desktop én mobiel.
 
+![Trietment Kanban — bord, kalender en Outlook-demo](assets/demo.gif)
+
 <a href="https://buymeacoffee.com/trietment" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
 
 Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoffee.com/trietment) — dankjewel!
@@ -143,7 +151,11 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 
 ### Nieuw in 1.11 — Week- & dagweergave, tijd op kaarten, en notities archiveren
 
-De kalender heeft nu **Week**- en **Dag**weergave naast Maand; je kunt een taak een **tijd** geven die op één tijdlijn met je afspraken verschijnt; en een afgeronde kaart kan zijn **gekoppelde notitie automatisch archiveren**. De maandkalender en optionele Outlook-sync uit 1.10 zie je hieronder.
+De kalender heeft nu **Week**- en **Dag**weergave naast Maand; je kunt een taak een **tijd** geven die op één tijdlijn met je afspraken verschijnt; en een afgeronde kaart kan zijn **gekoppelde notitie automatisch archiveren**. Hieronder: het bord naast de Week-agenda met Outlook-afspraken en getimede taken op één tijdlijn, plus de maandkalender en Outlook-sync uit 1.10.
+
+![Bord naast de Week-agenda met Outlook-afspraken en getimede taken — donker thema](assets/split-preview.png)
+
+![Bord naast de Week-agenda — licht thema](assets/split-preview-light.png)
 
 ![Kalenderweergave met taken en Outlook-events — donker thema](assets/calendar-preview.png)
 
