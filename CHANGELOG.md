@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.11.0
+
+**New: week & day calendar views, times on cards, and note archiving**
+
+- **Week and Day calendar views** — switch between Month, Week and Day in the calendar header. Week and Day are agenda lists that show every appointment and task for a day without cutting anything off, and they stay readable in a narrow split pane (the week stacks into a vertical agenda and the toolbar wraps).
+- **Clickable "+N more"** — in the month view the overflow indicator now opens that day so you can see all of its items.
+- **Times on cards** — add a time (24h) to a task in the add/edit dialog. It is stored as a separate `⏰` token next to the `📅` date (compatible with the Obsidian Tasks plugin). In the calendar, appointments and timed tasks share one timeline sorted by time, each with a bold time badge; the time also shows on the board card and is carried forward for recurring tasks.
+- **Archive notes when done** — when a card reaches the done column its linked note moves into a `0. archive` subfolder, and reopening the card moves it back (wikilinks stay correct). Toggle it and set the folder name under Settings → Linked notes; on by default.
+
+---
+
+### Nederlands
+
+**Nieuw: week- en dagweergave, tijd op kaarten, en notities archiveren**
+
+- **Week- en dagweergave** — schakel in de kalenderkop tussen Maand, Week en Dag. Week en Dag zijn agenda-lijsten die elke afspraak en taak van een dag tonen zonder iets af te kappen, en ze blijven leesbaar in een smal split-paneel (de week stapelt tot een verticale agenda en de knoppenbalk vloeit door).
+- **Klikbare "+N meer"** — in de maandweergave opent de "meer"-aanduiding nu die dag, zodat je alle items kunt zien.
+- **Tijd op kaarten** — voeg een tijd (24-uurs) toe aan een taak in het toevoeg-/bewerk-venster. De tijd wordt als apart `⏰`-token naast de `📅`-datum opgeslagen (compatibel met de Obsidian Tasks-plugin). In de kalender delen afspraken en getimede taken één tijdlijn op tijd gesorteerd, elk met een vetgedrukte tijd-badge; de tijd staat ook op de bordkaart en gaat mee bij terugkerende taken.
+- **Notities archiveren bij afronden** — zodra een kaart in de afgerond-kolom komt, verhuist de gekoppelde notitie naar een submap `0. archive`, en bij heropenen komt hij weer terug (wikilinks blijven kloppen). Aan/uit en de mapnaam instelbaar bij Instellingen → Gekoppelde notities; standaard aan.
+
 ## 1.10.2
 
 - **Outlook tokens are now stored per device** — sign-in tokens are kept in device-local storage instead of `data.json`, so they are never copied by Obsidian Sync and cannot cause refresh-token conflicts between devices. Your account list and calendar choices still sync; you just sign in once per device. Existing tokens migrate automatically on first load.
