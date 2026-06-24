@@ -34,6 +34,8 @@ const DEFAULT_SETTINGS = {
   autoMoveOverdue: false,
   noteFolder: 'Kanban Notes', // map voor álle gekoppelde notities (leeg = bij de bron-note)
   noteTemplate: '',   // leeg = ingebouwde template hieronder
+  archiveNotesOnDone: true,   // gekoppelde notitie naar archief-submap verplaatsen bij afronden (terug bij heropenen)
+  archiveFolder: '0. archive',// naam van de archief-submap binnen de notitie-map
   language: 'auto',   // 'auto' (volg Obsidian) | 'nl' | 'en'
 
   // Outlook / Microsoft Graph
@@ -87,11 +89,16 @@ const TRANSLATIONS = {
     open_calendar: 'Open kalender',
     calendar_title: 'Kalender',
     cal_today: 'Vandaag',
-    cal_prev: 'Vorige maand',
-    cal_next: 'Volgende maand',
+    cal_prev: 'Vorige',
+    cal_next: 'Volgende',
+    cal_month: 'Maand',
+    cal_week: 'Week',
+    cal_day: 'Dag',
     cal_open_board: 'Open bord',
     open_calendar_tip: 'Open kalender',
     cal_more: '+{n} meer',
+    cal_more_tip: 'Toon alle items van deze dag',
+    cal_no_items: 'Geen afspraken of taken op deze dag.',
     // Outlook
     ol_section: 'Outlook-agenda',
     ol_help: 'Koppel je Microsoft/Outlook-agenda en toon de afspraken naast je taken in de kalenderweergave (alleen-lezen).',
@@ -181,6 +188,7 @@ const TRANSLATIONS = {
     project_add_desc: 'Optioneel. Kies een bestaand project of typ een nieuwe naam.',
     project_placeholder1: 'bv. aim of klant/acme',
     due_date: 'Due date',
+    time: 'Tijd',
     priority: 'Prioriteit',
     repeat: 'Herhalen',
     repeat_add_desc: 'Bij afvinken maakt de plugin automatisch een volgende instance met de nieuwe due date.',
@@ -194,6 +202,7 @@ const TRANSLATIONS = {
     source_line: 'Bron: {file}:{line}',
     column_status: 'Kolom / status',
     due_clear_desc: 'Leeg laten om de datum te verwijderen.',
+    time_clear_desc: 'Leeg laten om de tijd te verwijderen.',
     repeat_edit_desc: 'Bij afvinken wordt er automatisch een volgende instance gemaakt.',
     project_edit_desc: 'Leeg laten om het project te verwijderen. Gebruik / voor subproject (bv. klant/acme).',
     project_placeholder2: 'bv. klant/acme',
@@ -240,6 +249,11 @@ const TRANSLATIONS = {
     note_folder: 'Notitie-map',
     note_folder_desc: 'Map waarin álle gekoppelde notities komen (wordt automatisch aangemaakt). Leeg = dezelfde map als de note waar de taak in staat.',
     note_folder_placeholder: 'bv. Kanban Notes — leeg = bij de bron-note',
+    archive_notes: 'Notities archiveren bij afronden',
+    archive_notes_desc: 'Verplaatst de gekoppelde notitie naar een archief-submap zodra de kaart in de afgerond-kolom komt. Zet je de kaart weer op niet-afgerond, dan komt de notitie er weer uit. Wikilinks blijven automatisch kloppen.',
+    archive_folder: 'Naam archief-submap',
+    archive_folder_desc: 'Submap (binnen de map van de notitie) waar afgeronde notities heen gaan.',
+    archive_name_clash: 'Kon "{name}" niet (de)archiveren: er bestaat al een bestand met die naam op de doellocatie.',
     template_file: 'Template-bestand',
     template_file_desc: 'Pad naar een template-note. Leeg = ingebouwde template. Placeholders: {{title}} {{project}} {{due}} {{status}} {{date}} {{time}} {{source}} {{sourcePath}}',
     template_file_placeholder: 'leeg = ingebouwde template',
@@ -277,11 +291,16 @@ const TRANSLATIONS = {
     open_calendar: 'Open calendar',
     calendar_title: 'Calendar',
     cal_today: 'Today',
-    cal_prev: 'Previous month',
-    cal_next: 'Next month',
+    cal_prev: 'Previous',
+    cal_next: 'Next',
+    cal_month: 'Month',
+    cal_week: 'Week',
+    cal_day: 'Day',
     cal_open_board: 'Open board',
     open_calendar_tip: 'Open calendar',
     cal_more: '+{n} more',
+    cal_more_tip: 'Show all items for this day',
+    cal_no_items: 'No appointments or tasks on this day.',
     // Outlook
     ol_section: 'Outlook calendar',
     ol_help: 'Connect your Microsoft/Outlook calendar and show its appointments alongside your tasks in the calendar view (read-only).',
@@ -367,6 +386,7 @@ const TRANSLATIONS = {
     project_add_desc: 'Optional. Pick an existing project or type a new name.',
     project_placeholder1: 'e.g. aim or client/acme',
     due_date: 'Due date',
+    time: 'Time',
     priority: 'Priority',
     repeat: 'Repeat',
     repeat_add_desc: 'When completed, the plugin automatically creates the next instance with the new due date.',
@@ -379,6 +399,7 @@ const TRANSLATIONS = {
     source_line: 'Source: {file}:{line}',
     column_status: 'Column / status',
     due_clear_desc: 'Leave empty to remove the date.',
+    time_clear_desc: 'Leave empty to remove the time.',
     repeat_edit_desc: 'When completed, the next instance is created automatically.',
     project_edit_desc: 'Leave empty to remove the project. Use / for a subproject (e.g. client/acme).',
     project_placeholder2: 'e.g. client/acme',
@@ -424,6 +445,11 @@ const TRANSLATIONS = {
     note_folder: 'Note folder',
     note_folder_desc: 'Folder for all linked notes (created automatically). Empty = the same folder as the note the task lives in.',
     note_folder_placeholder: 'e.g. Kanban Notes — empty = next to the source note',
+    archive_notes: 'Archive notes when done',
+    archive_notes_desc: 'Moves the linked note into an archive subfolder once the card reaches the done column. Reopening the card moves it back. Wikilinks are kept in sync automatically.',
+    archive_folder: 'Archive subfolder name',
+    archive_folder_desc: 'Subfolder (within the note’s folder) where completed notes go.',
+    archive_name_clash: 'Could not (un)archive "{name}": a file with that name already exists at the destination.',
     template_file: 'Template file',
     template_file_desc: 'Path to a template note. Empty = built-in template. Placeholders: {{title}} {{project}} {{due}} {{status}} {{date}} {{time}} {{source}} {{sourcePath}}',
     template_file_placeholder: 'empty = built-in template',
@@ -585,6 +611,14 @@ function parseTaskLine(line, filePath, lineNum) {
   const dateMatch = rest.match(/📅\s*(\d{4}-\d{2}-\d{2})/);
   if (dateMatch) dueDate = dateMatch[1];
 
+  // Tijdstip: ⏰ HH:mm (24-uurs). Genormaliseerd naar twee cijfers.
+  let time = null;
+  const timeMatch = rest.match(/⏰\s*(\d{1,2}):(\d{2})/);
+  if (timeMatch) {
+    time = String(Math.min(23, parseInt(timeMatch[1], 10))).padStart(2, '0') + ':'
+         + String(Math.min(59, parseInt(timeMatch[2], 10))).padStart(2, '0');
+  }
+
   let column = null;
   const colMatch = rest.match(/#kanban\/([\w-]+)/);
   if (colMatch) column = colMatch[1];
@@ -611,6 +645,7 @@ function parseTaskLine(line, filePath, lineNum) {
 
   const text = rest
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
+    .replace(/⏰\s*\d{1,2}:\d{2}/g, '')
     .replace(/🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi, '')
     .replace(/#kanban\/[\w-]+/g, '')
     .replace(/#project\/[\w-]+(?:\/[\w-]+)*/g, '')
@@ -620,7 +655,7 @@ function parseTaskLine(line, filePath, lineNum) {
     .trim();
 
   return {
-    text, dueDate, column, project, priority, recurrence, done, noteLink,
+    text, dueDate, time, column, project, priority, recurrence, done, noteLink,
     file: filePath, line: lineNum, indent,
     raw: line, subtasks: [],
   };
@@ -889,6 +924,7 @@ module.exports = class KanbanPlugin extends Plugin {
     let line = `- [${done ? 'x' : ' '}] ${task.text.trim()}`;
     if (task.recurrence) line += ` 🔁 ${task.recurrence}`;
     if (task.dueDate) line += ` 📅 ${task.dueDate}`;
+    if (task.time) line += ` ⏰ ${task.time}`;
     if (task.priority && PRIORITY_ICONS[task.priority]) line += ` ${PRIORITY_ICONS[task.priority]}`;
     if (task.project) line += ` #project/${task.project}`;
     if (task.column) line += ` #kanban/${task.column}`;
@@ -1008,7 +1044,8 @@ module.exports = class KanbanPlugin extends Plugin {
     if (lineNum < 0 || lineNum >= lines.length) return;
 
     let line = lines[lineNum];
-    if (!parseTaskLine(line, filePath, lineNum)) return;
+    const parsed = parseTaskLine(line, filePath, lineNum);
+    if (!parsed) return;
 
     if (newColumn === 'inbox') {
       line = line.replace(/\s*#kanban\/[\w-]+/g, '');
@@ -1026,6 +1063,9 @@ module.exports = class KanbanPlugin extends Plugin {
 
     lines[lineNum] = line;
     await this.app.vault.modify(file, lines.join('\n'));
+
+    // Notitie mee-archiveren bij afronden (en terughalen bij heropenen).
+    await this.syncNoteArchive(parsed, newColumn === this.settings.doneColumn);
   }
 
   async deleteTask(task) {
@@ -1190,6 +1230,58 @@ module.exports = class KanbanPlugin extends Plugin {
     if (file instanceof TFile) await this.app.workspace.getLeaf(false).openFile(file);
   }
 
+  // Verplaats de gekoppelde notitie naar — of terug uit — de archief-submap.
+  // Of een notitie "door ons gearchiveerd" is, leiden we NIET af uit de mapnaam
+  // (die kan toevallig samenvallen met een eigen map van de gebruiker), maar uit
+  // een herkomstmarkering in de frontmatter (kanban-archived-from). Zo verplaatsen
+  // we nooit notities die we zelf niet archiveerden, en zetten we ze exact terug op
+  // hun oorspronkelijke plek. Wikilinks worden door Obsidian bijgewerkt.
+  async syncNoteArchive(task, shouldBeArchived) {
+    if (!this.settings.archiveNotesOnDone) return;
+    if (!task || !task.noteLink) return;
+    // Terugkerende taken delen één notitie over alle herhalingen → niet archiveren.
+    if (shouldBeArchived && task.recurrence) return;
+
+    const dest = this.app.metadataCache.getFirstLinkpathDest(task.noteLink, task.file || '');
+    if (!(dest instanceof TFile)) return;
+
+    const archiveName = (this.settings.archiveFolder || '0. archive').replace(/^\/+|\/+$/g, '');
+    if (!archiveName) return;
+
+    const parent = dest.parent;
+    const parentPath = parent && parent.path && parent.path !== '/' ? parent.path : '';
+    const cache = this.app.metadataCache.getFileCache(dest);
+    const archivedFrom = cache && cache.frontmatter ? cache.frontmatter['kanban-archived-from'] : undefined;
+
+    let newDir;
+    if (shouldBeArchived) {
+      if (archivedFrom != null) return;                        // al door ons gearchiveerd
+      newDir = parentPath ? `${parentPath}/${archiveName}` : archiveName;
+    } else {
+      if (archivedFrom == null) return;                        // niet door ons gearchiveerd → met rust laten
+      newDir = archivedFrom === '/' ? '' : String(archivedFrom);
+    }
+
+    const newPath = newDir ? `${newDir}/${dest.name}` : dest.name;
+    if (newPath === dest.path) return;
+    if (this.app.vault.getAbstractFileByPath(newPath)) {       // niet overschrijven
+      new Notice(this.t('archive_name_clash', { name: dest.name }));
+      return;
+    }
+
+    if (newDir && !this.app.vault.getAbstractFileByPath(newDir)) {
+      try { await this.app.vault.createFolder(newDir); } catch (_) {}
+    }
+    try {
+      await this.app.fileManager.renameFile(dest, newPath);
+      // Herkomst vastleggen bij archiveren, en weer wissen bij terugzetten.
+      await this.app.fileManager.processFrontMatter(dest, (fm) => {
+        if (shouldBeArchived) fm['kanban-archived-from'] = parentPath || '/';
+        else delete fm['kanban-archived-from'];
+      });
+    } catch (_) { /* verplaatsen mislukt → laat de notitie staan */ }
+  }
+
   async toggleDone(task) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
@@ -1197,6 +1289,7 @@ module.exports = class KanbanPlugin extends Plugin {
     const lines = content.split('\n');
     if (task.line >= lines.length) return;
     let line = lines[task.line];
+    const wasDone = task.done;
 
     if (task.done) {
       line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
@@ -1221,6 +1314,7 @@ module.exports = class KanbanPlugin extends Plugin {
         const nextTask = {
           text: task.text,
           dueDate: nextDue,
+          time: task.time,
           priority: task.priority,
           project: task.project,
           recurrence: task.recurrence,
@@ -1232,6 +1326,9 @@ module.exports = class KanbanPlugin extends Plugin {
     }
 
     await this.app.vault.modify(file, lines.join('\n'));
+
+    // Notitie mee-archiveren bij afronden (en terughalen bij heropenen).
+    await this.syncNoteArchive(task, !wasDone);
   }
 
   async setDueDate(task, newDate) {
@@ -1246,9 +1343,36 @@ module.exports = class KanbanPlugin extends Plugin {
         line = line.replace(/📅\s*\d{4}-\d{2}-\d{2}/, `📅 ${newDate}`);
       } else {
         line = line.replace(/\s*📅\s*\d{4}-\d{2}-\d{2}/, '');
+        // Een tijd hoort bij een datum: laat 'm niet als wees achter.
+        line = line.replace(/\s*⏰\s*\d{1,2}:\d{2}/, '');
       }
     } else if (newDate) {
       line = line.trimEnd() + ` 📅 ${newDate}`;
+    }
+    lines[task.line] = line;
+    await this.app.vault.modify(file, lines.join('\n'));
+  }
+
+  async setTime(task, newTime) {
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length) return;
+    let line = lines[task.line];
+    if (/⏰\s*\d{1,2}:\d{2}/.test(line)) {
+      if (newTime) {
+        line = line.replace(/⏰\s*\d{1,2}:\d{2}/, `⏰ ${newTime}`);
+      } else {
+        line = line.replace(/\s*⏰\s*\d{1,2}:\d{2}/, '');
+      }
+    } else if (newTime) {
+      // Tijd direct na de datum plaatsen als die er is, anders achteraan.
+      if (/📅\s*\d{4}-\d{2}-\d{2}/.test(line)) {
+        line = line.replace(/(📅\s*\d{4}-\d{2}-\d{2})/, `$1 ⏰ ${newTime}`);
+      } else {
+        line = line.trimEnd() + ` ⏰ ${newTime}`;
+      }
     }
     lines[task.line] = line;
     await this.app.vault.modify(file, lines.join('\n'));
@@ -1569,8 +1693,11 @@ class KanbanView extends ItemView {
 
     // Meta
     const meta = card.createDiv({ cls: 'tk-card-meta' });
-    if (task.dueDate) {
-      meta.createSpan({ cls: 'tk-due', text: `📅 ${task.dueDate}` });
+    if (task.dueDate || task.time) {
+      let dueText = '';
+      if (task.dueDate) dueText = `📅 ${task.dueDate}`;
+      if (task.time) dueText += `${dueText ? ' ' : ''}⏰ ${task.time}`;
+      meta.createSpan({ cls: 'tk-due', text: dueText });
     }
     if (task.priority) {
       meta.createSpan({ cls: 'tk-prio', text: PRIORITY_ICONS[task.priority] });
@@ -1602,9 +1729,9 @@ class CalendarView extends ItemView {
     this.plugin = plugin;
     this.tasks = [];
     this.hideDone = false;
+    this.viewMode = 'month';                 // 'month' | 'week' | 'day'
     const now = new Date();
-    this.year = now.getFullYear();
-    this.month = now.getMonth(); // 0-11
+    this.anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // referentiedatum in de zichtbare periode
   }
 
   getViewType() { return VIEW_TYPE_CALENDAR; }
@@ -1648,16 +1775,21 @@ class CalendarView extends ItemView {
 
     const nav = header.createDiv({ cls: 'tcal-nav' });
     const prev = nav.createEl('button', { text: '‹', cls: 'tk-btn', title: this.plugin.t('cal_prev') });
-    prev.onclick = () => this.shiftMonth(-1);
+    prev.onclick = () => this.shift(-1);
     const todayBtn = nav.createEl('button', { text: this.plugin.t('cal_today'), cls: 'tk-btn' });
     todayBtn.onclick = () => this.goToday();
     const next = nav.createEl('button', { text: '›', cls: 'tk-btn', title: this.plugin.t('cal_next') });
-    next.onclick = () => this.shiftMonth(1);
+    next.onclick = () => this.shift(1);
 
-    let title = new Intl.DateTimeFormat(this.locale(), { month: 'long', year: 'numeric' })
-      .format(new Date(this.year, this.month, 1));
-    title = title.charAt(0).toUpperCase() + title.slice(1);
-    header.createEl('h2', { text: title, cls: 'tcal-title' });
+    header.createEl('h2', { text: this.titleText(), cls: 'tcal-title' });
+
+    // Weergave-schakelaar: maand / week / dag.
+    const modes = header.createDiv({ cls: 'tcal-modes' });
+    for (const m of ['month', 'week', 'day']) {
+      const btn = modes.createEl('button', { text: this.plugin.t('cal_' + m), cls: 'tk-btn' });
+      if (m === this.viewMode) btn.addClass('tcal-mode-active');
+      btn.onclick = () => { if (this.viewMode !== m) { this.viewMode = m; this.render(); } };
+    }
 
     header.createDiv({ cls: 'tcal-spacer' });
 
@@ -1698,22 +1830,60 @@ class CalendarView extends ItemView {
     return names;
   }
 
-  // Alle dagcellen voor de zichtbare maand, aangevuld tot hele weken (maandag-start).
+  // Dagcellen voor de zichtbare periode: maand → hele weken, week → 7 dagen, dag → 1.
   buildDays() {
     const weekStart = 1; // maandag
-    const first = new Date(this.year, this.month, 1);
+    if (this.viewMode === 'day') {
+      const a = this.anchor;
+      return [new Date(a.getFullYear(), a.getMonth(), a.getDate())];
+    }
+    if (this.viewMode === 'week') {
+      const a = this.anchor;
+      const lead = (a.getDay() - weekStart + 7) % 7;
+      const start = new Date(a.getFullYear(), a.getMonth(), a.getDate() - lead);
+      const days = [];
+      for (let i = 0; i < 7; i++) days.push(new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+      return days;
+    }
+    const year = this.anchor.getFullYear();
+    const month = this.anchor.getMonth();
+    const first = new Date(year, month, 1);
     const lead = (first.getDay() - weekStart + 7) % 7;
-    const lastDate = new Date(this.year, this.month + 1, 0).getDate();
-    const end = new Date(this.year, this.month, lastDate);
+    const lastDate = new Date(year, month + 1, 0).getDate();
+    const end = new Date(year, month, lastDate);
     const trail = (weekStart + 6 - end.getDay() + 7) % 7;
     const days = [];
-    const d = new Date(this.year, this.month, 1 - lead);
-    const endCell = new Date(this.year, this.month, lastDate + trail);
+    const d = new Date(year, month, 1 - lead);
+    const endCell = new Date(year, month, lastDate + trail);
     while (d <= endCell) {
       days.push(new Date(d));
       d.setDate(d.getDate() + 1);
     }
     return days;
+  }
+
+  // Titel in de kop, afhankelijk van de weergave.
+  titleText() {
+    const loc = this.locale();
+    const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+    if (this.viewMode === 'day') {
+      return cap(new Intl.DateTimeFormat(loc, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(this.anchor));
+    }
+    if (this.viewMode === 'week') {
+      const days = this.buildDays();
+      const a = days[0], b = days[days.length - 1];
+      if (a.getMonth() === b.getMonth()) {
+        const dFmt = new Intl.DateTimeFormat(loc, { day: 'numeric' });
+        const mFmt = new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric' });
+        return cap(`${dFmt.format(a)}–${dFmt.format(b)} ${mFmt.format(b)}`);
+      }
+      const dmFmt = new Intl.DateTimeFormat(loc, { day: 'numeric', month: 'long' });
+      if (a.getFullYear() !== b.getFullYear()) {
+        return cap(`${dmFmt.format(a)} ${a.getFullYear()} – ${dmFmt.format(b)} ${b.getFullYear()}`);
+      }
+      return cap(`${dmFmt.format(a)} – ${dmFmt.format(b)} ${b.getFullYear()}`);
+    }
+    return cap(new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric' }).format(this.anchor));
   }
 
   tasksForDay(iso) {
@@ -1722,7 +1892,21 @@ class CalendarView extends ItemView {
       .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1));
   }
 
+  // Outlook-events van een dag, gesorteerd: hele dag eerst, daarna op tijd.
+  eventsForDay(iso) {
+    return ((this.eventsByDay && this.eventsByDay[iso]) || []).slice().sort(
+      (a, b) => (a.allDay === b.allDay ? (a.time || '').localeCompare(b.time || '') : (a.allDay ? -1 : 1))
+    );
+  }
+
   renderGrid(container, days) {
+    if (this.viewMode === 'day') return this.renderAgenda(container, days[0]);
+    if (this.viewMode === 'week') return this.renderWeek(container, days);
+    return this.renderMonth(container, days);
+  }
+
+  // Maandweergave: 7-koloms raster, max. items per cel met klikbare "+n meer".
+  renderMonth(container, days) {
     const grid = container.createDiv({ cls: 'tcal-grid' });
 
     const weekdays = grid.createDiv({ cls: 'tcal-weekdays' });
@@ -1737,38 +1921,123 @@ class CalendarView extends ItemView {
     for (const day of days) {
       const iso = isoFromDate(day);
       const cell = body.createDiv({ cls: 'tcal-day' });
-      if (day.getMonth() !== this.month) cell.addClass('tcal-other-month');
+      if (day.getMonth() !== this.anchor.getMonth()) cell.addClass('tcal-other-month');
       if (iso === today) cell.addClass('tcal-today');
 
       const head = cell.createDiv({ cls: 'tcal-day-head' });
       head.createSpan({ cls: 'tcal-day-num', text: String(day.getDate()) });
 
-      // Klik op een lege plek in de cel → nieuwe taak met deze datum voorgevuld.
-      cell.addEventListener('click', (e) => {
-        if (e.target.closest('.tcal-task') || e.target.closest('.tcal-event') || e.target.closest('.tcal-more')) return;
-        const modal = new AddTaskModal(this.app, this.plugin, async (task) => {
-          await this.plugin.createTaskInFile(task, task.targetFile || this.plugin.settings.inboxNote);
-          this.plugin.scheduleRefresh();
-        });
-        modal.task.dueDate = iso;
-        modal.open();
-      });
+      this.attachAddTask(cell, iso);
 
       const list = cell.createDiv({ cls: 'tcal-day-tasks' });
-      // Eerst de Outlook-events (hele dag eerst, daarna op tijd), dan de taken.
-      const events = ((this.eventsByDay && this.eventsByDay[iso]) || []).slice().sort(
-        (a, b) => (a.allDay === b.allDay ? (a.time || '').localeCompare(b.time || '') : (a.allDay ? -1 : 1))
-      );
-      const tasks = this.tasksForDay(iso);
-      const total = events.length + tasks.length;
-
-      let budget = MAX;
-      for (const ev of events) { if (budget <= 0) break; this.renderEvent(list, ev); budget--; }
-      for (const task of tasks) { if (budget <= 0) break; this.renderTask(list, task, iso, today); budget--; }
-      if (total > MAX) {
-        list.createDiv({ cls: 'tcal-more', text: this.plugin.t('cal_more', { n: total - MAX }) });
-      }
+      this.fillDay(list, iso, today, MAX);
     }
+  }
+
+  // Weekweergave: 7 dagkolommen naast elkaar, elk een scrollbare lijst met álle items.
+  renderWeek(container, days) {
+    const grid = container.createDiv({ cls: 'tcal-grid' });
+    const body = grid.createDiv({ cls: 'tcal-body tcal-body-week' });
+    const today = todayISO();
+    const wdFmt = new Intl.DateTimeFormat(this.locale(), { weekday: 'short' });
+
+    for (const day of days) {
+      const iso = isoFromDate(day);
+      const cell = body.createDiv({ cls: 'tcal-day tcal-day-week' });
+      if (iso === today) cell.addClass('tcal-today');
+
+      const head = cell.createDiv({ cls: 'tcal-day-head tcal-day-head-week' });
+      head.createSpan({ cls: 'tcal-weekday-name', text: wdFmt.format(day) });
+      head.createSpan({ cls: 'tcal-day-num', text: String(day.getDate()) });
+
+      this.attachAddTask(cell, iso);
+
+      const list = cell.createDiv({ cls: 'tcal-day-tasks tcal-day-tasks-scroll' });
+      this.fillDay(list, iso, today, Infinity);
+    }
+  }
+
+  // Dagweergave: één dag over de volle breedte, volledige scrollbare lijst.
+  renderAgenda(container, day) {
+    const iso = isoFromDate(day);
+    const today = todayISO();
+    const wrap = container.createDiv({ cls: 'tcal-grid tcal-agenda' });
+    const cell = wrap.createDiv({ cls: 'tcal-day tcal-day-agenda' });
+    if (iso === today) cell.addClass('tcal-today');
+
+    this.attachAddTask(cell, iso);
+
+    const list = cell.createDiv({ cls: 'tcal-day-tasks tcal-agenda-list' });
+    const total = this.fillDay(list, iso, today, Infinity);
+    if (total === 0) list.createDiv({ cls: 'tcal-empty', text: this.plugin.t('cal_no_items') });
+  }
+
+  // Vult een lijst met de events + taken van een dag. Met een eindige max wordt
+  // ingeklapt tot een klikbare "+n meer" die naar de dagweergave springt.
+  fillDay(list, iso, today, max) {
+    const items = this.dayItems(iso);
+    const total = items.length;
+    const finite = max !== Infinity;
+    let budget = finite ? max : total;
+    for (const it of items) {
+      if (budget <= 0) break;
+      if (it.kind === 'event') this.renderEvent(list, it.ev);
+      else this.renderTask(list, it.task, iso, today);
+      budget--;
+    }
+    if (finite && total > max) {
+      const more = list.createDiv({ cls: 'tcal-more', text: this.plugin.t('cal_more', { n: total - max }) });
+      more.setAttr('title', this.plugin.t('cal_more_tip'));
+      more.addEventListener('click', (e) => { e.stopPropagation(); this.openDay(iso); });
+    }
+    return total;
+  }
+
+  // Afspraken én taken van een dag samengevoegd tot één chronologische tijdlijn:
+  // hele-dag afspraken bovenaan, dan alles met een tijd op tijd gesorteerd, dan
+  // taken zonder tijd, en afgeronde taken altijd onderaan.
+  dayItems(iso) {
+    const items = [];
+    for (const ev of this.eventsForDay(iso)) {
+      items.push({ kind: 'event', ev, allDay: !!ev.allDay, time: ev.allDay ? null : (ev.time || null), done: false });
+    }
+    for (const task of this.tasksForDay(iso)) {
+      items.push({ kind: 'task', task, allDay: false, time: task.time || null, done: !!task.done });
+    }
+    const rank = (it) => {
+      if (it.done) return 3;                            // afgerond onderaan
+      if (it.kind === 'event' && it.allDay) return 0;   // hele-dag afspraken bovenaan
+      if (it.time) return 1;                            // getimede afspraken + taken
+      return 2;                                         // taken zonder tijd
+    };
+    items.sort((a, b) => {
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      if (ra === 1) return a.time.localeCompare(b.time); // chronologisch op tijd
+      return 0;                                          // stabiel binnen de groep
+    });
+    return items;
+  }
+
+  // Klik op een lege plek in een dagcel → nieuwe taak met deze datum voorgevuld.
+  attachAddTask(cell, iso) {
+    cell.addEventListener('click', (e) => {
+      if (e.target.closest('.tcal-task') || e.target.closest('.tcal-event') || e.target.closest('.tcal-more')) return;
+      const modal = new AddTaskModal(this.app, this.plugin, async (task) => {
+        await this.plugin.createTaskInFile(task, task.targetFile || this.plugin.settings.inboxNote);
+        this.plugin.scheduleRefresh();
+      });
+      modal.task.dueDate = iso;
+      modal.open();
+    });
+  }
+
+  // Spring naar de dagweergave voor een specifieke datum (vanaf "+n meer").
+  openDay(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    this.anchor = new Date(y, m - 1, d);
+    this.viewMode = 'day';
+    this.render();
   }
 
   renderEvent(parent, ev) {
@@ -1790,11 +2059,13 @@ class CalendarView extends ItemView {
     if (color) chip.style.setProperty('--tcal-color', color);
     else chip.addClass('tcal-no-color');
 
+    if (task.time) chip.createSpan({ cls: 'tcal-task-time', text: task.time });
     if (task.priority && PRIORITY_ICONS[task.priority]) {
       chip.createSpan({ cls: 'tcal-task-prio', text: PRIORITY_ICONS[task.priority] });
     }
-    chip.createSpan({ cls: 'tcal-task-text', text: task.text || this.plugin.t('empty_task') });
-    chip.setAttr('title', task.text || this.plugin.t('empty_task'));
+    const label = task.text || this.plugin.t('empty_task');
+    chip.createSpan({ cls: 'tcal-task-text', text: label });
+    chip.setAttr('title', (task.time ? task.time + ' · ' : '') + label);
 
     chip.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1802,17 +2073,18 @@ class CalendarView extends ItemView {
     });
   }
 
-  shiftMonth(delta) {
-    this.month += delta;
-    while (this.month < 0) { this.month += 12; this.year--; }
-    while (this.month > 11) { this.month -= 12; this.year++; }
+  // Vorige/volgende periode, afhankelijk van de weergave.
+  shift(delta) {
+    const a = this.anchor;
+    if (this.viewMode === 'day') this.anchor = new Date(a.getFullYear(), a.getMonth(), a.getDate() + delta);
+    else if (this.viewMode === 'week') this.anchor = new Date(a.getFullYear(), a.getMonth(), a.getDate() + delta * 7);
+    else this.anchor = new Date(a.getFullYear(), a.getMonth() + delta, 1);
     this.render();
   }
 
   goToday() {
     const now = new Date();
-    this.year = now.getFullYear();
-    this.month = now.getMonth();
+    this.anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     this.render();
   }
 }
@@ -2161,6 +2433,7 @@ class AddTaskModal extends Modal {
       text: '',
       column: defaultColumn || plugin.settings.defaultColumn,
       dueDate: '',
+      time: '',
       priority: '',
       project: '',
       recurrence: '',
@@ -2227,6 +2500,14 @@ class AddTaskModal extends Modal {
         text.inputEl.type = 'date';
         text.setValue(this.task.dueDate);
         text.onChange((v) => (this.task.dueDate = v));
+      });
+
+    new Setting(contentEl)
+      .setName(t('time'))
+      .addText((text) => {
+        text.inputEl.type = 'time';
+        text.setValue(this.task.time || '');
+        text.onChange((v) => (this.task.time = v));
       });
 
     new Setting(contentEl)
@@ -2299,6 +2580,7 @@ class EditTaskModal extends Modal {
     this.task = task;
     this.onDone = onDone;
     this.newDate = task.dueDate || '';
+    this.newTime = task.time || '';
     this.newProject = task.project || '';
     this.newRecurrence = task.recurrence || '';
     this.newColumn = task.column || 'inbox';
@@ -2332,6 +2614,15 @@ class EditTaskModal extends Modal {
         text.inputEl.type = 'date';
         text.setValue(this.newDate);
         text.onChange((v) => (this.newDate = v));
+      });
+
+    new Setting(contentEl)
+      .setName(t('time'))
+      .setDesc(t('time_clear_desc'))
+      .addText((text) => {
+        text.inputEl.type = 'time';
+        text.setValue(this.newTime);
+        text.onChange((v) => (this.newTime = v));
       });
 
     new Setting(contentEl)
@@ -2440,6 +2731,11 @@ class EditTaskModal extends Modal {
       .addButton((b) => b.setButtonText(t('save')).setCta().onClick(async () => {
         if (this.newDate !== (this.task.dueDate || '')) {
           await this.plugin.setDueDate(this.task, this.newDate);
+        }
+        // Een tijd zonder datum heeft geen betekenis → tijd wissen als de datum weg is.
+        if (!this.newDate) this.newTime = '';
+        if (this.newTime !== (this.task.time || '')) {
+          await this.plugin.setTime(this.task, this.newTime);
         }
         if (this.newProject !== (this.task.project || '')) {
           await this.plugin.setProject(this.task, this.newProject || null);
@@ -2690,6 +2986,30 @@ class KanbanSettingTab extends PluginSettingTab {
           this.plugin.settings.noteFolder = v.trim().replace(/^\/+|\/+$/g, '');
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName(t('archive_notes'))
+      .setDesc(t('archive_notes_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.archiveNotesOnDone)
+        .onChange(async (v) => {
+          this.plugin.settings.archiveNotesOnDone = v;
+          await this.plugin.saveSettings();
+          this.display();
+        }));
+
+    if (this.plugin.settings.archiveNotesOnDone) {
+      new Setting(containerEl)
+        .setName(t('archive_folder'))
+        .setDesc(t('archive_folder_desc'))
+        .addText((text) => text
+          .setPlaceholder('0. archive')
+          .setValue(this.plugin.settings.archiveFolder)
+          .onChange(async (v) => {
+            this.plugin.settings.archiveFolder = v.trim().replace(/^\/+|\/+$/g, '');
+            await this.plugin.saveSettings();
+          }));
+    }
 
     new Setting(containerEl)
       .setName(t('template_file'))

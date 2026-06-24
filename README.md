@@ -8,9 +8,9 @@ A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **ev
 
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
-### New in 1.10 — Calendar view & Outlook sync
+### New in 1.11 — Week & day views, times on cards, and note archiving
 
-See every task on its due date in a month calendar, and optionally overlay your Outlook appointments next to them.
+The calendar now has **Week** and **Day** views next to Month; you can give a task a **time** that appears on one timeline with your appointments; and a completed card can **archive its linked note** automatically. The month calendar and optional Outlook sync introduced in 1.10 are shown below.
 
 ![Calendar view with tasks and Outlook events — dark theme](assets/calendar-preview.png)
 
@@ -26,12 +26,12 @@ See every task on its due date in a month calendar, and optionally overlay your 
 - **Dynamic columns** — defaults: To do / In progress / Waiting for response / Done. Add, rename, reorder or remove columns in the settings. Drag cards between columns (desktop) or change the column in the edit modal (mobile).
 - **Bilingual (EN/NL)** — the whole interface is available in English and Dutch. By default the plugin follows the Obsidian language; you can also choose manually.
 - **Projects with colors** — group with `#project/name`, each with its own color and optional label. Subprojects (`#project/client/acme`) are supported.
-- **Due dates & recurrence** — `📅 2026-05-28` and `🔁 every week`. Completed recurring tasks automatically create the next instance.
-- **Calendar view** — a month grid showing every task on its due date, with the same color coding as the board (red = overdue, orange = today). Open it from the ribbon (calendar icon), the command palette, or the 📅 button on the board. Click a day to add a task with that date prefilled; click a task to edit it.
+- **Due dates, times & recurrence** — `📅 2026-05-28`, an optional time `⏰ 14:30`, and `🔁 every week`. Completed recurring tasks automatically create the next instance (keeping their time).
+- **Calendar view (Month / Week / Day)** — see every task on its due date, with the same color coding as the board (red = overdue, orange = today). Switch between a month grid and agenda-style Week and Day views from the header; tasks with a time and your appointments share one timeline sorted by time. In the month view, **"+N more" is clickable** and opens that day so nothing stays hidden. The views stay readable in a narrow split pane. Open the calendar from the ribbon (calendar icon), the command palette, or the 📅 button on the board. Click a day to add a task with that date prefilled; click a task to edit it.
 - **Outlook calendar (optional)** — connect one or more Microsoft/Outlook accounts via OAuth and see your appointments next to your tasks in the calendar view (read-only). Pick exactly which calendars to show per account, including shared calendars. See [Outlook setup](#outlook-calendar-setup).
 - **Priorities** — `🔺 ⏫ 🔼 🔽 ⏬`.
 - **Subtasks** — indented checkboxes under a task. The board shows a `☑ 2/5` progress badge; add and check them in the edit modal.
-- **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it.
+- **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it. Optionally, completing a card moves its note into a `0. archive` subfolder (and reopening moves it back).
 - **Click = edit** — click a card for the edit modal: status/column, due date, project, recurrence, subtasks and note in one place.
 - **Automatic moving** — tasks due today (or overdue) move automatically to the In-progress column.
 - **Inbox** — quick entry of new tasks into a configurable inbox note.
@@ -57,7 +57,7 @@ Works the same on desktop and mobile. Obsidian offers updates automatically.
 A task is a plain markdown checkbox with optional metadata:
 
 ```text
-- [ ] Draft quote 📅 2026-05-25 #project/aim #kanban/doing ⏫
+- [ ] Draft quote 📅 2026-05-25 ⏰ 09:30 #project/aim #kanban/doing ⏫
     - [ ] Request figures
     - [x] Pick template
 - [ ] Onboarding call [[Acme onboarding]] #project/client/acme #kanban/todo
@@ -69,6 +69,7 @@ A task is a plain markdown checkbox with optional metadata:
 | `#kanban/<column>` | Which column the task is in (e.g. `#kanban/doing`) |
 | `#project/<name>` | Project; use `/` for subprojects (`#project/client/acme`) |
 | `📅 YYYY-MM-DD` | Due date |
+| `⏰ HH:mm` | Time of day (24h), shown on the calendar timeline |
 | `🔁 every week` | Recurrence (`every day/week/month/year`, also `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Priority (highest → lowest) |
 | `[[Note]]` | Linked note |
@@ -132,9 +133,9 @@ Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **a
 
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
-### Nieuw in 1.10 — Kalenderweergave & Outlook-sync
+### Nieuw in 1.11 — Week- & dagweergave, tijd op kaarten, en notities archiveren
 
-Zie elke taak op zijn due date in een maandkalender, en leg er optioneel je Outlook-afspraken naast.
+De kalender heeft nu **Week**- en **Dag**weergave naast Maand; je kunt een taak een **tijd** geven die op één tijdlijn met je afspraken verschijnt; en een afgeronde kaart kan zijn **gekoppelde notitie automatisch archiveren**. De maandkalender en optionele Outlook-sync uit 1.10 zie je hieronder.
 
 ![Kalenderweergave met taken en Outlook-events — donker thema](assets/calendar-preview.png)
 
@@ -150,12 +151,12 @@ Zie elke taak op zijn due date in een maandkalender, en leg er optioneel je Outl
 - **Dynamische kolommen** — standaard: Te doen / Bezig / Wacht op reactie / Klaar. Voeg in de instellingen zelf kolommen toe, hernoem ze, wijzig de volgorde of verwijder ze. Sleep kaarten tussen kolommen (desktop) of wijzig de kolom in de edit-modal (mobiel).
 - **Tweetalig (NL/EN)** — de hele interface is beschikbaar in het Nederlands en het Engels. Standaard volgt de plugin de taal van Obsidian; je kunt ook handmatig kiezen.
 - **Projecten met kleuren** — groepeer met `#project/naam`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/acme`) worden ondersteund.
-- **Due dates & herhaling** — `📅 2026-05-28` en `🔁 every week`. Afgevinkte herhalende taken maken automatisch de volgende instance aan.
-- **Kalenderweergave** — een maandraster met elke taak op zijn due date, met dezelfde kleurcodering als het bord (rood = te laat, oranje = vandaag). Open hem via het lint (kalender-icoon), het commandopalet of de 📅-knop op het bord. Klik op een dag om een taak met die datum toe te voegen; klik op een taak om hem te bewerken.
+- **Due dates, tijd & herhaling** — `📅 2026-05-28`, een optionele tijd `⏰ 14:30`, en `🔁 every week`. Afgevinkte herhalende taken maken automatisch de volgende instance aan (met behoud van hun tijd).
+- **Kalenderweergave (Maand / Week / Dag)** — zie elke taak op zijn due date, met dezelfde kleurcodering als het bord (rood = te laat, oranje = vandaag). Schakel in de kop tussen het maandraster en agenda-achtige Week- en Dagweergave; taken met een tijd en je afspraken delen één tijdlijn op tijd gesorteerd. In de maandweergave is **"+N meer" klikbaar** en opent die dag, zodat niets verborgen blijft. De weergaven blijven leesbaar in een smal split-paneel. Open de kalender via het lint (kalender-icoon), het commandopalet of de 📅-knop op het bord. Klik op een dag om een taak met die datum toe te voegen; klik op een taak om hem te bewerken.
 - **Outlook-agenda (optioneel)** — koppel een of meer Microsoft/Outlook-accounts via OAuth en zie je afspraken naast je taken in de kalenderweergave (alleen-lezen). Kies per account precies welke agenda's je toont, inclusief gedeelde agenda's. Zie [Outlook instellen](#outlook-agenda-instellen).
 - **Prioriteiten** — `🔺 ⏫ 🔼 🔽 ⏬`.
 - **Subtaken** — ingesprongen checkboxes onder een taak. Het bord toont een `☑ 2/5`-voortgangsbadge; toevoegen en afvinken doe je in de edit-modal.
-- **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een `[[wikilink]]` in de taakregel). Bestaat hij al, dan opent de knop hem.
+- **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een `[[wikilink]]` in de taakregel). Bestaat hij al, dan opent de knop hem. Optioneel verhuist het afronden van een kaart zijn notitie naar een submap `0. archive` (en bij heropenen weer terug).
 - **Klik = bewerken** — klik op een kaart voor de edit-modal: status/kolom, due date, project, herhaling, subtaken en notitie op één plek.
 - **Automatisch verplaatsen** — taken die vandaag (of overdue) due zijn schuiven automatisch naar de Bezig-kolom.
 - **Inbox** — snelle invoer van nieuwe taken in een instelbare inbox-note.
@@ -181,7 +182,7 @@ Werkt hetzelfde op desktop en mobiel. Obsidian biedt updates automatisch aan.
 Een taak is een gewone markdown-checkbox met optionele metadata:
 
 ```text
-- [ ] Offerte uitwerken 📅 2026-05-25 #project/aim #kanban/doing ⏫
+- [ ] Offerte uitwerken 📅 2026-05-25 ⏰ 09:30 #project/aim #kanban/doing ⏫
     - [ ] Cijfers opvragen
     - [x] Template kiezen
 - [ ] Onboarding-call [[Acme onboarding]] #project/klant/acme #kanban/todo
@@ -193,6 +194,7 @@ Een taak is een gewone markdown-checkbox met optionele metadata:
 | `#kanban/<kolom>` | In welke kolom de taak staat (bv. `#kanban/doing`) |
 | `#project/<naam>` | Project; gebruik `/` voor subprojecten (`#project/klant/acme`) |
 | `📅 JJJJ-MM-DD` | Due date |
+| `⏰ UU:mm` | Tijdstip (24-uurs), getoond op de kalender-tijdlijn |
 | `🔁 every week` | Herhaling (`every day/week/month/year`, ook `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Prioriteit (hoogst → laagst) |
 | `[[Notitie]]` | Gekoppelde notitie |

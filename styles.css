@@ -567,6 +567,9 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Query-context zodat de weekweergave op de PANEELbreedte reageert (split-view),
+     niet op de vensterbreedte. */
+  container-type: inline-size;
 }
 
 .tcal-header {
@@ -576,6 +579,10 @@
   border-bottom: 1px solid var(--background-modifier-border);
   gap: 10px;
   flex-shrink: 0;
+  /* Bij weinig ruimte wrappen de knoppen naar een volgende rij i.p.v. te
+     verdwijnen achter de overflow van het paneel. */
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 .tcal-nav {
   display: flex;
@@ -588,6 +595,21 @@
 }
 .tcal-spacer {
   flex: 1;
+}
+
+/* Smal kalenderpaneel: de duwende spacer weghalen zodat de knoppen strak links
+   inpakken en gelijkmatig over meerdere rijen wrappen (geen lege tussenrij). */
+@container (max-width: 620px) {
+  .tcal-header {
+    gap: 6px 8px;
+    padding: 8px 10px;
+  }
+  .tcal-spacer {
+    display: none;
+  }
+  .tcal-title {
+    min-width: 0;
+  }
 }
 
 .tcal-grid {
@@ -691,6 +713,14 @@
   flex-shrink: 0;
   font-size: 0.9em;
 }
+/* Tijdstip-badge op een taak — zelfde stijl als de tijd van een afspraak,
+   maar erft de statuskleur (rood = te laat, oranje = vandaag). */
+.tcal-task-time {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  opacity: 0.85;
+}
 .tcal-no-color {
   border-left-color: var(--background-modifier-border);
 }
@@ -750,6 +780,134 @@
 .tcal-event-text {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Weergave-schakelaar (maand / week / dag) in de kalenderkop. */
+.tcal-modes {
+  display: flex;
+  gap: 2px;
+  margin-left: 4px;
+}
+.tcal-mode-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/* "+n meer" is klikbaar → opent de dagweergave van die dag. */
+.tcal-more {
+  cursor: pointer;
+  border-radius: 6px;
+}
+.tcal-more:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* Weekweergave: 7 kolommen die de hoogte vullen, elk met een scrollbare lijst. */
+.tcal-body-week {
+  grid-auto-rows: minmax(0, 1fr);
+  overflow: hidden;
+}
+.tcal-day-week {
+  min-height: 0;
+}
+.tcal-day-head-week {
+  justify-content: space-between;
+  align-items: baseline;
+}
+.tcal-weekday-name {
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+.tcal-day-tasks-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+/* In de weekweergave is er verticaal ruimte: laat tekst afbreken i.p.v. afkappen. */
+.tcal-body-week .tcal-task,
+.tcal-body-week .tcal-event {
+  white-space: normal;
+}
+.tcal-body-week .tcal-task .tcal-task-text,
+.tcal-body-week .tcal-event .tcal-event-text {
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Smal kalenderpaneel (bv. een split-view): 7 kolommen naast elkaar zijn dan
+   onleesbaar, dus stapelen we de dagen verticaal als een doorlopende agenda. */
+@container (max-width: 760px) {
+  .tcal-body-week {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    overflow-y: auto;
+  }
+  .tcal-day-week {
+    min-height: auto;
+    overflow: visible;
+    border-right: none;
+    padding: 0;
+  }
+  /* Dag-kop wordt een meeschuivende sectie-koptekst. */
+  .tcal-day-week .tcal-day-head-week {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 5px 10px;
+    background: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+  }
+  .tcal-day-week.tcal-today .tcal-day-head-week {
+    background: var(--background-modifier-hover);
+  }
+  .tcal-day-week.tcal-today .tcal-weekday-name {
+    color: var(--text-normal);
+  }
+  /* De lijst stroomt mee met de hele agenda i.p.v. een eigen scrollgebied. */
+  .tcal-day-week .tcal-day-tasks-scroll {
+    overflow: visible;
+    gap: 3px;
+    padding: 6px 10px 10px;
+  }
+  /* Lege dag: alleen de koptekst, geen grote witruimte. */
+  .tcal-day-week .tcal-day-tasks-scroll:empty {
+    padding: 0;
+  }
+  /* Volledige breedte → grotere, volledig leesbare items. */
+  .tcal-body-week .tcal-task,
+  .tcal-body-week .tcal-event {
+    font-size: 0.86em;
+    padding: 3px 8px;
+  }
+}
+
+/* Dagweergave: één dag over de volle breedte met een volledige scrollbare lijst. */
+.tcal-agenda {
+  padding: 0;
+}
+.tcal-day-agenda {
+  flex: 1;
+  min-height: 0;
+  border-right: none;
+  cursor: default;
+}
+.tcal-agenda-list {
+  flex: 1;
+  overflow-y: auto;
+  gap: 4px;
+  padding: 8px 10px;
+}
+.tcal-agenda-list .tcal-task,
+.tcal-agenda-list .tcal-event {
+  font-size: 0.9em;
+  padding: 4px 8px;
+}
+.tcal-empty {
+  color: var(--text-muted);
+  padding: 16px 8px;
+  text-align: center;
 }
 
 /* Statusregel onder het Client ID-veld (ingebouwd/eigen/ontbreekt). */
