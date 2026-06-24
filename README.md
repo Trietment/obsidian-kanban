@@ -4,6 +4,10 @@
 
 A Kanban board for [Obsidian](https://obsidian.md) that collects tasks from **every note in your vault**. Tasks are plain markdown checkboxes with optional metadata; the plugin shows them as draggable cards in columns. Works on desktop and mobile.
 
+<a href="https://buymeacoffee.com/trietment" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
+
+If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.com/trietment) — thank you!
+
 ![Trietment Kanban board — dark theme](assets/board-preview.png)
 
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
@@ -128,6 +132,10 @@ Sign-in tokens are stored per device (in local storage, not in `data.json`), so 
 [English](#trietment-kanban) | **Nederlands**
 
 Een Kanban-bord voor [Obsidian](https://obsidian.md) dat taken verzamelt uit **alle notes in je vault**. Taken zijn gewone markdown-checkboxes met optionele metadata; de plugin toont ze als sleepbare kaarten in kolommen. Werkt op desktop én mobiel.
+
+<a href="https://buymeacoffee.com/trietment" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy me a coffee" height="40"></a>
+
+Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoffee.com/trietment) — dankjewel!
 
 ![Trietment Kanban-bord — donker thema](assets/board-preview.png)
 

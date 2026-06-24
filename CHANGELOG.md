@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.11.1
+
+- **Support link** — you can now support development via Buy Me a Coffee. The link appears on the plugin page (`fundingUrl`), in the README, and at the bottom of the plugin settings. The plugin stays free.
+
+> NL: Je kunt de ontwikkeling nu steunen via Buy Me a Coffee. De link staat op de plugin-pagina (`fundingUrl`), in de README en onderaan de plugin-instellingen. De plugin blijft gratis.
+
 ## 1.11.0
 
 **New: week & day calendar views, times on cards, and note archiving**

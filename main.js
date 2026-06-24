@@ -284,6 +284,9 @@ const TRANSLATIONS = {
     help_p3: 'Subtaken zijn ingesprongen checkboxes onder een taak. Het bord toont een ☑ 2/5 badge; toevoegen/afvinken doe je in de edit-modal.',
     help_p4: 'Met de 📄-knop maak je een gekoppelde notitie (een [[wikilink]] in de taakregel) uit je template. Bestaat hij al, dan opent de knop hem.',
     help_p5: 'Sleep een kaart naar een andere kolom (desktop) of wijzig de kolom in de modal. Klik op een gekleurde project-badge om op dat project te filteren.',
+    sec_support: 'Steun de ontwikkeling',
+    support_desc: 'Deze plugin is gratis. Een kleine bijdrage houdt de ontwikkeling gaande — dankjewel!',
+    support_btn: '☕ Trakteer me op een koffie',
   },
   en: {
     open_board: 'Open Kanban board',
@@ -480,6 +483,9 @@ const TRANSLATIONS = {
     help_p3: 'Subtasks are indented checkboxes under a task. The board shows a ☑ 2/5 badge; add/check them in the edit modal.',
     help_p4: 'Use the 📄 button to create a linked note (a [[wikilink]] in the task line) from your template. If it exists already, the button opens it.',
     help_p5: 'Drag a card to another column (desktop) or change the column in the modal. Click a colored project badge to filter on that project.',
+    sec_support: 'Support development',
+    support_desc: 'This plugin is free. A small contribution keeps development going — thank you!',
+    support_btn: '☕ Buy me a coffee',
   },
 };
 
@@ -3295,5 +3301,14 @@ class KanbanSettingTab extends PluginSettingTab {
     help.createEl('p', { text: t('help_p3') });
     help.createEl('p', { text: t('help_p4') });
     help.createEl('p', { text: t('help_p5') });
+
+    // -- Steun ---------------------------------------------------------
+    new Setting(containerEl).setName(t('sec_support')).setHeading();
+    new Setting(containerEl)
+      .setDesc(t('support_desc'))
+      .addButton((b) => b
+        .setButtonText(t('support_btn'))
+        .setCta()
+        .onClick(() => window.open('https://buymeacoffee.com/trietment', '_blank')));
   }
 }
