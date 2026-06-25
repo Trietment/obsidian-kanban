@@ -26,13 +26,20 @@ const DEFAULT_SETTINGS = {
   doneColumn: 'done',
   inboxNote: 'Kanban Inbox.md',
   showInbox: true,
+  collectKanbanNotes: false,    // notitie met note-level #kanban-tag → alle taken op het bord
+  swimlaneGroupBy: 'none',
+  calendarViewMode: 'month',    // onthoudt de laatst gekozen kalenderweergave (month/week/day)
+  activeBoardId: 'default',
   projectColors: {},
   projectLabels: {},
+  clientColors: {},
+  clientLabels: {},
   projectScanFolders: [], // map(pen) die op #project/-tags doorzocht worden (leeg = hele vault)
   autoMoveToday: true,
   inProgressColumn: 'doing',
   autoMoveOverdue: false,
   noteFolder: 'Kanban Notes', // map voor álle gekoppelde notities (leeg = bij de bron-note)
+  coverFolder: 'Kanban Notes/assets', // map voor geüploade cover-afbeeldingen (leeg = Obsidian-bijlagenmap)
   noteTemplate: '',   // leeg = ingebouwde template hieronder
   archiveNotesOnDone: true,   // gekoppelde notitie naar archief-submap verplaatsen bij afronden (terug bij heropenen)
   archiveFolder: '0. archive',// naam van de archief-submap binnen de notitie-map
@@ -78,6 +85,15 @@ const PRIORITY_ICONS = {
   low: '🔽',
   lowest: '⏬',
 };
+// Standaardkleuren voor de ingebouwde prioriteiten (te overschrijven in instellingen).
+const PRIORITY_COLORS = {
+  highest: '#e53e3e',
+  high: '#dd6b20',
+  medium: '#3b82f6',
+  low: '#10b981',
+  lowest: '#9ca3af',
+};
+const BUILTIN_PRIORITY_VALUES = ['highest', 'high', 'medium', 'low', 'lowest'];
 
 // -- i18n -------------------------------------------------------------------
 
@@ -179,6 +195,13 @@ const TRANSLATIONS = {
     prio_medium: '🔼 Middel',
     prio_low: '🔽 Laag',
     prio_lowest: '⏬ Laagst',
+    sec_priorities: 'Prioriteiten',
+    priorities_help: 'Stel je eigen prioriteiten in (naam + kleur). De vijf standaardniveaus gebruiken de bekende emoji; eigen prioriteiten komen als #priority/<naam> op de taakregel.',
+    add_priority: 'Prioriteit toevoegen',
+    add_priority_desc: 'Voeg een eigen prioriteit toe, bv. "Emergency" of "Active".',
+    add_priority_placeholder: 'naam van de prioriteit',
+    name_the_priority: 'Geef de prioriteit een naam.',
+    delete_priority: 'Prioriteit verwijderen',
     // Add task modal
     add_modal_title: 'Nieuwe Kanban-taak',
     task: 'Taak',
@@ -203,6 +226,15 @@ const TRANSLATIONS = {
     column_status: 'Kolom / status',
     due_clear_desc: 'Leeg laten om de datum te verwijderen.',
     time_clear_desc: 'Leeg laten om de tijd te verwijderen.',
+    title: 'Titel',
+    title_edit_desc: 'De taaktekst. Datum, tijd, project, prioriteit en koppelingen blijven behouden.',
+    cover_label: 'Omslag',
+    cover_hint: 'Afbeelding ([[bestand]] of URL) of platte tekst (bv. een klantnaam).',
+    cover_upload: 'Uploaden',
+    cover_upload_failed: 'Uploaden van de afbeelding is mislukt.',
+    cover_folder: 'Cover-map',
+    cover_folder_desc: 'Map waarin geüploade cover-afbeeldingen worden opgeslagen (wordt automatisch aangemaakt). Leeg = de Obsidian-bijlagenmap (naast de bron-notitie).',
+    cover_folder_placeholder: 'bv. Kanban Notes/assets',
     repeat_edit_desc: 'Bij afvinken wordt er automatisch een volgende instance gemaakt.',
     project_edit_desc: 'Leeg laten om het project te verwijderen. Gebruik / voor subproject (bv. klant/acme).',
     project_placeholder2: 'bv. klant/acme',
@@ -244,6 +276,8 @@ const TRANSLATIONS = {
     inbox_note_desc: 'Standaardbestand voor nieuwe taken. Wordt aangemaakt als het niet bestaat.',
     show_inbox: 'Inbox-kolom tonen',
     show_inbox_desc: 'Toon taken zonder #kanban/ tag in een aparte Inbox-kolom.',
+    collect_kanban_notes: 'Taken uit #kanban-notities',
+    collect_kanban_notes_desc: 'Beperkt het bord tot je #kanban-notities: een notitie met de tag #kanban (frontmatter of inline) levert ál haar taken aan het bord, zonder per-taak-tag. Nieuwe (open) taken komen in de Inbox om te sorteren, afgevinkte in de afgerond-kolom; taken met een eigen #kanban/<kolom> gaan naar die kolom. Overige checkboxes in de vault worden genegeerd. (Houd "Inbox tonen" aan.)',
     sec_linked_notes: 'Gekoppelde notities',
     linked_notes_help: 'Elke kaart kan een eigen notitie krijgen via de 📄-knop. De notitie wordt aangemaakt uit een template.',
     note_folder: 'Notitie-map',
@@ -275,6 +309,36 @@ const TRANSLATIONS = {
     scan_vault: 'Scannen',
     scan_result: '{found} projecten gevonden, {added} nieuwe kleuren toegekend.',
     no_projects_yet: 'Nog geen projecten. Voeg een taak toe met #project/<naam> en hij verschijnt hier.',
+    client: 'Klant',
+    client_add_desc: 'Optioneel. Kies een bestaande klant of typ een nieuwe naam.',
+    client_edit_desc: 'Leeg laten om de klant te verwijderen.',
+    client_placeholder: 'bv. acme',
+    client_of: 'Klant: {c}',
+    sec_clients: 'Klanten en kleuren',
+    clients_help: 'Geef per klant een kleur. Gebruik #client/<naam> in je taken om ze hieraan te koppelen.',
+    no_clients_yet: 'Nog geen klanten. Voeg een taak toe met #client/<naam> en hij verschijnt hier.',
+    group_by: 'Groeperen in banen',
+    group_none: 'Geen banen',
+    group_project: 'Per project',
+    group_client: 'Per klant',
+    group_priority: 'Per prioriteit',
+    group_due: 'Per datum',
+    lane_none: 'Zonder',
+    lane_overdue: 'Te laat',
+    lane_today: 'Vandaag',
+    lane_tomorrow: 'Morgen',
+    lane_week: 'Deze week',
+    lane_later: 'Later',
+    sec_boards: 'Borden',
+    boards_help: 'Maak meerdere borden, elk met een eigen bereik (projecten/klanten) en banen-groepering. Bovenaan het bord kies je het actieve bord (verschijnt zodra je meer dan één bord hebt).',
+    board_name_ph: 'Bordnaam',
+    board_projects_ph: 'projecten (komma)',
+    board_clients_ph: 'klanten (komma)',
+    add_board: 'Bord toevoegen',
+    delete_board: 'Bord verwijderen',
+    board_name_required: 'Geef het bord een naam.',
+    switch_board: 'Wissel van bord',
+    default_board_name: 'Kanban',
     project_label_placeholder: 'weergave-label (optioneel)',
     remove_color: 'Verwijder kleur (taken blijven bestaan)',
     sec_help: 'Hoe werkt het?',
@@ -381,6 +445,13 @@ const TRANSLATIONS = {
     prio_medium: '🔼 Medium',
     prio_low: '🔽 Low',
     prio_lowest: '⏬ Lowest',
+    sec_priorities: 'Priorities',
+    priorities_help: 'Define your own priorities (name + color). The five built-in levels use the familiar emoji; your own priorities are written as #priority/<name> on the task line.',
+    add_priority: 'Add priority',
+    add_priority_desc: 'Add a custom priority, e.g. "Emergency" or "Active".',
+    add_priority_placeholder: 'priority name',
+    name_the_priority: 'Name the priority.',
+    delete_priority: 'Delete priority',
     add_modal_title: 'New Kanban task',
     task: 'Task',
     task_placeholder: 'What needs to be done?',
@@ -403,6 +474,15 @@ const TRANSLATIONS = {
     column_status: 'Column / status',
     due_clear_desc: 'Leave empty to remove the date.',
     time_clear_desc: 'Leave empty to remove the time.',
+    title: 'Title',
+    title_edit_desc: 'The task text. Date, time, project, priority and links are preserved.',
+    cover_label: 'Cover',
+    cover_hint: 'Image ([[file]] or URL) or plain text (e.g. a client name).',
+    cover_upload: 'Upload',
+    cover_upload_failed: 'Uploading the image failed.',
+    cover_folder: 'Cover folder',
+    cover_folder_desc: 'Folder where uploaded cover images are saved (created automatically). Empty = the Obsidian attachment folder (next to the source note).',
+    cover_folder_placeholder: 'e.g. Kanban Notes/assets',
     repeat_edit_desc: 'When completed, the next instance is created automatically.',
     project_edit_desc: 'Leave empty to remove the project. Use / for a subproject (e.g. client/acme).',
     project_placeholder2: 'e.g. client/acme',
@@ -443,6 +523,8 @@ const TRANSLATIONS = {
     inbox_note_desc: 'Default file for new tasks. Created if it does not exist.',
     show_inbox: 'Show inbox column',
     show_inbox_desc: 'Show tasks without a #kanban/ tag in a separate Inbox column.',
+    collect_kanban_notes: 'Tasks from #kanban notes',
+    collect_kanban_notes_desc: 'Limits the board to your #kanban notes: a note tagged #kanban (frontmatter or inline) contributes all of its tasks, without per-task tagging. New (open) tasks land in the Inbox to sort, checked ones in the done column; tasks with an explicit #kanban/<column> go to that column. All other checkboxes in the vault are ignored. (Keep "Show inbox" on.)',
     sec_linked_notes: 'Linked notes',
     linked_notes_help: 'Every card can get its own note via the 📄 button. The note is created from a template.',
     note_folder: 'Note folder',
@@ -474,6 +556,36 @@ const TRANSLATIONS = {
     scan_vault: 'Scan',
     scan_result: '{found} projects found, {added} new colors assigned.',
     no_projects_yet: 'No projects yet. Add a task with #project/<name> and it appears here.',
+    client: 'Client',
+    client_add_desc: 'Optional. Pick an existing client or type a new name.',
+    client_edit_desc: 'Leave empty to remove the client.',
+    client_placeholder: 'e.g. acme',
+    client_of: 'Client: {c}',
+    sec_clients: 'Clients and colors',
+    clients_help: 'Give each client a color. Use #client/<name> in your tasks to link them.',
+    no_clients_yet: 'No clients yet. Add a task with #client/<name> and it appears here.',
+    group_by: 'Group into lanes',
+    group_none: 'No lanes',
+    group_project: 'By project',
+    group_client: 'By client',
+    group_priority: 'By priority',
+    group_due: 'By due date',
+    lane_none: 'None',
+    lane_overdue: 'Overdue',
+    lane_today: 'Today',
+    lane_tomorrow: 'Tomorrow',
+    lane_week: 'This week',
+    lane_later: 'Later',
+    sec_boards: 'Boards',
+    boards_help: 'Create multiple boards, each with its own scope (projects/clients) and lane grouping. Pick the active board at the top of the board (appears once you have more than one).',
+    board_name_ph: 'Board name',
+    board_projects_ph: 'projects (comma)',
+    board_clients_ph: 'clients (comma)',
+    add_board: 'Add board',
+    delete_board: 'Delete board',
+    board_name_required: 'Name the board.',
+    switch_board: 'Switch board',
+    default_board_name: 'Kanban',
     project_label_placeholder: 'display label (optional)',
     remove_color: 'Remove color (tasks remain)',
     sec_help: 'How does it work?',
@@ -539,6 +651,35 @@ async function pkceChallenge(verifier) {
 }
 
 // Zet een hex-kleur om naar rgba() — voor de kaart-tint zonder color-mix().
+// Bepaalt of een cover-waarde een afbeelding is (vault-embed of URL) of platte tekst.
+function resolveCover(plugin, value, sourcePath) {
+  const wl = value.match(/^!?\[\[([^\]|#]+)/);
+  if (wl) {
+    const dest = plugin.app.metadataCache.getFirstLinkpathDest(wl[1].trim(), sourcePath || '');
+    if (dest) return { kind: 'image', src: plugin.app.vault.getResourcePath(dest) };
+    return { kind: 'text', text: value };
+  }
+  if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(value)) return { kind: 'image', src: value };
+  return { kind: 'text', text: value };
+}
+
+// Open een bestandskiezer voor een afbeelding, upload hem en geef de [[wikilink]] terug.
+function pickCoverImage(plugin, sourcePath, onPicked) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.style.display = 'none';
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0];
+    inp.remove();
+    if (!f) return;
+    const tfile = await plugin.uploadCoverImage(f, sourcePath);
+    if (tfile) onPicked(`[[${tfile.name}]]`);
+  });
+  document.body.appendChild(inp);
+  inp.click();
+}
+
 function hexToRgba(hex, alpha) {
   if (!hex || typeof hex !== 'string') return null;
   let h = hex.replace('#', '').trim();
@@ -633,8 +774,15 @@ function parseTaskLine(line, filePath, lineNum) {
   const projMatch = rest.match(/#project\/([\w-]+(?:\/[\w-]+)*)/);
   if (projMatch) project = projMatch[1];
 
+  let client = null;
+  const clientMatch = rest.match(/#client\/([\w-]+(?:\/[\w-]+)*)/);
+  if (clientMatch) client = clientMatch[1];
+
+  // Prioriteit: een vrije #priority/<waarde>, óf een van de oude emoji's (back-compat).
   let priority = null;
-  if (rest.includes('🔺')) priority = 'highest';
+  const prioTag = rest.match(/#priority\/([\w-]+)/);
+  if (prioTag) priority = prioTag[1];
+  else if (rest.includes('🔺')) priority = 'highest';
   else if (rest.includes('⏫')) priority = 'high';
   else if (rest.includes('🔼')) priority = 'medium';
   else if (rest.includes('🔽')) priority = 'low';
@@ -644,24 +792,35 @@ function parseTaskLine(line, filePath, lineNum) {
   const recMatch = rest.match(/🔁\s+(every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly))/i);
   if (recMatch) recurrence = recMatch[1].toLowerCase().replace(/\s+/g, ' ').trim();
 
-  // Gekoppelde notitie: eerste [[wikilink]] in de regel.
+  // Cover (omslag): [cover:: waarde] — waarde mag een [[embed]], URL of platte tekst zijn.
+  // Twee vormen, zodat een wikilink-waarde met geneste ]] correct wordt gepakt.
+  let cover = null, coverFull = null;
+  let cm = rest.match(/\[cover::\s*(!?\[\[[^\]]+\]\])\s*\]/i);
+  if (!cm) cm = rest.match(/\[cover::\s*([^\[\]]+?)\s*\]/i);
+  if (cm) { cover = cm[1].trim(); coverFull = cm[0]; }
+  // De cover uit de rest halen zodat een evt. wikilink erin niet als gekoppelde notitie telt.
+  const restNoCover = coverFull ? rest.split(coverFull).join(' ') : rest;
+
+  // Gekoppelde notitie: eerste [[wikilink]] in de regel (cover uitgezonderd).
   let noteLink = null;
-  const linkMatch = rest.match(/\[\[([^\]]+)\]\]/);
+  const linkMatch = restNoCover.match(/\[\[([^\]]+)\]\]/);
   if (linkMatch) noteLink = linkMatch[1].split('|')[0].split('#')[0].trim();
 
-  const text = rest
+  const text = restNoCover
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
     .replace(/⏰\s*\d{1,2}:\d{2}/g, '')
     .replace(/🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi, '')
     .replace(/#kanban\/[\w-]+/g, '')
     .replace(/#project\/[\w-]+(?:\/[\w-]+)*/g, '')
+    .replace(/#client\/[\w-]+(?:\/[\w-]+)*/g, '')
+    .replace(/#priority\/[\w-]+/g, '')
     .replace(/\[\[[^\]]+\]\]/g, '')
     .replace(/[🔺⏫🔼🔽⏬]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
   return {
-    text, dueDate, time, column, project, priority, recurrence, done, noteLink,
+    text, dueDate, time, column, project, client, priority, recurrence, done, noteLink, cover,
     file: filePath, line: lineNum, indent,
     raw: line, subtasks: [],
   };
@@ -784,29 +943,58 @@ module.exports = class KanbanPlugin extends Plugin {
     });
   }
 
+  // Heeft de notitie een note-level #kanban-tag (frontmatter of inline)?
+  isKanbanNote(file) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!cache) return false;
+    const fm = cache.frontmatter;
+    if (fm && fm.tags != null) {
+      const arr = Array.isArray(fm.tags) ? fm.tags : String(fm.tags).split(/[,\s]+/);
+      if (arr.some((tg) => String(tg).replace(/^#/, '') === 'kanban')) return true;
+    }
+    if (cache.tags && cache.tags.some((tg) => tg.tag === '#kanban')) return true;
+    return false;
+  }
+
   async scanTasks() {
     const tasks = [];
     const files = this.app.vault.getMarkdownFiles();
+    const collectNotes = !!this.settings.collectKanbanNotes;
     for (const file of files) {
       let content;
       try { content = await this.app.vault.cachedRead(file); }
       catch (_) { continue; }
       const lines = content.split('\n');
+      const kanbanNote = collectNotes && this.isKanbanNote(file);
       let current = null;       // huidige top-level taak (= kaart)
       let currentWidth = 0;
+      let skipWidth = null;     // indent van een overgeslagen top-taak (subtaken ook overslaan)
       for (let i = 0; i < lines.length; i++) {
         const parsed = parseTaskLine(lines[i], file.path, i);
         if (!parsed) {
-          if (lines[i].trim() !== '') { current = null; currentWidth = 0; }
+          if (lines[i].trim() !== '') { current = null; currentWidth = 0; skipWidth = null; }
           continue;
         }
         const w = indentWidth(parsed.indent);
+        // Binnen een overgeslagen taak: ook de subtaken overslaan.
+        if (skipWidth != null) {
+          if (w > skipWidth) continue;
+          skipWidth = null;
+        }
         if (current && w > currentWidth) {
           current.subtasks.push({
             text: parsed.text, done: parsed.done,
             file: file.path, line: i, raw: lines[i],
           });
         } else {
+          // Scope-modus: alleen taken uit #kanban-notities, óf met een eigen #kanban/-tag.
+          if (collectNotes && !kanbanNote && !parsed.column) {
+            current = null; currentWidth = 0; skipWidth = w;
+            continue;
+          }
+          // In een #kanban-notitie: afgevinkte taken → afgerond-kolom; open taken
+          // blijven kolomloos en landen in de Inbox als intake (sleep ze naar een kolom).
+          if (kanbanNote && !parsed.column && parsed.done) parsed.column = this.settings.doneColumn;
           tasks.push(parsed);
           current = parsed;
           currentWidth = w;
@@ -899,6 +1087,21 @@ module.exports = class KanbanPlugin extends Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
     this.applyLanguage();
 
+    // Borden: zorg voor minstens één bord (eigen kopie, niet de default-referentie).
+    if (!Array.isArray(this.settings.boards) || !this.settings.boards.length) {
+      this.settings.boards = [{ id: 'default', name: this.t('default_board_name'), projects: [], clients: [], groupBy: this.settings.swimlaneGroupBy || 'none' }];
+    }
+    if (!this.settings.activeBoardId) this.settings.activeBoardId = this.settings.boards[0].id;
+
+    // Prioriteiten: bij eerste keer de 5 standaardniveaus seeden (gelokaliseerde labels).
+    if (!Array.isArray(this.settings.priorities) || !this.settings.priorities.length) {
+      this.settings.priorities = BUILTIN_PRIORITY_VALUES.map((v) => ({
+        value: v,
+        label: this.t('prio_' + v).replace(/^\S+\s+/, ''),
+        color: PRIORITY_COLORS[v],
+      }));
+    }
+
     // Verse installatie in het Engels → Engelse standaard-kolomlabels.
     if (!saved) {
       if (this.lang === 'en') {
@@ -931,7 +1134,9 @@ module.exports = class KanbanPlugin extends Plugin {
     if (task.recurrence) line += ` 🔁 ${task.recurrence}`;
     if (task.dueDate) line += ` 📅 ${task.dueDate}`;
     if (task.time) line += ` ⏰ ${task.time}`;
-    if (task.priority && PRIORITY_ICONS[task.priority]) line += ` ${PRIORITY_ICONS[task.priority]}`;
+    if (task.cover) line += ` [cover:: ${task.cover}]`;
+    if (task.priority) line += PRIORITY_ICONS[task.priority] ? ` ${PRIORITY_ICONS[task.priority]}` : ` #priority/${task.priority}`;
+    if (task.client) line += ` #client/${task.client}`;
     if (task.project) line += ` #project/${task.project}`;
     if (task.column) line += ` #kanban/${task.column}`;
     return line;
@@ -958,6 +1163,49 @@ module.exports = class KanbanPlugin extends Plugin {
     const used = new Set(Object.values(this.settings.projectColors));
     const free = DEFAULT_PALETTE.find((c) => !used.has(c)) || DEFAULT_PALETTE[Object.keys(this.settings.projectColors).length % DEFAULT_PALETTE.length];
     this.settings.projectColors[name] = free;
+    await this.saveSettings();
+  }
+
+  getClients() {
+    const set = new Set();
+    Object.keys(this.settings.clientColors || {}).forEach((c) => set.add(c));
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN).forEach((leaf) => {
+      if (leaf.view instanceof KanbanView) {
+        leaf.view.tasks.forEach((t) => t.client && set.add(t.client));
+      }
+    });
+    return [...set].sort();
+  }
+
+  getClientColor(name) {
+    if (!name) return null;
+    return (this.settings.clientColors || {})[name] || null;
+  }
+
+  // Prioriteiten: vrij instelbare lijst (waarde/label/kleur). Valt terug op de 5 standaard.
+  getPriorities() {
+    if (Array.isArray(this.settings.priorities) && this.settings.priorities.length) return this.settings.priorities;
+    return BUILTIN_PRIORITY_VALUES.map((v) => ({ value: v, label: v, color: PRIORITY_COLORS[v] }));
+  }
+
+  getPriorityDef(value) {
+    if (!value) return null;
+    return this.getPriorities().find((p) => p.value === value) || null;
+  }
+
+  activeBoard() {
+    const boards = this.settings.boards || [];
+    return boards.find((b) => b.id === this.settings.activeBoardId) || boards[0]
+      || { id: 'default', name: 'Kanban', projects: [], clients: [], groupBy: 'none' };
+  }
+
+  async assignClientColor(name) {
+    if (!name) return;
+    if (!this.settings.clientColors) this.settings.clientColors = {};
+    if (this.settings.clientColors[name]) return;
+    const used = new Set(Object.values(this.settings.clientColors));
+    const free = DEFAULT_PALETTE.find((c) => !used.has(c)) || DEFAULT_PALETTE[Object.keys(this.settings.clientColors).length % DEFAULT_PALETTE.length];
+    this.settings.clientColors[name] = free;
     await this.saveSettings();
   }
 
@@ -1004,6 +1252,139 @@ module.exports = class KanbanPlugin extends Plugin {
     lines[task.line] = line;
     await this.app.vault.modify(file, lines.join('\n'));
     if (newProject) await this.assignProjectColor(newProject);
+  }
+
+  async setClient(task, newClient) {
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length) return;
+    let line = lines[task.line];
+    const re = /#client\/[\w-]+(?:\/[\w-]+)*/;
+    const reG = /\s*#client\/[\w-]+(?:\/[\w-]+)*/g;
+    if (re.test(line)) {
+      if (newClient) line = line.replace(re, `#client/${newClient}`);
+      else line = line.replace(reG, '');
+    } else if (newClient) {
+      // Vóór de #project/#kanban-tag plaatsen (zoals formatTaskLine), anders achteraan.
+      const tagPos = line.search(/\s+#(?:project|kanban)\//);
+      if (tagPos >= 0) line = line.slice(0, tagPos) + ` #client/${newClient}` + line.slice(tagPos);
+      else line = line.trimEnd() + ` #client/${newClient}`;
+    }
+    lines[task.line] = line;
+    await this.app.vault.modify(file, lines.join('\n'));
+    if (newClient) await this.assignClientColor(newClient);
+  }
+
+  async setPriority(task, newPriority) {
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length) return;
+    let line = lines[task.line];
+    // Bestaande prioriteit weghalen: zowel de emoji als #priority/<waarde>.
+    line = line.replace(/\s*(?:🔺|⏫|🔼|🔽|⏬)/g, '').replace(/\s*#priority\/[\w-]+/g, '');
+    if (newPriority) {
+      // Ingebouwde 5 → emoji (Tasks-compatibel); eigen prioriteiten → #priority/<waarde>.
+      const token = PRIORITY_ICONS[newPriority] || `#priority/${newPriority}`;
+      const tagPos = line.search(/\s+#(?:project|client|kanban)\//);
+      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
+      else line = line.trimEnd() + ` ${token}`;
+    }
+    lines[task.line] = line;
+    await this.app.vault.modify(file, lines.join('\n'));
+  }
+
+  // Hernoem alleen de zichtbare taaktekst; alle tokens (datum/tijd/tags/prioriteit/
+  // wikilink) blijven byte-voor-byte staan. Bewust een raw-guard: een titel-rewrite
+  // mag nooit op een verschoven regel landen.
+  async setText(task, newText) {
+    newText = (newText || '').trim();
+    if (!newText) return;
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length || lines[task.line] !== task.raw) return;
+    const m = lines[task.line].match(/^(\s*- \[[ xX\-]\] )([\s\S]*)$/);
+    if (!m) return;
+    // Tekst loopt tot het eerste metadata-/cover-/wikilink-token; alles daarna blijft staan.
+    // [cover:: vóór [[ zodat een wikilink-cover bij het cover-token stopt, niet bij de inner [[.
+    const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|#client\/|\[cover::|\[\[)/);
+    const rest = idx < 0 ? '' : m[2].slice(idx);
+    lines[task.line] = m[1] + newText + rest;
+    await this.app.vault.modify(file, lines.join('\n'));
+  }
+
+  async setCover(task, newCover) {
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length) return;
+    let line = lines[task.line];
+    // Bestaande cover-token weghalen (beide vormen: wikilink en platte tekst/URL).
+    line = line.replace(/\s*\[cover::\s*!?\[\[[^\]]+\]\]\s*\]/i, '').replace(/\s*\[cover::\s*[^\[\]]+?\s*\]/i, '');
+    if (newCover) {
+      const token = `[cover:: ${newCover}]`;
+      const tagPos = line.search(/\s+#(?:project|kanban)\//);
+      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
+      else line = line.trimEnd() + ` ${token}`;
+    }
+    lines[task.line] = line;
+    await this.app.vault.modify(file, lines.join('\n'));
+  }
+
+  // Sla een geüploade afbeelding op via Obsidians bijlage-instelling (respecteert
+  // o.a. "submap naast de notitie") en geef het aangemaakte TFile terug.
+  // Maak een (geneste) map aan indien die nog niet bestaat.
+  async ensureFolder(folder) {
+    if (!folder) return;
+    let cur = '';
+    for (const part of folder.split('/')) {
+      cur = cur ? `${cur}/${part}` : part;
+      if (!this.app.vault.getAbstractFileByPath(cur)) {
+        try { await this.app.vault.createFolder(cur); } catch (_) {}
+      }
+    }
+  }
+
+  // Niet-botsend pad in een map: voegt " 1", " 2", … toe bij een naamconflict.
+  uniqueAttachmentPath(folder, fileName) {
+    const dot = fileName.lastIndexOf('.');
+    const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+    const ext = dot > 0 ? fileName.slice(dot) : '';
+    const prefix = folder ? folder.replace(/\/+$/, '') + '/' : '';
+    let candidate = prefix + base + ext;
+    let n = 1;
+    while (this.app.vault.getAbstractFileByPath(candidate)) candidate = `${prefix}${base} ${n++}${ext}`;
+    return candidate;
+  }
+
+  async uploadCoverImage(file, sourcePath) {
+    try {
+      const buf = await file.arrayBuffer();
+      let path;
+      const coverFolder = (this.settings.coverFolder || '').trim().replace(/^\/+|\/+$/g, '');
+      if (coverFolder) {
+        // Eigen cover-map: aanmaken indien nodig + unieke bestandsnaam.
+        await this.ensureFolder(coverFolder);
+        path = this.uniqueAttachmentPath(coverFolder, file.name);
+      } else if (this.app.fileManager.getAvailablePathForAttachment) {
+        // Leeg = volg de Obsidian-bijlage-instelling (naast de bron-note).
+        path = await this.app.fileManager.getAvailablePathForAttachment(file.name, sourcePath || '');
+      } else {
+        const dir = sourcePath && sourcePath.includes('/') ? sourcePath.slice(0, sourcePath.lastIndexOf('/')) + '/assets' : 'assets';
+        await this.ensureFolder(dir);
+        path = this.uniqueAttachmentPath(dir, file.name);
+      }
+      return await this.app.vault.createBinary(path, buf);
+    } catch (_) {
+      new Notice(this.t('cover_upload_failed'));
+      return null;
+    }
   }
 
   async ensureFile(path, initialContent = '') {
@@ -1323,6 +1704,8 @@ module.exports = class KanbanPlugin extends Plugin {
           time: task.time,
           priority: task.priority,
           project: task.project,
+          client: task.client,
+          cover: task.cover,
           recurrence: task.recurrence,
           column: targetCol,
         };
@@ -1394,6 +1777,7 @@ class KanbanView extends ItemView {
     this.tasks = [];
     this.filterText = '';
     this.hideDone = false;
+    this.groupBy = (plugin.settings && plugin.settings.swimlaneGroupBy) || 'none';
   }
 
   getViewType() { return VIEW_TYPE_KANBAN; }
@@ -1410,6 +1794,9 @@ class KanbanView extends ItemView {
   async render() {
     await this.loadTasks();
 
+    this.board = this.plugin.activeBoard();
+    this.groupBy = this.board.groupBy || 'none';
+
     // Taken die vandaag due zijn automatisch naar Bezig schuiven, daarna opnieuw inlezen.
     if (this.plugin.settings.autoMoveToday) {
       const moved = await this.plugin.autoMoveDueTasks(this.tasks);
@@ -1423,6 +1810,19 @@ class KanbanView extends ItemView {
     // Header
     const header = container.createDiv({ cls: 'tk-header' });
     header.createEl('h2', { text: this.plugin.t('board_title'), cls: 'tk-title' });
+
+    // Bord-kiezer (alleen tonen als er meer dan één bord is).
+    if ((this.plugin.settings.boards || []).length > 1) {
+      const boardSel = header.createEl('select', { cls: 'tk-board-picker dropdown' });
+      boardSel.setAttr('title', this.plugin.t('switch_board'));
+      for (const b of this.plugin.settings.boards) boardSel.createEl('option', { value: b.id, text: b.name });
+      boardSel.value = this.board.id;
+      boardSel.addEventListener('change', async (e) => {
+        this.plugin.settings.activeBoardId = e.target.value;
+        await this.plugin.saveSettings();
+        this.plugin.refreshViews();
+      });
+    }
 
     const filter = header.createEl('input', { cls: 'tk-filter', type: 'text', placeholder: this.plugin.t('filter_placeholder') });
     filter.value = this.filterText;
@@ -1439,6 +1839,21 @@ class KanbanView extends ItemView {
       this.renderBoard(container);
     });
     hideDoneLabel.createSpan({ text: this.plugin.t('hide_done') });
+
+    // Swimlanes: groepeer de kaarten in horizontale banen op een gekozen dimensie.
+    const groupSel = header.createEl('select', { cls: 'tk-groupby dropdown' });
+    groupSel.setAttr('title', this.plugin.t('group_by'));
+    for (const g of ['none', 'project', 'client', 'priority', 'due']) {
+      groupSel.createEl('option', { value: g, text: this.plugin.t('group_' + g) });
+    }
+    groupSel.value = this.groupBy;
+    groupSel.addEventListener('change', async (e) => {
+      this.groupBy = e.target.value;
+      if (this.board) this.board.groupBy = this.groupBy;
+      this.plugin.settings.swimlaneGroupBy = this.groupBy;
+      await this.plugin.saveSettings();
+      this.renderBoard(container);
+    });
 
     const addBtn = header.createEl('button', { text: this.plugin.t('new_task'), cls: 'tk-btn tk-btn-cta' });
     addBtn.onclick = () => {
@@ -1458,31 +1873,94 @@ class KanbanView extends ItemView {
   }
 
   renderBoard(container) {
-    const existing = container.querySelector('.tk-board');
-    if (existing) existing.remove();
+    container.querySelectorAll('.tk-board, .tk-lanes').forEach((e) => e.remove());
+
+    if (this.groupBy && this.groupBy !== 'none') return this.renderLanes(container);
 
     const board = container.createDiv({ cls: 'tk-board' });
-
     const columns = [...this.plugin.settings.columns];
     if (this.plugin.settings.showInbox) columns.unshift('inbox');
-
     for (const col of columns) {
       this.renderColumn(board, col);
     }
   }
 
+  // Swimlanes: één horizontale baan per groepswaarde; binnen elke baan het
+  // normale kolommenraster, gefilterd op de kaarten van die baan.
+  renderLanes(container) {
+    const lanesEl = container.createDiv({ cls: 'tk-lanes' });
+    const lanes = this.buildLanes();
+    const columns = [...this.plugin.settings.columns];
+    if (this.plugin.settings.showInbox) columns.unshift('inbox');
+    for (const lane of lanes) {
+      const laneTasks = this.tasks.filter((x) => this.filterTask(x) && lane.match(x));
+      if (laneTasks.length === 0) continue; // lege banen niet tonen
+      const laneEl = lanesEl.createDiv({ cls: 'tk-lane' });
+      if (lane.color) laneEl.style.setProperty('--tk-lane-color', lane.color);
+      const head = laneEl.createDiv({ cls: 'tk-lane-head' });
+      head.createSpan({ cls: 'tk-lane-title', text: lane.label });
+      head.createSpan({ cls: 'tk-lane-count', text: String(laneTasks.length) });
+      const board = laneEl.createDiv({ cls: 'tk-board' });
+      for (const col of columns) this.renderColumn(board, col, laneTasks);
+    }
+  }
+
+  // Bouwt de geordende banen voor de actieve groepering. Alle dimensies hier zijn
+  // enkelwaardig (project/client/priority/due), dus elke kaart valt in precies één baan.
+  buildLanes() {
+    const dim = this.groupBy;
+    const tr = (k, v) => this.plugin.t(k, v);
+    if (dim === 'priority') {
+      const lanes = this.plugin.getPriorities().map((p) => ({ id: p.value, label: p.label, color: p.color, match: (x) => x.priority === p.value }));
+      lanes.push({ id: '', label: tr('lane_none'), match: (x) => !x.priority });
+      return lanes;
+    }
+    if (dim === 'due') {
+      const today = todayISO();
+      const d = new Date(today + 'T00:00:00');
+      const plus = (n) => isoFromDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+      const tomorrow = plus(1), weekEnd = plus(7);
+      return [
+        { id: 'overdue', label: tr('lane_overdue'), match: (x) => x.dueDate && x.dueDate < today },
+        { id: 'today', label: tr('lane_today'), match: (x) => x.dueDate === today },
+        { id: 'tomorrow', label: tr('lane_tomorrow'), match: (x) => x.dueDate === tomorrow },
+        { id: 'week', label: tr('lane_week'), match: (x) => x.dueDate && x.dueDate > tomorrow && x.dueDate <= weekEnd },
+        { id: 'later', label: tr('lane_later'), match: (x) => x.dueDate && x.dueDate > weekEnd },
+        { id: 'none', label: tr('lane_none'), match: (x) => !x.dueDate },
+      ];
+    }
+    if (dim === 'project' || dim === 'client') {
+      const getColor = (n) => dim === 'project' ? this.plugin.getProjectColor(n) : this.plugin.getClientColor(n);
+      const values = [...new Set(this.tasks.filter((x) => this.filterTask(x)).map((x) => x[dim]).filter(Boolean))].sort();
+      const lanes = values.map((v) => ({ id: v, label: v, color: getColor(v), match: (x) => x[dim] === v }));
+      lanes.push({ id: '', label: tr('lane_none'), match: (x) => !x[dim] });
+      return lanes;
+    }
+    return [];
+  }
+
   filterTask(t) {
     if (this.hideDone && t.done) return false;
+    if (!this.boardMatch(t)) return false;
     if (this.filterText) {
       const subText = (t.subtasks || []).map((s) => s.text).join(' ');
-      const hay = (t.text + ' ' + t.file + ' ' + (t.dueDate || '') + ' ' + (t.project || '') + ' ' + subText).toLowerCase();
+      const hay = (t.text + ' ' + t.file + ' ' + (t.dueDate || '') + ' ' + (t.project || '') + ' ' + (t.client || '') + ' ' + subText).toLowerCase();
       if (!hay.includes(this.filterText)) return false;
     }
     return true;
   }
 
-  tasksForColumn(columnId) {
-    return this.tasks.filter((t) => {
+  // Bereik van het actieve bord: lege lijst = geen beperking op die dimensie.
+  boardMatch(t) {
+    const b = this.board || this.plugin.activeBoard();
+    if (!b) return true;
+    if (b.projects && b.projects.length && !(t.project && b.projects.some((p) => t.project === p || t.project.startsWith(p + '/')))) return false;
+    if (b.clients && b.clients.length && !(t.client && b.clients.includes(t.client))) return false;
+    return true;
+  }
+
+  tasksForColumn(columnId, sourceTasks) {
+    return (sourceTasks || this.tasks).filter((t) => {
       if (!this.filterTask(t)) return false;
       if (columnId === 'inbox') return !t.column;
       return t.column === columnId;
@@ -1495,7 +1973,7 @@ class KanbanView extends ItemView {
     });
   }
 
-  renderColumn(parent, columnId) {
+  renderColumn(parent, columnId, sourceTasks) {
     const colEl = parent.createDiv({ cls: 'tk-column' });
     colEl.dataset.column = columnId;
     if (columnId === this.plugin.settings.doneColumn) colEl.addClass('tk-column-done');
@@ -1503,7 +1981,7 @@ class KanbanView extends ItemView {
     const label = columnId === 'inbox'
       ? this.plugin.t('inbox')
       : (this.plugin.settings.columnLabels[columnId] || columnId);
-    const tasksInCol = this.tasksForColumn(columnId);
+    const tasksInCol = this.tasksForColumn(columnId, sourceTasks);
 
     const head = colEl.createDiv({ cls: 'tk-col-head' });
     head.createSpan({ text: label, cls: 'tk-col-title' });
@@ -1581,10 +2059,58 @@ class KanbanView extends ItemView {
     });
     card.addEventListener('dragend', () => card.removeClass('tk-dragging'));
 
+    // Cover (afbeelding of platte tekst) bovenaan de kaart.
+    if (task.cover) {
+      const cov = resolveCover(this.plugin, task.cover, task.file);
+      const coverEl = card.createDiv({ cls: `tk-card-cover tk-card-cover-${cov.kind}` });
+      card.addClass('tk-has-cover');
+      if (cov.kind === 'image') {
+        const img = coverEl.createEl('img', { cls: 'tk-cover-img' });
+        img.src = cov.src;
+        img.alt = task.text || '';
+        img.loading = 'lazy';
+        img.onerror = () => {            // gebroken/ontbrekende afbeelding → val terug op tekst
+          coverEl.empty();
+          coverEl.removeClass('tk-card-cover-image');
+          coverEl.addClass('tk-card-cover-text');
+          coverEl.createSpan({ cls: 'tk-cover-text', text: task.cover });
+        };
+      } else {
+        coverEl.createSpan({ cls: 'tk-cover-text', text: cov.text });
+      }
+    }
+
+    // Data-attributen zodat gebruikers metadata-waarden met eigen CSS kunnen targeten.
+    card.dataset.column = task.column || 'inbox';
+    if (task.priority) card.dataset.priority = task.priority;
+    if (task.project) card.dataset.project = task.project;
+    if (task.client) card.dataset.client = task.client;
+
     // ---- Header: project-badge links, subtaak-badge + notitie + acties rechts
     const header = card.createDiv({ cls: 'tk-card-header' });
     const headLeft = header.createDiv({ cls: 'tk-card-header-left' });
     const headRight = header.createDiv({ cls: 'tk-card-header-right' });
+
+    // Client badge (eigen dimensie naast project)
+    if (task.client) {
+      const cwrap = headLeft.createDiv({ cls: 'tk-project-wrap' });
+      const csegs = task.client.split('/');
+      const cbadge = cwrap.createDiv({ cls: 'tk-project-badge tk-client-badge' });
+      const ccolor = this.plugin.getClientColor(task.client);
+      if (ccolor) cbadge.style.background = ccolor;
+      const cLabel = (this.plugin.settings.clientLabels || {})[task.client];
+      cbadge.setText(cLabel || csegs[csegs.length - 1]);
+      cbadge.dataset.field = 'client';
+      cbadge.dataset.value = task.client;
+      cbadge.setAttr('title', this.plugin.t('client_of', { c: task.client }));
+      cbadge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.filterText = task.client.toLowerCase();
+        const filterInput = this.containerEl.querySelector('.tk-filter');
+        if (filterInput) filterInput.value = task.client;
+        this.renderBoard(this.containerEl.children[1]);
+      });
+    }
 
     // Project badge
     if (task.project) {
@@ -1603,6 +2129,8 @@ class KanbanView extends ItemView {
       const customLabel = (this.plugin.settings.projectLabels || {})[task.project];
       const displayLabel = customLabel || segments[segments.length - 1];
       badge.setText(displayLabel);
+      badge.dataset.field = 'project';
+      badge.dataset.value = task.project;
       badge.setAttr('title', this.plugin.t('project_of', { p: task.project }));
       badge.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1703,13 +2231,28 @@ class KanbanView extends ItemView {
       let dueText = '';
       if (task.dueDate) dueText = `📅 ${task.dueDate}`;
       if (task.time) dueText += `${dueText ? ' ' : ''}⏰ ${task.time}`;
-      meta.createSpan({ cls: 'tk-due', text: dueText });
+      const dueEl = meta.createSpan({ cls: 'tk-due', text: dueText });
+      dueEl.dataset.field = 'due';
+      if (task.dueDate) dueEl.dataset.value = task.dueDate;
     }
     if (task.priority) {
-      meta.createSpan({ cls: 'tk-prio', text: PRIORITY_ICONS[task.priority] });
+      const def = this.plugin.getPriorityDef(task.priority);
+      const emoji = PRIORITY_ICONS[task.priority] || '';
+      const label = def ? def.label : task.priority;
+      const prioEl = meta.createSpan({ cls: 'tk-prio', text: (emoji ? emoji + ' ' : '') + label });
+      prioEl.dataset.field = 'priority';
+      prioEl.dataset.value = task.priority;
+      const color = (def && def.color) || PRIORITY_COLORS[task.priority];
+      if (color) {
+        prioEl.style.color = color;
+        const tint = hexToRgba(color, 0.16);
+        if (tint) prioEl.style.background = tint;
+      }
     }
     if (task.recurrence) {
       const rec = meta.createSpan({ cls: 'tk-recur', text: '🔁' });
+      rec.dataset.field = 'recurrence';
+      rec.dataset.value = task.recurrence;
       rec.setAttr('title', this.plugin.t('repeats', { r: task.recurrence }));
     }
 
@@ -1735,7 +2278,7 @@ class CalendarView extends ItemView {
     this.plugin = plugin;
     this.tasks = [];
     this.hideDone = false;
-    this.viewMode = 'month';                 // 'month' | 'week' | 'day'
+    this.viewMode = (plugin.settings && plugin.settings.calendarViewMode) || 'month'; // 'month' | 'week' | 'day'
     const now = new Date();
     this.anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // referentiedatum in de zichtbare periode
   }
@@ -1794,7 +2337,13 @@ class CalendarView extends ItemView {
     for (const m of ['month', 'week', 'day']) {
       const btn = modes.createEl('button', { text: this.plugin.t('cal_' + m), cls: 'tk-btn' });
       if (m === this.viewMode) btn.addClass('tcal-mode-active');
-      btn.onclick = () => { if (this.viewMode !== m) { this.viewMode = m; this.render(); } };
+      btn.onclick = async () => {
+        if (this.viewMode === m) return;
+        this.viewMode = m;
+        this.plugin.settings.calendarViewMode = m; // onthouden voor de volgende keer
+        await this.plugin.saveSettings();
+        this.render();
+      };
     }
 
     header.createDiv({ cls: 'tcal-spacer' });
@@ -2443,6 +2992,8 @@ class AddTaskModal extends Modal {
       priority: '',
       project: '',
       recurrence: '',
+      cover: '',
+      client: '',
       targetFile: defaultFile || plugin.settings.inboxNote,
     };
   }
@@ -2500,6 +3051,32 @@ class AddTaskModal extends Modal {
       }
     }
 
+    // Client — text input met chips voor bestaande klanten
+    const clientSetting = new Setting(contentEl)
+      .setName(t('client'))
+      .setDesc(t('client_add_desc'));
+    let clientInput;
+    clientSetting.addText((text) => {
+      clientInput = text;
+      text.setPlaceholder(t('client_placeholder'))
+        .setValue(this.task.client || '')
+        .onChange((v) => (this.task.client = v.trim().toLowerCase().replace(/[^\w\-\/]/g, '')));
+    });
+    const knownClients = this.plugin.getClients();
+    if (knownClients.length) {
+      const chipRow = contentEl.createDiv({ cls: 'tk-chip-row' });
+      for (const c of knownClients) {
+        const chip = chipRow.createEl('button', { cls: 'tk-chip', text: c });
+        const color = this.plugin.getClientColor(c);
+        if (color) chip.style.background = color;
+        chip.onclick = (e) => {
+          e.preventDefault();
+          this.task.client = c;
+          if (clientInput) clientInput.setValue(c);
+        };
+      }
+    }
+
     new Setting(contentEl)
       .setName(t('due_date'))
       .addText((text) => {
@@ -2520,14 +3097,25 @@ class AddTaskModal extends Modal {
       .setName(t('priority'))
       .addDropdown((dd) => {
         dd.addOption('', t('prio_none'));
-        dd.addOption('highest', t('prio_highest'));
-        dd.addOption('high', t('prio_high'));
-        dd.addOption('medium', t('prio_medium'));
-        dd.addOption('low', t('prio_low'));
-        dd.addOption('lowest', t('prio_lowest'));
+        for (const p of this.plugin.getPriorities()) dd.addOption(p.value, p.label);
         dd.setValue(this.task.priority);
         dd.onChange((v) => (this.task.priority = v));
       });
+
+    let addCoverInput;
+    new Setting(contentEl)
+      .setName(t('cover_label'))
+      .setDesc(t('cover_hint'))
+      .addText((text) => {
+        addCoverInput = text;
+        text.setValue(this.task.cover || '').onChange((v) => (this.task.cover = v.trim()));
+      })
+      .addButton((b) => b.setButtonText(t('cover_upload')).onClick(() => {
+        pickCoverImage(this.plugin, this.task.targetFile || this.plugin.settings.inboxNote, (link) => {
+          this.task.cover = link;
+          if (addCoverInput) addCoverInput.setValue(link);
+        });
+      }));
 
     new Setting(contentEl)
       .setName(t('repeat'))
@@ -2588,7 +3176,11 @@ class EditTaskModal extends Modal {
     this.newDate = task.dueDate || '';
     this.newTime = task.time || '';
     this.newProject = task.project || '';
+    this.newClient = task.client || '';
     this.newRecurrence = task.recurrence || '';
+    this.newText = task.text || '';
+    this.newCover = task.cover || '';
+    this.newPriority = task.priority || '';
     this.newColumn = task.column || 'inbox';
   }
 
@@ -2599,8 +3191,30 @@ class EditTaskModal extends Modal {
     contentEl.addClass('tk-modal');
     contentEl.createEl('h2', { text: t('edit_modal_title') });
 
-    contentEl.createDiv({ cls: 'tk-modal-info', text: this.task.text });
+    // Titel als prominent veld over de volle breedte: ziet eruit als de titel,
+    // maar is altijd bewerkbaar (highlight bij hover/focus).
+    const titleInput = contentEl.createEl('input', { type: 'text', cls: 'tk-modal-title-input' });
+    titleInput.value = this.newText;
+    titleInput.placeholder = t('title');
+    titleInput.setAttr('aria-label', t('title'));
+    titleInput.addEventListener('input', (e) => { this.newText = e.target.value; });
+    contentEl.createDiv({ cls: 'tk-modal-titlehint', text: t('title_edit_desc') });
     contentEl.createDiv({ cls: 'tk-modal-sub', text: t('source_line', { file: this.task.file, line: this.task.line + 1 }) });
+
+    let editCoverInput;
+    new Setting(contentEl)
+      .setName(t('cover_label'))
+      .setDesc(t('cover_hint'))
+      .addText((text) => {
+        editCoverInput = text;
+        text.setValue(this.newCover).onChange((v) => (this.newCover = v.trim()));
+      })
+      .addButton((b) => b.setButtonText(t('cover_upload')).onClick(() => {
+        pickCoverImage(this.plugin, this.task.file, (link) => {
+          this.newCover = link;
+          if (editCoverInput) editCoverInput.setValue(link);
+        });
+      }));
 
     new Setting(contentEl)
       .setName(t('column_status'))
@@ -2645,6 +3259,15 @@ class EditTaskModal extends Modal {
         dd.onChange((v) => (this.newRecurrence = v));
       });
 
+    new Setting(contentEl)
+      .setName(t('priority'))
+      .addDropdown((dd) => {
+        dd.addOption('', t('prio_none'));
+        for (const p of this.plugin.getPriorities()) dd.addOption(p.value, p.label);
+        dd.setValue(this.newPriority);
+        dd.onChange((v) => (this.newPriority = v));
+      });
+
     let projInput;
     new Setting(contentEl)
       .setName(t('project'))
@@ -2666,6 +3289,31 @@ class EditTaskModal extends Modal {
           e.preventDefault();
           this.newProject = p;
           if (projInput) projInput.setValue(p);
+        };
+      }
+    }
+
+    let clientInput;
+    new Setting(contentEl)
+      .setName(t('client'))
+      .setDesc(t('client_edit_desc'))
+      .addText((text) => {
+        clientInput = text;
+        text.setPlaceholder(t('client_placeholder'))
+          .setValue(this.newClient)
+          .onChange((v) => (this.newClient = v.trim().toLowerCase().replace(/[^\w\-\/]/g, '')));
+      });
+    const knownClients = this.plugin.getClients();
+    if (knownClients.length) {
+      const chipRow = contentEl.createDiv({ cls: 'tk-chip-row' });
+      for (const c of knownClients) {
+        const chip = chipRow.createEl('button', { cls: 'tk-chip', text: c });
+        const color = this.plugin.getClientColor(c);
+        if (color) chip.style.background = color;
+        chip.onclick = (e) => {
+          e.preventDefault();
+          this.newClient = c;
+          if (clientInput) clientInput.setValue(c);
         };
       }
     }
@@ -2735,6 +3383,14 @@ class EditTaskModal extends Modal {
         this.close();
       }))
       .addButton((b) => b.setButtonText(t('save')).setCta().onClick(async () => {
+        // Titel als eerste wijzigen — zolang task.raw nog klopt; de overige mutators
+        // lezen het bestand daarna telkens vers opnieuw in.
+        if (this.newText.trim() && this.newText.trim() !== (this.task.text || '')) {
+          await this.plugin.setText(this.task, this.newText.trim());
+        }
+        if (this.newCover !== (this.task.cover || '')) {
+          await this.plugin.setCover(this.task, this.newCover || null);
+        }
         if (this.newDate !== (this.task.dueDate || '')) {
           await this.plugin.setDueDate(this.task, this.newDate);
         }
@@ -2746,8 +3402,14 @@ class EditTaskModal extends Modal {
         if (this.newProject !== (this.task.project || '')) {
           await this.plugin.setProject(this.task, this.newProject || null);
         }
+        if (this.newClient !== (this.task.client || '')) {
+          await this.plugin.setClient(this.task, this.newClient || null);
+        }
         if (this.newRecurrence !== (this.task.recurrence || '')) {
           await this.plugin.setRecurrence(this.task, this.newRecurrence || null);
+        }
+        if (this.newPriority !== (this.task.priority || '')) {
+          await this.plugin.setPriority(this.task, this.newPriority || null);
         }
         // Auto-verplaats: stond de kaart in de Bezig-kolom en is de due date naar
         // de toekomst geschoven (en heeft de gebruiker de kolom niet zelf gewijzigd),
@@ -2833,6 +3495,84 @@ class KanbanSettingTab extends PluginSettingTab {
       });
 
     // -- Kolommen ------------------------------------------------------
+    // -- Borden --------------------------------------------------------
+    new Setting(containerEl).setName(t('sec_boards')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('boards_help') });
+
+    for (const board of this.plugin.settings.boards) {
+      const isDefault = board.id === 'default';
+      const s = new Setting(containerEl).setName(board.name || board.id);
+      s.addText((text) => text
+        .setPlaceholder(t('board_name_ph'))
+        .setValue(board.name || '')
+        .onChange(async (v) => {
+          board.name = v.trim() || board.id;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+      s.addText((text) => {
+        text.inputEl.style.width = '9em';
+        text.setPlaceholder(t('board_projects_ph'))
+          .setValue((board.projects || []).join(', '))
+          .onChange(async (v) => {
+            board.projects = v.split(',').map((x) => x.trim().toLowerCase().replace(/[^\w\-\/]/g, '')).filter(Boolean);
+            await this.plugin.saveSettings();
+            this.plugin.refreshViews();
+          });
+      });
+      s.addText((text) => {
+        text.inputEl.style.width = '9em';
+        text.setPlaceholder(t('board_clients_ph'))
+          .setValue((board.clients || []).join(', '))
+          .onChange(async (v) => {
+            board.clients = v.split(',').map((x) => x.trim().toLowerCase().replace(/[^\w\-\/]/g, '')).filter(Boolean);
+            await this.plugin.saveSettings();
+            this.plugin.refreshViews();
+          });
+      });
+      s.addDropdown((dd) => {
+        for (const g of ['none', 'project', 'client', 'priority', 'due']) dd.addOption(g, t('group_' + g));
+        dd.setValue(board.groupBy || 'none');
+        dd.onChange(async (v) => {
+          board.groupBy = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        });
+      });
+      if (!isDefault) {
+        s.addExtraButton((b) => b
+          .setIcon('trash')
+          .setTooltip(t('delete_board'))
+          .onClick(async () => {
+            this.plugin.settings.boards = this.plugin.settings.boards.filter((x) => x.id !== board.id);
+            if (this.plugin.settings.activeBoardId === board.id) this.plugin.settings.activeBoardId = this.plugin.settings.boards[0].id;
+            await this.plugin.saveSettings();
+            this.display();
+            this.plugin.refreshViews();
+          }));
+      }
+    }
+
+    let newBoardName = '';
+    new Setting(containerEl)
+      .setName(t('add_board'))
+      .addText((text) => text.setPlaceholder(t('board_name_ph')).onChange((v) => { newBoardName = v; }))
+      .addButton((b) => b
+        .setButtonText(t('add'))
+        .setCta()
+        .onClick(async () => {
+          const name = newBoardName.trim();
+          if (!name) { new Notice(t('board_name_required')); return; }
+          const base = 'board-' + name.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '');
+          let id = base, n = 2;
+          while (this.plugin.settings.boards.some((x) => x.id === id)) id = base + '-' + (n++);
+          this.plugin.settings.boards.push({ id, name, projects: [], clients: [], groupBy: 'none' });
+          this.plugin.settings.activeBoardId = id;
+          await this.plugin.saveSettings();
+          this.display();
+          this.plugin.refreshViews();
+        }));
+
     new Setting(containerEl).setName(t('sec_columns')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('columns_help') });
 
@@ -2978,6 +3718,72 @@ class KanbanSettingTab extends PluginSettingTab {
           this.plugin.refreshViews();
         }));
 
+    new Setting(containerEl)
+      .setName(t('collect_kanban_notes'))
+      .setDesc(t('collect_kanban_notes_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.collectKanbanNotes)
+        .onChange(async (v) => {
+          this.plugin.settings.collectKanbanNotes = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+
+    // -- Prioriteiten --------------------------------------------------
+    new Setting(containerEl).setName(t('sec_priorities')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('priorities_help') });
+
+    (this.plugin.settings.priorities || []).forEach((prio, index) => {
+      const setting = new Setting(containerEl).setName(`#priority/${prio.value}`);
+      setting.addText((text) => text
+        .setPlaceholder(t('display_name'))
+        .setValue(prio.label || '')
+        .onChange(async (v) => {
+          prio.label = v.trim() || prio.value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+      setting.addColorPicker((picker) => {
+        picker.setValue(prio.color || DEFAULT_PALETTE[0]);
+        picker.onChange(async (val) => {
+          prio.color = val;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        });
+      });
+      setting.addExtraButton((b) => b.setIcon('arrow-up').setTooltip(t('move_up')).setDisabled(index === 0).onClick(async () => {
+        const a = this.plugin.settings.priorities;
+        [a[index - 1], a[index]] = [a[index], a[index - 1]];
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
+      setting.addExtraButton((b) => b.setIcon('arrow-down').setTooltip(t('move_down')).setDisabled(index === this.plugin.settings.priorities.length - 1).onClick(async () => {
+        const a = this.plugin.settings.priorities;
+        [a[index + 1], a[index]] = [a[index], a[index + 1]];
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
+      setting.addExtraButton((b) => b.setIcon('trash').setTooltip(t('delete_priority')).onClick(async () => {
+        this.plugin.settings.priorities = this.plugin.settings.priorities.filter((p) => p.value !== prio.value);
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
+    });
+
+    let newPrioName = '';
+    new Setting(containerEl)
+      .setName(t('add_priority'))
+      .setDesc(t('add_priority_desc'))
+      .addText((text) => text.setPlaceholder(t('add_priority_placeholder')).onChange((v) => { newPrioName = v; }))
+      .addButton((b) => b.setButtonText(t('add')).setCta().onClick(async () => {
+        const name = newPrioName.trim();
+        if (!name) { new Notice(t('name_the_priority')); return; }
+        let value = name.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '') || 'prio';
+        const base = value; let n = 2;
+        while (this.plugin.settings.priorities.some((p) => p.value === value)) value = `${base}-${n++}`;
+        const used = new Set(this.plugin.settings.priorities.map((p) => p.color));
+        const color = DEFAULT_PALETTE.find((c) => !used.has(c)) || DEFAULT_PALETTE[this.plugin.settings.priorities.length % DEFAULT_PALETTE.length];
+        this.plugin.settings.priorities.push({ value, label: name, color });
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
+
     // -- Gekoppelde notities -------------------------------------------
     new Setting(containerEl).setName(t('sec_linked_notes')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('linked_notes_help') });
@@ -3025,6 +3831,17 @@ class KanbanSettingTab extends PluginSettingTab {
         .setValue(this.plugin.settings.noteTemplate)
         .onChange(async (v) => {
           this.plugin.settings.noteTemplate = v.trim();
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(t('cover_folder'))
+      .setDesc(t('cover_folder_desc'))
+      .addText((text) => text
+        .setPlaceholder(t('cover_folder_placeholder'))
+        .setValue(this.plugin.settings.coverFolder)
+        .onChange(async (v) => {
+          this.plugin.settings.coverFolder = v.trim().replace(/^\/+|\/+$/g, '');
           await this.plugin.saveSettings();
         }));
 
@@ -3284,6 +4101,49 @@ class KanbanSettingTab extends PluginSettingTab {
           .onClick(async () => {
             delete this.plugin.settings.projectColors[proj];
             if (this.plugin.settings.projectLabels) delete this.plugin.settings.projectLabels[proj];
+            await this.plugin.saveSettings();
+            this.display();
+            this.plugin.refreshViews();
+          }));
+      }
+    }
+
+    // -- Klanten -------------------------------------------------------
+    new Setting(containerEl).setName(t('sec_clients')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('clients_help') });
+
+    const clients = this.plugin.getClients();
+    if (clients.length === 0) {
+      containerEl.createDiv({ cls: 'tk-help-line' }).setText(t('no_clients_yet'));
+    } else {
+      for (const cl of clients) {
+        const setting = new Setting(containerEl).setName(cl).setDesc(`#client/${cl}`);
+        setting.addColorPicker((picker) => {
+          picker.setValue((this.plugin.settings.clientColors || {})[cl] || DEFAULT_PALETTE[0]);
+          picker.onChange(async (val) => {
+            if (!this.plugin.settings.clientColors) this.plugin.settings.clientColors = {};
+            this.plugin.settings.clientColors[cl] = val;
+            await this.plugin.saveSettings();
+            this.plugin.refreshViews();
+          });
+        });
+        setting.addText((text) => {
+          text.setPlaceholder(t('project_label_placeholder'))
+            .setValue((this.plugin.settings.clientLabels || {})[cl] || '')
+            .onChange(async (v) => {
+              if (!this.plugin.settings.clientLabels) this.plugin.settings.clientLabels = {};
+              if (v.trim()) this.plugin.settings.clientLabels[cl] = v.trim();
+              else delete this.plugin.settings.clientLabels[cl];
+              await this.plugin.saveSettings();
+              this.plugin.refreshViews();
+            });
+        });
+        setting.addExtraButton((b) => b
+          .setIcon('trash')
+          .setTooltip(t('remove_color'))
+          .onClick(async () => {
+            if (this.plugin.settings.clientColors) delete this.plugin.settings.clientColors[cl];
+            if (this.plugin.settings.clientLabels) delete this.plugin.settings.clientLabels[cl];
             await this.plugin.saveSettings();
             this.display();
             this.plugin.refreshViews();

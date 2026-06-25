@@ -36,15 +36,20 @@ The calendar now has **Week** and **Day** views next to Month; you can give a ta
 - **Dynamic columns** — defaults: To do / In progress / Waiting for response / Done. Add, rename, reorder or remove columns in the settings. Drag cards between columns (desktop) or change the column in the edit modal (mobile).
 - **Bilingual (EN/NL)** — the whole interface is available in English and Dutch. By default the plugin follows the Obsidian language; you can also choose manually.
 - **Projects with colors** — group with `#project/name`, each with its own color and optional label. Subprojects (`#project/client/acme`) are supported.
+- **Clients** — a second colored tag dimension with `#client/name` alongside the project, so a card can carry both a client and a project.
+- **Swimlanes** — group cards into horizontal lanes by project, client, priority or due date via the board header's "Group by" control.
+- **Multiple boards** — create named boards, each scoped to certain projects/clients with its own lane grouping; switch boards from the header.
+- **Card covers** — show an image (`[cover:: [[logo.png]]]` or a URL) or a plain-text banner on a card; upload an image with one click.
 - **Due dates, times & recurrence** — `📅 2026-05-28`, an optional time `⏰ 14:30`, and `🔁 every week`. Completed recurring tasks automatically create the next instance (keeping their time).
 - **Calendar view (Month / Week / Day)** — see every task on its due date, with the same color coding as the board (red = overdue, orange = today). Switch between a month grid and agenda-style Week and Day views from the header; tasks with a time and your appointments share one timeline sorted by time. In the month view, **"+N more" is clickable** and opens that day so nothing stays hidden. The views stay readable in a narrow split pane. Open the calendar from the ribbon (calendar icon), the command palette, or the 📅 button on the board. Click a day to add a task with that date prefilled; click a task to edit it.
 - **Outlook calendar (optional)** — connect one or more Microsoft/Outlook accounts via OAuth and see your appointments next to your tasks in the calendar view (read-only). Pick exactly which calendars to show per account, including shared calendars. See [Outlook setup](#outlook-calendar-setup).
-- **Priorities** — `🔺 ⏫ 🔼 🔽 ⏬`.
+- **Customizable priorities** — define your own priority list (name + color) in the settings, or use the built-in `🔺 ⏫ 🔼 🔽 ⏬`. Cards show a colored priority pill.
 - **Subtasks** — indented checkboxes under a task. The board shows a `☑ 2/5` progress badge; add and check them in the edit modal.
 - **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it. Optionally, completing a card moves its note into a `0. archive` subfolder (and reopening moves it back).
 - **Click = edit** — click a card for the edit modal: status/column, due date, project, recurrence, subtasks and note in one place.
 - **Automatic moving** — tasks due today (or overdue) move automatically to the In-progress column.
 - **Inbox** — quick entry of new tasks into a configurable inbox note.
+- **Collect from #kanban notes (optional)** — tag a note with `#kanban` and all its checkboxes appear on the board without per-task tags, scoping the board to your #kanban notes (new tasks land in the Inbox to sort, done ones in the done column).
 
 ## Installation
 
@@ -78,14 +83,28 @@ A task is a plain markdown checkbox with optional metadata:
 |---|---|
 | `#kanban/<column>` | Which column the task is in (e.g. `#kanban/doing`) |
 | `#project/<name>` | Project; use `/` for subprojects (`#project/client/acme`) |
+| `#client/<name>` | Client — a second colored tag dimension shown alongside the project |
 | `📅 YYYY-MM-DD` | Due date |
 | `⏰ HH:mm` | Time of day (24h), shown on the calendar timeline |
 | `🔁 every week` | Recurrence (`every day/week/month/year`, also `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Priority (highest → lowest) |
 | `[[Note]]` | Linked note |
+| `[cover:: …]` | Card cover — an image (`[[file]]` or URL) or plain text |
 | indented `- [ ]` | Subtask of the task above it |
 
 You can put tasks in **any** note in your vault — they are picked up automatically.
+
+### Styling cards with CSS
+
+Card metadata is rendered with `data-field` / `data-value` attributes, so you can style values from a [CSS snippet](https://help.obsidian.md/snippets) (Settings → Appearance → CSS snippets) — for example, turn priorities into colored pills:
+
+```css
+.tk-prio { padding: 1px 8px; border-radius: 999px; }
+.tk-prio[data-value="highest"] { background: var(--color-red); color: #fff; }
+.tk-prio[data-value="low"]     { background: var(--color-green); color: #fff; }
+```
+
+Each meta element (`.tk-prio`, `.tk-due`, `.tk-recur`, the project badge) carries `data-field` + `data-value`, and the card carries `data-column`, `data-priority` and `data-project`.
 
 ## Usage
 
@@ -171,15 +190,20 @@ De kalender heeft nu **Week**- en **Dag**weergave naast Maand; je kunt een taak 
 - **Dynamische kolommen** — standaard: Te doen / Bezig / Wacht op reactie / Klaar. Voeg in de instellingen zelf kolommen toe, hernoem ze, wijzig de volgorde of verwijder ze. Sleep kaarten tussen kolommen (desktop) of wijzig de kolom in de edit-modal (mobiel).
 - **Tweetalig (NL/EN)** — de hele interface is beschikbaar in het Nederlands en het Engels. Standaard volgt de plugin de taal van Obsidian; je kunt ook handmatig kiezen.
 - **Projecten met kleuren** — groepeer met `#project/naam`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/acme`) worden ondersteund.
+- **Klanten** — een tweede gekleurde tag-dimensie met `#client/naam` naast het project, zodat een kaart zowel een klant als een project kan dragen.
+- **Swimlanes** — groepeer kaarten in horizontale banen op project, klant, prioriteit of datum via de "Groeperen in banen"-keuze in de bordkop.
+- **Meerdere borden** — maak benoemde borden, elk afgebakend op bepaalde projecten/klanten met een eigen banen-groepering; wissel bovenaan het bord.
+- **Kaart-covers** — toon een afbeelding (`[cover:: [[logo.png]]]` of een URL) of platte tekst op een kaart; upload een afbeelding met één klik.
 - **Due dates, tijd & herhaling** — `📅 2026-05-28`, een optionele tijd `⏰ 14:30`, en `🔁 every week`. Afgevinkte herhalende taken maken automatisch de volgende instance aan (met behoud van hun tijd).
 - **Kalenderweergave (Maand / Week / Dag)** — zie elke taak op zijn due date, met dezelfde kleurcodering als het bord (rood = te laat, oranje = vandaag). Schakel in de kop tussen het maandraster en agenda-achtige Week- en Dagweergave; taken met een tijd en je afspraken delen één tijdlijn op tijd gesorteerd. In de maandweergave is **"+N meer" klikbaar** en opent die dag, zodat niets verborgen blijft. De weergaven blijven leesbaar in een smal split-paneel. Open de kalender via het lint (kalender-icoon), het commandopalet of de 📅-knop op het bord. Klik op een dag om een taak met die datum toe te voegen; klik op een taak om hem te bewerken.
 - **Outlook-agenda (optioneel)** — koppel een of meer Microsoft/Outlook-accounts via OAuth en zie je afspraken naast je taken in de kalenderweergave (alleen-lezen). Kies per account precies welke agenda's je toont, inclusief gedeelde agenda's. Zie [Outlook instellen](#outlook-agenda-instellen).
-- **Prioriteiten** — `🔺 ⏫ 🔼 🔽 ⏬`.
+- **Aanpasbare prioriteiten** — stel je eigen prioriteitenlijst in (naam + kleur) in de instellingen, of gebruik de ingebouwde `🔺 ⏫ 🔼 🔽 ⏬`. Kaarten tonen een gekleurde prioriteit-pil.
 - **Subtaken** — ingesprongen checkboxes onder een taak. Het bord toont een `☑ 2/5`-voortgangsbadge; toevoegen en afvinken doe je in de edit-modal.
 - **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een `[[wikilink]]` in de taakregel). Bestaat hij al, dan opent de knop hem. Optioneel verhuist het afronden van een kaart zijn notitie naar een submap `0. archive` (en bij heropenen weer terug).
 - **Klik = bewerken** — klik op een kaart voor de edit-modal: status/kolom, due date, project, herhaling, subtaken en notitie op één plek.
 - **Automatisch verplaatsen** — taken die vandaag (of overdue) due zijn schuiven automatisch naar de Bezig-kolom.
 - **Inbox** — snelle invoer van nieuwe taken in een instelbare inbox-note.
+- **Verzamelen uit #kanban-notities (optioneel)** — tag een notitie met `#kanban` en al haar checkboxes verschijnen op het bord zonder per-taak-tag, waarmee je het bord beperkt tot je #kanban-notities (nieuwe taken komen in de Inbox om te sorteren, afgevinkte in de afgerond-kolom).
 
 ## Installatie
 
@@ -213,14 +237,28 @@ Een taak is een gewone markdown-checkbox met optionele metadata:
 |---|---|
 | `#kanban/<kolom>` | In welke kolom de taak staat (bv. `#kanban/doing`) |
 | `#project/<naam>` | Project; gebruik `/` voor subprojecten (`#project/klant/acme`) |
+| `#client/<naam>` | Klant — een tweede gekleurde tag-dimensie naast het project |
 | `📅 JJJJ-MM-DD` | Due date |
 | `⏰ UU:mm` | Tijdstip (24-uurs), getoond op de kalender-tijdlijn |
 | `🔁 every week` | Herhaling (`every day/week/month/year`, ook `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Prioriteit (hoogst → laagst) |
 | `[[Notitie]]` | Gekoppelde notitie |
+| `[cover:: …]` | Kaart-cover — een afbeelding (`[[bestand]]` of URL) of platte tekst |
 | ingesprongen `- [ ]` | Subtaak van de taak erboven |
 
 Je kunt taken in **elke** note van je vault zetten — ze worden vanzelf opgepikt.
+
+### Kaarten stylen met CSS
+
+Metadata op een kaart krijgt `data-field` / `data-value`-attributen, zodat je waarden vanuit een [CSS-snippet](https://help.obsidian.md/snippets) (Instellingen → Weergave → CSS-snippets) kunt stylen — bijvoorbeeld prioriteiten als gekleurde pillen:
+
+```css
+.tk-prio { padding: 1px 8px; border-radius: 999px; }
+.tk-prio[data-value="highest"] { background: var(--color-red); color: #fff; }
+.tk-prio[data-value="low"]     { background: var(--color-green); color: #fff; }
+```
+
+Elk meta-element (`.tk-prio`, `.tk-due`, `.tk-recur`, de project-badge) draagt `data-field` + `data-value`, en de kaart draagt `data-column`, `data-priority` en `data-project`.
 
 ## Gebruik
 

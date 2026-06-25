@@ -69,6 +69,53 @@
   align-items: stretch;
 }
 
+/* Swimlanes: verticale stapel banen; binnen elke baan het normale kolommenraster. */
+.tk-lanes {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+.tk-lane {
+  border: 1px solid var(--background-modifier-border);
+  border-left: 4px solid var(--tk-lane-color, var(--background-modifier-border));
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.tk-lane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-weight: 600;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  position: sticky;
+  left: 0;
+}
+.tk-lane-count {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.85em;
+}
+/* In een baan groeien de kolommen mee met hun inhoud i.p.v. de volledige hoogte te vullen. */
+.tk-lane .tk-board {
+  flex: none;
+  overflow-y: visible;
+  padding: 10px;
+}
+.tk-lane .tk-column {
+  max-height: none;
+}
+.tk-lane .tk-cards {
+  flex: none;
+  overflow-y: visible;
+}
+
 .tk-column {
   min-width: 280px;
   width: 300px;
@@ -136,6 +183,32 @@
   transition: box-shadow 0.15s, transform 0.05s;
   user-select: none;
 }
+
+/* Kaart-cover: een afbeelding-banner of een platte-tekst-banner bovenaan de kaart.
+   De negatieve marges laten 'm tot de rand lopen (kaart-padding = 10px 12px 8px). */
+.tk-card-cover {
+  margin: -10px -12px 8px -12px;
+  border-radius: 6px 6px 0 0;
+  overflow: hidden;
+}
+.tk-card-cover-image .tk-cover-img {
+  display: block;
+  width: 100%;
+  max-height: var(--tk-cover-max-h, 120px);
+  object-fit: cover;
+}
+.tk-card-cover-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  background: var(--tk-project-tint, var(--background-secondary));
+  color: var(--text-normal);
+}
 .tk-card.tk-has-project {
   /* Tint over de kaart zonder color-mix() (werkt ook op oudere Android WebViews). */
   background-color: var(--background-primary);
@@ -163,6 +236,13 @@
 }
 .tk-card.tk-prio-highest { border-top: 2px solid var(--color-red, #e53e3e); }
 .tk-card.tk-prio-high { border-top: 2px solid var(--color-orange, #dd6b20); }
+/* Prioriteit als kleine gekleurde pil (kleur/tekst via inline style uit de instellingen). */
+.tk-card-meta .tk-prio {
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* Project badge bovenaan de kaart */
 .tk-project-wrap {
@@ -197,6 +277,14 @@
   background: var(--background-modifier-border);
   text-shadow: 0 1px 0 rgba(0,0,0,0.2);
   white-space: nowrap;
+}
+/* Client-badge: zelfde pil als project maar hoekiger, zodat je 'm onderscheidt;
+   plus wat ruimte tussen client- en project-badge. */
+.tk-card-header-left {
+  gap: 4px;
+}
+.tk-client-badge {
+  border-radius: 4px;
 }
 .tk-project-badge:hover {
   filter: brightness(1.1);
@@ -396,6 +484,35 @@
   color: var(--text-muted);
   margin-bottom: 12px;
   font-family: var(--font-monospace);
+}
+
+/* Titel-veld in het bewerk-venster: oogt als de titeltekst maar is altijd
+   bewerkbaar (volle breedte, highlight bij hover/focus). */
+.tk-modal-title-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 1.3em;
+  font-weight: 600;
+  line-height: 1.3;
+  padding: 6px 8px;
+  margin-bottom: 2px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-normal);
+}
+.tk-modal-title-input:hover {
+  background: var(--background-modifier-hover);
+}
+.tk-modal-title-input:focus {
+  background: var(--background-primary);
+  border-color: var(--background-modifier-border);
+  outline: none;
+}
+.tk-modal-titlehint {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  margin: 0 0 6px 8px;
 }
 
 .tk-help pre {
