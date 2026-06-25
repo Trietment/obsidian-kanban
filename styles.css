@@ -69,6 +69,53 @@
   align-items: stretch;
 }
 
+/* Swimlanes: verticale stapel banen; binnen elke baan het normale kolommenraster. */
+.tk-lanes {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+.tk-lane {
+  border: 1px solid var(--background-modifier-border);
+  border-left: 4px solid var(--tk-lane-color, var(--background-modifier-border));
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.tk-lane-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-weight: 600;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  position: sticky;
+  left: 0;
+}
+.tk-lane-count {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 0.85em;
+}
+/* In een baan groeien de kolommen mee met hun inhoud i.p.v. de volledige hoogte te vullen. */
+.tk-lane .tk-board {
+  flex: none;
+  overflow-y: visible;
+  padding: 10px;
+}
+.tk-lane .tk-column {
+  max-height: none;
+}
+.tk-lane .tk-cards {
+  flex: none;
+  overflow-y: visible;
+}
+
 .tk-column {
   min-width: 280px;
   width: 300px;

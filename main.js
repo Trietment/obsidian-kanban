@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   doneColumn: 'done',
   inboxNote: 'Kanban Inbox.md',
   showInbox: true,
+  swimlaneGroupBy: 'none',
   projectColors: {},
   projectLabels: {},
   clientColors: {},
@@ -291,6 +292,18 @@ const TRANSLATIONS = {
     sec_clients: 'Klanten en kleuren',
     clients_help: 'Geef per klant een kleur. Gebruik #client/<naam> in je taken om ze hieraan te koppelen.',
     no_clients_yet: 'Nog geen klanten. Voeg een taak toe met #client/<naam> en hij verschijnt hier.',
+    group_by: 'Groeperen in banen',
+    group_none: 'Geen banen',
+    group_project: 'Per project',
+    group_client: 'Per klant',
+    group_priority: 'Per prioriteit',
+    group_due: 'Per datum',
+    lane_none: 'Zonder',
+    lane_overdue: 'Te laat',
+    lane_today: 'Vandaag',
+    lane_tomorrow: 'Morgen',
+    lane_week: 'Deze week',
+    lane_later: 'Later',
     project_label_placeholder: 'weergave-label (optioneel)',
     remove_color: 'Verwijder kleur (taken blijven bestaan)',
     sec_help: 'Hoe werkt het?',
@@ -504,6 +517,18 @@ const TRANSLATIONS = {
     sec_clients: 'Clients and colors',
     clients_help: 'Give each client a color. Use #client/<name> in your tasks to link them.',
     no_clients_yet: 'No clients yet. Add a task with #client/<name> and it appears here.',
+    group_by: 'Group into lanes',
+    group_none: 'No lanes',
+    group_project: 'By project',
+    group_client: 'By client',
+    group_priority: 'By priority',
+    group_due: 'By due date',
+    lane_none: 'None',
+    lane_overdue: 'Overdue',
+    lane_today: 'Today',
+    lane_tomorrow: 'Tomorrow',
+    lane_week: 'This week',
+    lane_later: 'Later',
     project_label_placeholder: 'display label (optional)',
     remove_color: 'Remove color (tasks remain)',
     sec_help: 'How does it work?',
@@ -1599,6 +1624,7 @@ class KanbanView extends ItemView {
     this.tasks = [];
     this.filterText = '';
     this.hideDone = false;
+    this.groupBy = (plugin.settings && plugin.settings.swimlaneGroupBy) || 'none';
   }
 
   getViewType() { return VIEW_TYPE_KANBAN; }
@@ -1645,6 +1671,20 @@ class KanbanView extends ItemView {
     });
     hideDoneLabel.createSpan({ text: this.plugin.t('hide_done') });
 
+    // Swimlanes: groepeer de kaarten in horizontale banen op een gekozen dimensie.
+    const groupSel = header.createEl('select', { cls: 'tk-groupby dropdown' });
+    groupSel.setAttr('title', this.plugin.t('group_by'));
+    for (const g of ['none', 'project', 'client', 'priority', 'due']) {
+      groupSel.createEl('option', { value: g, text: this.plugin.t('group_' + g) });
+    }
+    groupSel.value = this.groupBy;
+    groupSel.addEventListener('change', async (e) => {
+      this.groupBy = e.target.value;
+      this.plugin.settings.swimlaneGroupBy = this.groupBy;
+      await this.plugin.saveSettings();
+      this.renderBoard(container);
+    });
+
     const addBtn = header.createEl('button', { text: this.plugin.t('new_task'), cls: 'tk-btn tk-btn-cta' });
     addBtn.onclick = () => {
       new AddTaskModal(this.app, this.plugin, async (task) => {
@@ -1663,17 +1703,71 @@ class KanbanView extends ItemView {
   }
 
   renderBoard(container) {
-    const existing = container.querySelector('.tk-board');
-    if (existing) existing.remove();
+    container.querySelectorAll('.tk-board, .tk-lanes').forEach((e) => e.remove());
+
+    if (this.groupBy && this.groupBy !== 'none') return this.renderLanes(container);
 
     const board = container.createDiv({ cls: 'tk-board' });
-
     const columns = [...this.plugin.settings.columns];
     if (this.plugin.settings.showInbox) columns.unshift('inbox');
-
     for (const col of columns) {
       this.renderColumn(board, col);
     }
+  }
+
+  // Swimlanes: één horizontale baan per groepswaarde; binnen elke baan het
+  // normale kolommenraster, gefilterd op de kaarten van die baan.
+  renderLanes(container) {
+    const lanesEl = container.createDiv({ cls: 'tk-lanes' });
+    const lanes = this.buildLanes();
+    const columns = [...this.plugin.settings.columns];
+    if (this.plugin.settings.showInbox) columns.unshift('inbox');
+    for (const lane of lanes) {
+      const laneTasks = this.tasks.filter((x) => this.filterTask(x) && lane.match(x));
+      if (laneTasks.length === 0) continue; // lege banen niet tonen
+      const laneEl = lanesEl.createDiv({ cls: 'tk-lane' });
+      if (lane.color) laneEl.style.setProperty('--tk-lane-color', lane.color);
+      const head = laneEl.createDiv({ cls: 'tk-lane-head' });
+      head.createSpan({ cls: 'tk-lane-title', text: lane.label });
+      head.createSpan({ cls: 'tk-lane-count', text: String(laneTasks.length) });
+      const board = laneEl.createDiv({ cls: 'tk-board' });
+      for (const col of columns) this.renderColumn(board, col, laneTasks);
+    }
+  }
+
+  // Bouwt de geordende banen voor de actieve groepering. Alle dimensies hier zijn
+  // enkelwaardig (project/client/priority/due), dus elke kaart valt in precies één baan.
+  buildLanes() {
+    const dim = this.groupBy;
+    const tr = (k, v) => this.plugin.t(k, v);
+    if (dim === 'priority') {
+      const order = ['highest', 'high', 'medium', 'low', 'lowest'];
+      const lanes = order.map((p) => ({ id: p, label: tr('prio_' + p), match: (x) => x.priority === p }));
+      lanes.push({ id: '', label: tr('lane_none'), match: (x) => !x.priority });
+      return lanes;
+    }
+    if (dim === 'due') {
+      const today = todayISO();
+      const d = new Date(today + 'T00:00:00');
+      const plus = (n) => isoFromDate(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n));
+      const tomorrow = plus(1), weekEnd = plus(7);
+      return [
+        { id: 'overdue', label: tr('lane_overdue'), match: (x) => x.dueDate && x.dueDate < today },
+        { id: 'today', label: tr('lane_today'), match: (x) => x.dueDate === today },
+        { id: 'tomorrow', label: tr('lane_tomorrow'), match: (x) => x.dueDate === tomorrow },
+        { id: 'week', label: tr('lane_week'), match: (x) => x.dueDate && x.dueDate > tomorrow && x.dueDate <= weekEnd },
+        { id: 'later', label: tr('lane_later'), match: (x) => x.dueDate && x.dueDate > weekEnd },
+        { id: 'none', label: tr('lane_none'), match: (x) => !x.dueDate },
+      ];
+    }
+    if (dim === 'project' || dim === 'client') {
+      const getColor = (n) => dim === 'project' ? this.plugin.getProjectColor(n) : this.plugin.getClientColor(n);
+      const values = [...new Set(this.tasks.filter((x) => this.filterTask(x)).map((x) => x[dim]).filter(Boolean))].sort();
+      const lanes = values.map((v) => ({ id: v, label: v, color: getColor(v), match: (x) => x[dim] === v }));
+      lanes.push({ id: '', label: tr('lane_none'), match: (x) => !x[dim] });
+      return lanes;
+    }
+    return [];
   }
 
   filterTask(t) {
@@ -1686,8 +1780,8 @@ class KanbanView extends ItemView {
     return true;
   }
 
-  tasksForColumn(columnId) {
-    return this.tasks.filter((t) => {
+  tasksForColumn(columnId, sourceTasks) {
+    return (sourceTasks || this.tasks).filter((t) => {
       if (!this.filterTask(t)) return false;
       if (columnId === 'inbox') return !t.column;
       return t.column === columnId;
@@ -1700,7 +1794,7 @@ class KanbanView extends ItemView {
     });
   }
 
-  renderColumn(parent, columnId) {
+  renderColumn(parent, columnId, sourceTasks) {
     const colEl = parent.createDiv({ cls: 'tk-column' });
     colEl.dataset.column = columnId;
     if (columnId === this.plugin.settings.doneColumn) colEl.addClass('tk-column-done');
@@ -1708,7 +1802,7 @@ class KanbanView extends ItemView {
     const label = columnId === 'inbox'
       ? this.plugin.t('inbox')
       : (this.plugin.settings.columnLabels[columnId] || columnId);
-    const tasksInCol = this.tasksForColumn(columnId);
+    const tasksInCol = this.tasksForColumn(columnId, sourceTasks);
 
     const head = colEl.createDiv({ cls: 'tk-col-head' });
     head.createSpan({ text: label, cls: 'tk-col-title' });
