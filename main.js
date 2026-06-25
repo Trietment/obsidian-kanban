@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   inboxNote: 'Kanban Inbox.md',
   showInbox: true,
   swimlaneGroupBy: 'none',
+  calendarViewMode: 'month',    // onthoudt de laatst gekozen kalenderweergave (month/week/day)
   activeBoardId: 'default',
   projectColors: {},
   projectLabels: {},
@@ -2151,7 +2152,7 @@ class CalendarView extends ItemView {
     this.plugin = plugin;
     this.tasks = [];
     this.hideDone = false;
-    this.viewMode = 'month';                 // 'month' | 'week' | 'day'
+    this.viewMode = (plugin.settings && plugin.settings.calendarViewMode) || 'month'; // 'month' | 'week' | 'day'
     const now = new Date();
     this.anchor = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // referentiedatum in de zichtbare periode
   }
@@ -2210,7 +2211,13 @@ class CalendarView extends ItemView {
     for (const m of ['month', 'week', 'day']) {
       const btn = modes.createEl('button', { text: this.plugin.t('cal_' + m), cls: 'tk-btn' });
       if (m === this.viewMode) btn.addClass('tcal-mode-active');
-      btn.onclick = () => { if (this.viewMode !== m) { this.viewMode = m; this.render(); } };
+      btn.onclick = async () => {
+        if (this.viewMode === m) return;
+        this.viewMode = m;
+        this.plugin.settings.calendarViewMode = m; // onthouden voor de volgende keer
+        await this.plugin.saveSettings();
+        this.render();
+      };
     }
 
     header.createDiv({ cls: 'tcal-spacer' });
