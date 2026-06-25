@@ -277,7 +277,7 @@ const TRANSLATIONS = {
     show_inbox: 'Inbox-kolom tonen',
     show_inbox_desc: 'Toon taken zonder #kanban/ tag in een aparte Inbox-kolom.',
     collect_kanban_notes: 'Taken uit #kanban-notities',
-    collect_kanban_notes_desc: 'Een notitie met de tag #kanban (in de frontmatter of inline) levert ál haar taken aan het bord — open taken in de standaardkolom, afgevinkte in de afgerond-kolom — zonder dat je elke taak hoeft te taggen. Combineer met "Inbox verbergen" om het bord tot je #kanban-notities te beperken.',
+    collect_kanban_notes_desc: 'Beperkt het bord tot je #kanban-notities: een notitie met de tag #kanban (frontmatter of inline) levert ál haar taken aan het bord (open taken in de standaardkolom, afgevinkte in de afgerond-kolom), zonder per-taak-tag. Taken met een eigen #kanban/<kolom> blijven overal werken; overige checkboxes in de vault worden genegeerd.',
     sec_linked_notes: 'Gekoppelde notities',
     linked_notes_help: 'Elke kaart kan een eigen notitie krijgen via de 📄-knop. De notitie wordt aangemaakt uit een template.',
     note_folder: 'Notitie-map',
@@ -524,7 +524,7 @@ const TRANSLATIONS = {
     show_inbox: 'Show inbox column',
     show_inbox_desc: 'Show tasks without a #kanban/ tag in a separate Inbox column.',
     collect_kanban_notes: 'Tasks from #kanban notes',
-    collect_kanban_notes_desc: 'A note tagged #kanban (in frontmatter or inline) contributes all of its tasks to the board — open tasks in the default column, checked ones in the done column — without tagging each task. Combine with hiding the Inbox to limit the board to your #kanban notes.',
+    collect_kanban_notes_desc: 'Limits the board to your #kanban notes: a note tagged #kanban (frontmatter or inline) contributes all of its tasks (open tasks in the default column, checked ones in the done column), without per-task tagging. Tasks with an explicit #kanban/<column> still work anywhere; all other checkboxes in the vault are ignored.',
     sec_linked_notes: 'Linked notes',
     linked_notes_help: 'Every card can get its own note via the 📄 button. The note is created from a template.',
     note_folder: 'Note folder',
@@ -968,19 +968,30 @@ module.exports = class KanbanPlugin extends Plugin {
       const kanbanNote = collectNotes && this.isKanbanNote(file);
       let current = null;       // huidige top-level taak (= kaart)
       let currentWidth = 0;
+      let skipWidth = null;     // indent van een overgeslagen top-taak (subtaken ook overslaan)
       for (let i = 0; i < lines.length; i++) {
         const parsed = parseTaskLine(lines[i], file.path, i);
         if (!parsed) {
-          if (lines[i].trim() !== '') { current = null; currentWidth = 0; }
+          if (lines[i].trim() !== '') { current = null; currentWidth = 0; skipWidth = null; }
           continue;
         }
         const w = indentWidth(parsed.indent);
+        // Binnen een overgeslagen taak: ook de subtaken overslaan.
+        if (skipWidth != null) {
+          if (w > skipWidth) continue;
+          skipWidth = null;
+        }
         if (current && w > currentWidth) {
           current.subtasks.push({
             text: parsed.text, done: parsed.done,
             file: file.path, line: i, raw: lines[i],
           });
         } else {
+          // Scope-modus: alleen taken uit #kanban-notities, óf met een eigen #kanban/-tag.
+          if (collectNotes && !kanbanNote && !parsed.column) {
+            current = null; currentWidth = 0; skipWidth = w;
+            continue;
+          }
           // In een #kanban-notitie krijgen taken zonder eigen kolom de standaard-
           // (of afgerond-)kolom, zodat ze als kaart verschijnen zonder per-taak-tag.
           if (kanbanNote && !parsed.column) parsed.column = parsed.done ? this.settings.doneColumn : this.settings.defaultColumn;
