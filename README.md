@@ -43,12 +43,13 @@ The calendar now has **Week** and **Day** views next to Month; you can give a ta
 - **Due dates, times & recurrence** — `📅 2026-05-28`, an optional time `⏰ 14:30`, and `🔁 every week`. Completed recurring tasks automatically create the next instance (keeping their time).
 - **Calendar view (Month / Week / Day)** — see every task on its due date, with the same color coding as the board (red = overdue, orange = today). Switch between a month grid and agenda-style Week and Day views from the header; tasks with a time and your appointments share one timeline sorted by time. In the month view, **"+N more" is clickable** and opens that day so nothing stays hidden. The views stay readable in a narrow split pane. Open the calendar from the ribbon (calendar icon), the command palette, or the 📅 button on the board. Click a day to add a task with that date prefilled; click a task to edit it.
 - **Outlook calendar (optional)** — connect one or more Microsoft/Outlook accounts via OAuth and see your appointments next to your tasks in the calendar view (read-only). Pick exactly which calendars to show per account, including shared calendars. See [Outlook setup](#outlook-calendar-setup).
-- **Priorities** — `🔺 ⏫ 🔼 🔽 ⏬`.
+- **Customizable priorities** — define your own priority list (name + color) in the settings, or use the built-in `🔺 ⏫ 🔼 🔽 ⏬`. Cards show a colored priority pill.
 - **Subtasks** — indented checkboxes under a task. The board shows a `☑ 2/5` progress badge; add and check them in the edit modal.
 - **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it. Optionally, completing a card moves its note into a `0. archive` subfolder (and reopening moves it back).
 - **Click = edit** — click a card for the edit modal: status/column, due date, project, recurrence, subtasks and note in one place.
 - **Automatic moving** — tasks due today (or overdue) move automatically to the In-progress column.
 - **Inbox** — quick entry of new tasks into a configurable inbox note.
+- **Collect from #kanban notes (optional)** — tag a note with `#kanban` and all its checkboxes appear on the board without per-task tags, scoping the board to your #kanban notes (new tasks land in the Inbox to sort, done ones in the done column).
 
 ## Installation
 
@@ -196,12 +197,13 @@ De kalender heeft nu **Week**- en **Dag**weergave naast Maand; je kunt een taak 
 - **Due dates, tijd & herhaling** — `📅 2026-05-28`, een optionele tijd `⏰ 14:30`, en `🔁 every week`. Afgevinkte herhalende taken maken automatisch de volgende instance aan (met behoud van hun tijd).
 - **Kalenderweergave (Maand / Week / Dag)** — zie elke taak op zijn due date, met dezelfde kleurcodering als het bord (rood = te laat, oranje = vandaag). Schakel in de kop tussen het maandraster en agenda-achtige Week- en Dagweergave; taken met een tijd en je afspraken delen één tijdlijn op tijd gesorteerd. In de maandweergave is **"+N meer" klikbaar** en opent die dag, zodat niets verborgen blijft. De weergaven blijven leesbaar in een smal split-paneel. Open de kalender via het lint (kalender-icoon), het commandopalet of de 📅-knop op het bord. Klik op een dag om een taak met die datum toe te voegen; klik op een taak om hem te bewerken.
 - **Outlook-agenda (optioneel)** — koppel een of meer Microsoft/Outlook-accounts via OAuth en zie je afspraken naast je taken in de kalenderweergave (alleen-lezen). Kies per account precies welke agenda's je toont, inclusief gedeelde agenda's. Zie [Outlook instellen](#outlook-agenda-instellen).
-- **Prioriteiten** — `🔺 ⏫ 🔼 🔽 ⏬`.
+- **Aanpasbare prioriteiten** — stel je eigen prioriteitenlijst in (naam + kleur) in de instellingen, of gebruik de ingebouwde `🔺 ⏫ 🔼 🔽 ⏬`. Kaarten tonen een gekleurde prioriteit-pil.
 - **Subtaken** — ingesprongen checkboxes onder een taak. Het bord toont een `☑ 2/5`-voortgangsbadge; toevoegen en afvinken doe je in de edit-modal.
 - **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een `[[wikilink]]` in de taakregel). Bestaat hij al, dan opent de knop hem. Optioneel verhuist het afronden van een kaart zijn notitie naar een submap `0. archive` (en bij heropenen weer terug).
 - **Klik = bewerken** — klik op een kaart voor de edit-modal: status/kolom, due date, project, herhaling, subtaken en notitie op één plek.
 - **Automatisch verplaatsen** — taken die vandaag (of overdue) due zijn schuiven automatisch naar de Bezig-kolom.
 - **Inbox** — snelle invoer van nieuwe taken in een instelbare inbox-note.
+- **Verzamelen uit #kanban-notities (optioneel)** — tag een notitie met `#kanban` en al haar checkboxes verschijnen op het bord zonder per-taak-tag, waarmee je het bord beperkt tot je #kanban-notities (nieuwe taken komen in de Inbox om te sorteren, afgevinkte in de afgerond-kolom).
 
 ## Installatie
 
