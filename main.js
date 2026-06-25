@@ -1036,6 +1036,26 @@ module.exports = class KanbanPlugin extends Plugin {
     if (newProject) await this.assignProjectColor(newProject);
   }
 
+  async setPriority(task, newPriority) {
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length) return;
+    let line = lines[task.line];
+    // Bestaande prioriteit-emoji weghalen (incl. de spatie ervoor).
+    line = line.replace(/\s*(?:🔺|⏫|🔼|🔽|⏬)/g, '');
+    const icon = newPriority ? PRIORITY_ICONS[newPriority] : null;
+    if (icon) {
+      // Vóór de eerste #project/#kanban-tag plaatsen (zoals formatTaskLine), anders achteraan.
+      const tagPos = line.search(/\s+#(?:project|kanban)\//);
+      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${icon}` + line.slice(tagPos);
+      else line = line.trimEnd() + ` ${icon}`;
+    }
+    lines[task.line] = line;
+    await this.app.vault.modify(file, lines.join('\n'));
+  }
+
   // Hernoem alleen de zichtbare taaktekst; alle tokens (datum/tijd/tags/prioriteit/
   // wikilink) blijven byte-voor-byte staan. Bewust een raw-guard: een titel-rewrite
   // mag nooit op een verschoven regel landen.
@@ -2702,6 +2722,7 @@ class EditTaskModal extends Modal {
     this.newRecurrence = task.recurrence || '';
     this.newText = task.text || '';
     this.newCover = task.cover || '';
+    this.newPriority = task.priority || '';
     this.newColumn = task.column || 'inbox';
   }
 
@@ -2769,6 +2790,19 @@ class EditTaskModal extends Modal {
         }
         dd.setValue(this.newRecurrence || '');
         dd.onChange((v) => (this.newRecurrence = v));
+      });
+
+    new Setting(contentEl)
+      .setName(t('priority'))
+      .addDropdown((dd) => {
+        dd.addOption('', t('prio_none'));
+        dd.addOption('highest', t('prio_highest'));
+        dd.addOption('high', t('prio_high'));
+        dd.addOption('medium', t('prio_medium'));
+        dd.addOption('low', t('prio_low'));
+        dd.addOption('lowest', t('prio_lowest'));
+        dd.setValue(this.newPriority);
+        dd.onChange((v) => (this.newPriority = v));
       });
 
     let projInput;
@@ -2882,6 +2916,9 @@ class EditTaskModal extends Modal {
         }
         if (this.newRecurrence !== (this.task.recurrence || '')) {
           await this.plugin.setRecurrence(this.task, this.newRecurrence || null);
+        }
+        if (this.newPriority !== (this.task.priority || '')) {
+          await this.plugin.setPriority(this.task, this.newPriority || null);
         }
         // Auto-verplaats: stond de kaart in de Bezig-kolom en is de due date naar
         // de toekomst geschoven (en heeft de gebruiker de kolom niet zelf gewijzigd),
