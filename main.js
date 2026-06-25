@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   doneColumn: 'done',
   inboxNote: 'Kanban Inbox.md',
   showInbox: true,
+  collectKanbanNotes: false,    // notitie met note-level #kanban-tag → alle taken op het bord
   swimlaneGroupBy: 'none',
   calendarViewMode: 'month',    // onthoudt de laatst gekozen kalenderweergave (month/week/day)
   activeBoardId: 'default',
@@ -275,6 +276,8 @@ const TRANSLATIONS = {
     inbox_note_desc: 'Standaardbestand voor nieuwe taken. Wordt aangemaakt als het niet bestaat.',
     show_inbox: 'Inbox-kolom tonen',
     show_inbox_desc: 'Toon taken zonder #kanban/ tag in een aparte Inbox-kolom.',
+    collect_kanban_notes: 'Taken uit #kanban-notities',
+    collect_kanban_notes_desc: 'Een notitie met de tag #kanban (in de frontmatter of inline) levert ál haar taken aan het bord — open taken in de standaardkolom, afgevinkte in de afgerond-kolom — zonder dat je elke taak hoeft te taggen. Combineer met "Inbox verbergen" om het bord tot je #kanban-notities te beperken.',
     sec_linked_notes: 'Gekoppelde notities',
     linked_notes_help: 'Elke kaart kan een eigen notitie krijgen via de 📄-knop. De notitie wordt aangemaakt uit een template.',
     note_folder: 'Notitie-map',
@@ -520,6 +523,8 @@ const TRANSLATIONS = {
     inbox_note_desc: 'Default file for new tasks. Created if it does not exist.',
     show_inbox: 'Show inbox column',
     show_inbox_desc: 'Show tasks without a #kanban/ tag in a separate Inbox column.',
+    collect_kanban_notes: 'Tasks from #kanban notes',
+    collect_kanban_notes_desc: 'A note tagged #kanban (in frontmatter or inline) contributes all of its tasks to the board — open tasks in the default column, checked ones in the done column — without tagging each task. Combine with hiding the Inbox to limit the board to your #kanban notes.',
     sec_linked_notes: 'Linked notes',
     linked_notes_help: 'Every card can get its own note via the 📄 button. The note is created from a template.',
     note_folder: 'Note folder',
@@ -938,14 +943,29 @@ module.exports = class KanbanPlugin extends Plugin {
     });
   }
 
+  // Heeft de notitie een note-level #kanban-tag (frontmatter of inline)?
+  isKanbanNote(file) {
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!cache) return false;
+    const fm = cache.frontmatter;
+    if (fm && fm.tags != null) {
+      const arr = Array.isArray(fm.tags) ? fm.tags : String(fm.tags).split(/[,\s]+/);
+      if (arr.some((tg) => String(tg).replace(/^#/, '') === 'kanban')) return true;
+    }
+    if (cache.tags && cache.tags.some((tg) => tg.tag === '#kanban')) return true;
+    return false;
+  }
+
   async scanTasks() {
     const tasks = [];
     const files = this.app.vault.getMarkdownFiles();
+    const collectNotes = !!this.settings.collectKanbanNotes;
     for (const file of files) {
       let content;
       try { content = await this.app.vault.cachedRead(file); }
       catch (_) { continue; }
       const lines = content.split('\n');
+      const kanbanNote = collectNotes && this.isKanbanNote(file);
       let current = null;       // huidige top-level taak (= kaart)
       let currentWidth = 0;
       for (let i = 0; i < lines.length; i++) {
@@ -961,6 +981,9 @@ module.exports = class KanbanPlugin extends Plugin {
             file: file.path, line: i, raw: lines[i],
           });
         } else {
+          // In een #kanban-notitie krijgen taken zonder eigen kolom de standaard-
+          // (of afgerond-)kolom, zodat ze als kaart verschijnen zonder per-taak-tag.
+          if (kanbanNote && !parsed.column) parsed.column = parsed.done ? this.settings.doneColumn : this.settings.defaultColumn;
           tasks.push(parsed);
           current = parsed;
           currentWidth = w;
@@ -3680,6 +3703,17 @@ class KanbanSettingTab extends PluginSettingTab {
         .setValue(this.plugin.settings.showInbox)
         .onChange(async (v) => {
           this.plugin.settings.showInbox = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+
+    new Setting(containerEl)
+      .setName(t('collect_kanban_notes'))
+      .setDesc(t('collect_kanban_notes_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.collectKanbanNotes)
+        .onChange(async (v) => {
+          this.plugin.settings.collectKanbanNotes = v;
           await this.plugin.saveSettings();
           this.plugin.refreshViews();
         }));
