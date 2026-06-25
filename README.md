@@ -16,19 +16,7 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 
 ### New in 1.12 — Clients, swimlanes, multiple boards, customizable priorities & card covers
 
-Cards now carry a **client** alongside the project, **priorities are customizable** (your own names + colors), and you can give a card a **cover** (an image or plain text). Organize with **swimlanes** (group cards by project, client, priority or due date) and **multiple boards** (each scoped to its own projects/clients); edit the title and priority straight from a card; or tag a whole note `#kanban` to pull in all its tasks. (Earlier highlights — Week/Day calendar views, times on cards, note archiving and Outlook sync — are shown below.)
-
-![Board next to the Week agenda with Outlook events and timed tasks — dark theme](assets/split-preview.png)
-
-![Board next to the Week agenda — light theme](assets/split-preview-light.png)
-
-![Calendar view with tasks and Outlook events — dark theme](assets/calendar-preview.png)
-
-![Calendar view — light theme](assets/calendar-preview-light.png)
-
-![Outlook calendar connection with the calendar picker — dark theme](assets/outlook-preview.png)
-
-![Outlook calendar connection — light theme](assets/outlook-preview-light.png)
+Cards now carry a **client** alongside the project, **priorities are customizable** (your own names + colors), and you can give a card a **cover** (an image or plain text). Organize with **swimlanes** (group cards by project, client, priority or due date) and **multiple boards** (each scoped to its own projects/clients); edit the title and priority straight from a card; or tag a whole note `#kanban` to pull in all its tasks.
 
 ## Features
 
@@ -170,19 +158,7 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 
 ### Nieuw in 1.12 — Klanten, swimlanes, meerdere borden, aanpasbare prioriteiten & kaart-covers
 
-Kaarten dragen nu een **klant** naast het project, **prioriteiten zijn aanpasbaar** (eigen namen + kleuren) en je kunt een kaart een **cover** geven (een afbeelding of platte tekst). Orden met **swimlanes** (groepeer op project, klant, prioriteit of datum) en **meerdere borden** (elk met een eigen bereik); bewerk titel en prioriteit direct vanuit een kaart; of tag een hele notitie met `#kanban` om al haar taken op te halen. (Eerdere hoogtepunten — Week-/Dagweergave, tijd op kaarten, notities archiveren en Outlook-sync — zie je hieronder.)
-
-![Bord naast de Week-agenda met Outlook-afspraken en getimede taken — donker thema](assets/split-preview.png)
-
-![Bord naast de Week-agenda — licht thema](assets/split-preview-light.png)
-
-![Kalenderweergave met taken en Outlook-events — donker thema](assets/calendar-preview.png)
-
-![Kalenderweergave — licht thema](assets/calendar-preview-light.png)
-
-![Outlook-koppeling met de agenda-kiezer — donker thema](assets/outlook-preview.png)
-
-![Outlook-koppeling — licht thema](assets/outlook-preview-light.png)
+Kaarten dragen nu een **klant** naast het project, **prioriteiten zijn aanpasbaar** (eigen namen + kleuren) en je kunt een kaart een **cover** geven (een afbeelding of platte tekst). Orden met **swimlanes** (groepeer op project, klant, prioriteit of datum) en **meerdere borden** (elk met een eigen bereik); bewerk titel en prioriteit direct vanuit een kaart; of tag een hele notitie met `#kanban` om al haar taken op te halen.
 
 ## Functies
 
