@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.12.0
+
+**New: custom priorities, clients, swimlanes, multiple boards, #kanban-note collection, and richer cards**
+
+- **Edit the card title** in the edit dialog (full-width field); date/time/tags/priority/links preserved.
+- **Edit priority** while editing an existing card (not only on creation).
+- **Customizable priorities** — define your own priority list (name + color) in Settings → Priorities. Custom priorities are stored as `#priority/<name>`; the five built-ins keep their emoji (Tasks-plugin compatible); cards show a colored priority pill.
+- **Card covers** — `[cover:: …]` shows an image (vault `[[image]]` or URL) or a plain-text banner; add or upload a cover (uploads go to a configurable **Cover folder**, default `Kanban Notes/assets`).
+- **CSS-targetable cards** — metadata renders with `data-field`/`data-value`, and the card with `data-priority`/`data-project`/`data-client`/`data-column`, so values can be styled via a CSS snippet.
+- **Clients** — a second colored tag dimension `#client/name` alongside the project.
+- **Swimlanes** — group cards into horizontal lanes by project, client, priority or due date.
+- **Multiple boards** — named boards, each scoped to projects/clients with its own grouping; switch from a header picker.
+- **Collect tasks from #kanban notes** — tag a note `#kanban` and all its tasks appear without per-task tags; the board is then scoped to your #kanban notes (open → Inbox, checked → done, explicit `#kanban/<column>` → that column).
+- **Calendar remembers the last view** (Month/Week/Day).
+
+---
+
+### Nederlands
+
+**Nieuw: eigen prioriteiten, klanten, swimlanes, meerdere borden, #kanban-notitie-verzameling en rijkere kaarten**
+
+- **Kaarttitel bewerken** in het bewerk-venster (veld over de volle breedte); datum/tijd/tags/prioriteit/koppelingen blijven behouden.
+- **Prioriteit bewerken** bij een bestaande kaart (niet alleen bij toevoegen).
+- **Aanpasbare prioriteiten** — eigen prioriteitenlijst (naam + kleur) bij Instellingen → Prioriteiten. Eigen prioriteiten als `#priority/<naam>`; de vijf standaard houden hun emoji (Tasks-compatibel); kaarten tonen een gekleurde prioriteit-pil.
+- **Kaart-covers** — `[cover:: …]` toont een afbeelding (vault-`[[afbeelding]]` of URL) of een platte-tekst-banner; toevoegen of uploaden (uploads in een instelbare **Cover-map**, standaard `Kanban Notes/assets`).
+- **CSS-targetbare kaarten** — metadata krijgt `data-field`/`data-value`, en de kaart `data-priority`/`data-project`/`data-client`/`data-column`, zodat je waarden met een CSS-snippet kunt stylen.
+- **Klanten** — een tweede gekleurde tag-dimensie `#client/naam` naast het project.
+- **Swimlanes** — kaarten in horizontale banen op project, klant, prioriteit of datum.
+- **Meerdere borden** — benoemde borden, elk afgebakend op projecten/klanten met eigen groepering; wissel via een kiezer in de kop.
+- **Taken uit #kanban-notities** — tag een notitie `#kanban` en al haar taken verschijnen zonder per-taak-tag; het bord is dan beperkt tot je #kanban-notities (open → Inbox, afgevinkt → afgerond, eigen `#kanban/<kolom>` → die kolom).
+- **Kalender onthoudt de laatste weergave** (Maand/Week/Dag).
+
 ## 1.11.1
 
 - **Support link** — you can now support development via Buy Me a Coffee. The link appears on the plugin page (`fundingUrl`), in the README, and at the bottom of the plugin settings. The plugin stays free.

@@ -1,7 +1,7 @@
 {
   "id": "trietment-kanban",
   "name": "Trietment Kanban",
-  "version": "1.11.1",
+  "version": "1.12.0",
   "minAppVersion": "1.4.0",
   "description": "Collect tasks from across your vault as draggable Kanban cards — with due dates and times, projects, priorities, subtasks, recurring tasks, a month/week/day calendar view and optional Outlook calendar sync.",
   "author": "Trietment",
