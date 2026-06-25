@@ -78,6 +78,7 @@ A task is a plain markdown checkbox with optional metadata:
 |---|---|
 | `#kanban/<column>` | Which column the task is in (e.g. `#kanban/doing`) |
 | `#project/<name>` | Project; use `/` for subprojects (`#project/client/acme`) |
+| `#client/<name>` | Client — a second colored tag dimension shown alongside the project |
 | `📅 YYYY-MM-DD` | Due date |
 | `⏰ HH:mm` | Time of day (24h), shown on the calendar timeline |
 | `🔁 every week` | Recurrence (`every day/week/month/year`, also `every 2 weeks`) |
@@ -226,6 +227,7 @@ Een taak is een gewone markdown-checkbox met optionele metadata:
 |---|---|
 | `#kanban/<kolom>` | In welke kolom de taak staat (bv. `#kanban/doing`) |
 | `#project/<naam>` | Project; gebruik `/` voor subprojecten (`#project/klant/acme`) |
+| `#client/<naam>` | Klant — een tweede gekleurde tag-dimensie naast het project |
 | `📅 JJJJ-MM-DD` | Due date |
 | `⏰ UU:mm` | Tijdstip (24-uurs), getoond op de kalender-tijdlijn |
 | `🔁 every week` | Herhaling (`every day/week/month/year`, ook `every 2 weeks`) |

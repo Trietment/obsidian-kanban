@@ -28,6 +28,8 @@ const DEFAULT_SETTINGS = {
   showInbox: true,
   projectColors: {},
   projectLabels: {},
+  clientColors: {},
+  clientLabels: {},
   projectScanFolders: [], // map(pen) die op #project/-tags doorzocht worden (leeg = hele vault)
   autoMoveToday: true,
   inProgressColumn: 'doing',
@@ -281,6 +283,14 @@ const TRANSLATIONS = {
     scan_vault: 'Scannen',
     scan_result: '{found} projecten gevonden, {added} nieuwe kleuren toegekend.',
     no_projects_yet: 'Nog geen projecten. Voeg een taak toe met #project/<naam> en hij verschijnt hier.',
+    client: 'Klant',
+    client_add_desc: 'Optioneel. Kies een bestaande klant of typ een nieuwe naam.',
+    client_edit_desc: 'Leeg laten om de klant te verwijderen.',
+    client_placeholder: 'bv. acme',
+    client_of: 'Klant: {c}',
+    sec_clients: 'Klanten en kleuren',
+    clients_help: 'Geef per klant een kleur. Gebruik #client/<naam> in je taken om ze hieraan te koppelen.',
+    no_clients_yet: 'Nog geen klanten. Voeg een taak toe met #client/<naam> en hij verschijnt hier.',
     project_label_placeholder: 'weergave-label (optioneel)',
     remove_color: 'Verwijder kleur (taken blijven bestaan)',
     sec_help: 'Hoe werkt het?',
@@ -486,6 +496,14 @@ const TRANSLATIONS = {
     scan_vault: 'Scan',
     scan_result: '{found} projects found, {added} new colors assigned.',
     no_projects_yet: 'No projects yet. Add a task with #project/<name> and it appears here.',
+    client: 'Client',
+    client_add_desc: 'Optional. Pick an existing client or type a new name.',
+    client_edit_desc: 'Leave empty to remove the client.',
+    client_placeholder: 'e.g. acme',
+    client_of: 'Client: {c}',
+    sec_clients: 'Clients and colors',
+    clients_help: 'Give each client a color. Use #client/<name> in your tasks to link them.',
+    no_clients_yet: 'No clients yet. Add a task with #client/<name> and it appears here.',
     project_label_placeholder: 'display label (optional)',
     remove_color: 'Remove color (tasks remain)',
     sec_help: 'How does it work?',
@@ -674,6 +692,10 @@ function parseTaskLine(line, filePath, lineNum) {
   const projMatch = rest.match(/#project\/([\w-]+(?:\/[\w-]+)*)/);
   if (projMatch) project = projMatch[1];
 
+  let client = null;
+  const clientMatch = rest.match(/#client\/([\w-]+(?:\/[\w-]+)*)/);
+  if (clientMatch) client = clientMatch[1];
+
   let priority = null;
   if (rest.includes('🔺')) priority = 'highest';
   else if (rest.includes('⏫')) priority = 'high';
@@ -705,13 +727,14 @@ function parseTaskLine(line, filePath, lineNum) {
     .replace(/🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi, '')
     .replace(/#kanban\/[\w-]+/g, '')
     .replace(/#project\/[\w-]+(?:\/[\w-]+)*/g, '')
+    .replace(/#client\/[\w-]+(?:\/[\w-]+)*/g, '')
     .replace(/\[\[[^\]]+\]\]/g, '')
     .replace(/[🔺⏫🔼🔽⏬]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 
   return {
-    text, dueDate, time, column, project, priority, recurrence, done, noteLink, cover,
+    text, dueDate, time, column, project, client, priority, recurrence, done, noteLink, cover,
     file: filePath, line: lineNum, indent,
     raw: line, subtasks: [],
   };
@@ -983,6 +1006,7 @@ module.exports = class KanbanPlugin extends Plugin {
     if (task.time) line += ` ⏰ ${task.time}`;
     if (task.cover) line += ` [cover:: ${task.cover}]`;
     if (task.priority && PRIORITY_ICONS[task.priority]) line += ` ${PRIORITY_ICONS[task.priority]}`;
+    if (task.client) line += ` #client/${task.client}`;
     if (task.project) line += ` #project/${task.project}`;
     if (task.column) line += ` #kanban/${task.column}`;
     return line;
@@ -1009,6 +1033,32 @@ module.exports = class KanbanPlugin extends Plugin {
     const used = new Set(Object.values(this.settings.projectColors));
     const free = DEFAULT_PALETTE.find((c) => !used.has(c)) || DEFAULT_PALETTE[Object.keys(this.settings.projectColors).length % DEFAULT_PALETTE.length];
     this.settings.projectColors[name] = free;
+    await this.saveSettings();
+  }
+
+  getClients() {
+    const set = new Set();
+    Object.keys(this.settings.clientColors || {}).forEach((c) => set.add(c));
+    this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN).forEach((leaf) => {
+      if (leaf.view instanceof KanbanView) {
+        leaf.view.tasks.forEach((t) => t.client && set.add(t.client));
+      }
+    });
+    return [...set].sort();
+  }
+
+  getClientColor(name) {
+    if (!name) return null;
+    return (this.settings.clientColors || {})[name] || null;
+  }
+
+  async assignClientColor(name) {
+    if (!name) return;
+    if (!this.settings.clientColors) this.settings.clientColors = {};
+    if (this.settings.clientColors[name]) return;
+    const used = new Set(Object.values(this.settings.clientColors));
+    const free = DEFAULT_PALETTE.find((c) => !used.has(c)) || DEFAULT_PALETTE[Object.keys(this.settings.clientColors).length % DEFAULT_PALETTE.length];
+    this.settings.clientColors[name] = free;
     await this.saveSettings();
   }
 
@@ -1055,6 +1105,29 @@ module.exports = class KanbanPlugin extends Plugin {
     lines[task.line] = line;
     await this.app.vault.modify(file, lines.join('\n'));
     if (newProject) await this.assignProjectColor(newProject);
+  }
+
+  async setClient(task, newClient) {
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length) return;
+    let line = lines[task.line];
+    const re = /#client\/[\w-]+(?:\/[\w-]+)*/;
+    const reG = /\s*#client\/[\w-]+(?:\/[\w-]+)*/g;
+    if (re.test(line)) {
+      if (newClient) line = line.replace(re, `#client/${newClient}`);
+      else line = line.replace(reG, '');
+    } else if (newClient) {
+      // Vóór de #project/#kanban-tag plaatsen (zoals formatTaskLine), anders achteraan.
+      const tagPos = line.search(/\s+#(?:project|kanban)\//);
+      if (tagPos >= 0) line = line.slice(0, tagPos) + ` #client/${newClient}` + line.slice(tagPos);
+      else line = line.trimEnd() + ` #client/${newClient}`;
+    }
+    lines[task.line] = line;
+    await this.app.vault.modify(file, lines.join('\n'));
+    if (newClient) await this.assignClientColor(newClient);
   }
 
   async setPriority(task, newPriority) {
@@ -1453,6 +1526,8 @@ module.exports = class KanbanPlugin extends Plugin {
           time: task.time,
           priority: task.priority,
           project: task.project,
+          client: task.client,
+          cover: task.cover,
           recurrence: task.recurrence,
           column: targetCol,
         };
@@ -1605,7 +1680,7 @@ class KanbanView extends ItemView {
     if (this.hideDone && t.done) return false;
     if (this.filterText) {
       const subText = (t.subtasks || []).map((s) => s.text).join(' ');
-      const hay = (t.text + ' ' + t.file + ' ' + (t.dueDate || '') + ' ' + (t.project || '') + ' ' + subText).toLowerCase();
+      const hay = (t.text + ' ' + t.file + ' ' + (t.dueDate || '') + ' ' + (t.project || '') + ' ' + (t.client || '') + ' ' + subText).toLowerCase();
       if (!hay.includes(this.filterText)) return false;
     }
     return true;
@@ -1736,11 +1811,33 @@ class KanbanView extends ItemView {
     card.dataset.column = task.column || 'inbox';
     if (task.priority) card.dataset.priority = task.priority;
     if (task.project) card.dataset.project = task.project;
+    if (task.client) card.dataset.client = task.client;
 
     // ---- Header: project-badge links, subtaak-badge + notitie + acties rechts
     const header = card.createDiv({ cls: 'tk-card-header' });
     const headLeft = header.createDiv({ cls: 'tk-card-header-left' });
     const headRight = header.createDiv({ cls: 'tk-card-header-right' });
+
+    // Client badge (eigen dimensie naast project)
+    if (task.client) {
+      const cwrap = headLeft.createDiv({ cls: 'tk-project-wrap' });
+      const csegs = task.client.split('/');
+      const cbadge = cwrap.createDiv({ cls: 'tk-project-badge tk-client-badge' });
+      const ccolor = this.plugin.getClientColor(task.client);
+      if (ccolor) cbadge.style.background = ccolor;
+      const cLabel = (this.plugin.settings.clientLabels || {})[task.client];
+      cbadge.setText(cLabel || csegs[csegs.length - 1]);
+      cbadge.dataset.field = 'client';
+      cbadge.dataset.value = task.client;
+      cbadge.setAttr('title', this.plugin.t('client_of', { c: task.client }));
+      cbadge.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.filterText = task.client.toLowerCase();
+        const filterInput = this.containerEl.querySelector('.tk-filter');
+        if (filterInput) filterInput.value = task.client;
+        this.renderBoard(this.containerEl.children[1]);
+      });
+    }
 
     // Project badge
     if (task.project) {
@@ -2608,6 +2705,7 @@ class AddTaskModal extends Modal {
       project: '',
       recurrence: '',
       cover: '',
+      client: '',
       targetFile: defaultFile || plugin.settings.inboxNote,
     };
   }
@@ -2661,6 +2759,32 @@ class AddTaskModal extends Modal {
           e.preventDefault();
           this.task.project = p;
           if (projInput) projInput.setValue(p);
+        };
+      }
+    }
+
+    // Client — text input met chips voor bestaande klanten
+    const clientSetting = new Setting(contentEl)
+      .setName(t('client'))
+      .setDesc(t('client_add_desc'));
+    let clientInput;
+    clientSetting.addText((text) => {
+      clientInput = text;
+      text.setPlaceholder(t('client_placeholder'))
+        .setValue(this.task.client || '')
+        .onChange((v) => (this.task.client = v.trim().toLowerCase().replace(/[^\w\-\/]/g, '')));
+    });
+    const knownClients = this.plugin.getClients();
+    if (knownClients.length) {
+      const chipRow = contentEl.createDiv({ cls: 'tk-chip-row' });
+      for (const c of knownClients) {
+        const chip = chipRow.createEl('button', { cls: 'tk-chip', text: c });
+        const color = this.plugin.getClientColor(c);
+        if (color) chip.style.background = color;
+        chip.onclick = (e) => {
+          e.preventDefault();
+          this.task.client = c;
+          if (clientInput) clientInput.setValue(c);
         };
       }
     }
@@ -2768,6 +2892,7 @@ class EditTaskModal extends Modal {
     this.newDate = task.dueDate || '';
     this.newTime = task.time || '';
     this.newProject = task.project || '';
+    this.newClient = task.client || '';
     this.newRecurrence = task.recurrence || '';
     this.newText = task.text || '';
     this.newCover = task.cover || '';
@@ -2887,6 +3012,31 @@ class EditTaskModal extends Modal {
       }
     }
 
+    let clientInput;
+    new Setting(contentEl)
+      .setName(t('client'))
+      .setDesc(t('client_edit_desc'))
+      .addText((text) => {
+        clientInput = text;
+        text.setPlaceholder(t('client_placeholder'))
+          .setValue(this.newClient)
+          .onChange((v) => (this.newClient = v.trim().toLowerCase().replace(/[^\w\-\/]/g, '')));
+      });
+    const knownClients = this.plugin.getClients();
+    if (knownClients.length) {
+      const chipRow = contentEl.createDiv({ cls: 'tk-chip-row' });
+      for (const c of knownClients) {
+        const chip = chipRow.createEl('button', { cls: 'tk-chip', text: c });
+        const color = this.plugin.getClientColor(c);
+        if (color) chip.style.background = color;
+        chip.onclick = (e) => {
+          e.preventDefault();
+          this.newClient = c;
+          if (clientInput) clientInput.setValue(c);
+        };
+      }
+    }
+
     // -- Subtaken --------------------------------------------------------
     contentEl.createEl('h3', { text: t('subtasks') });
     const subWrap = contentEl.createDiv({ cls: 'tk-modal-subtasks' });
@@ -2970,6 +3120,9 @@ class EditTaskModal extends Modal {
         }
         if (this.newProject !== (this.task.project || '')) {
           await this.plugin.setProject(this.task, this.newProject || null);
+        }
+        if (this.newClient !== (this.task.client || '')) {
+          await this.plugin.setClient(this.task, this.newClient || null);
         }
         if (this.newRecurrence !== (this.task.recurrence || '')) {
           await this.plugin.setRecurrence(this.task, this.newRecurrence || null);
@@ -3512,6 +3665,49 @@ class KanbanSettingTab extends PluginSettingTab {
           .onClick(async () => {
             delete this.plugin.settings.projectColors[proj];
             if (this.plugin.settings.projectLabels) delete this.plugin.settings.projectLabels[proj];
+            await this.plugin.saveSettings();
+            this.display();
+            this.plugin.refreshViews();
+          }));
+      }
+    }
+
+    // -- Klanten -------------------------------------------------------
+    new Setting(containerEl).setName(t('sec_clients')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('clients_help') });
+
+    const clients = this.plugin.getClients();
+    if (clients.length === 0) {
+      containerEl.createDiv({ cls: 'tk-help-line' }).setText(t('no_clients_yet'));
+    } else {
+      for (const cl of clients) {
+        const setting = new Setting(containerEl).setName(cl).setDesc(`#client/${cl}`);
+        setting.addColorPicker((picker) => {
+          picker.setValue((this.plugin.settings.clientColors || {})[cl] || DEFAULT_PALETTE[0]);
+          picker.onChange(async (val) => {
+            if (!this.plugin.settings.clientColors) this.plugin.settings.clientColors = {};
+            this.plugin.settings.clientColors[cl] = val;
+            await this.plugin.saveSettings();
+            this.plugin.refreshViews();
+          });
+        });
+        setting.addText((text) => {
+          text.setPlaceholder(t('project_label_placeholder'))
+            .setValue((this.plugin.settings.clientLabels || {})[cl] || '')
+            .onChange(async (v) => {
+              if (!this.plugin.settings.clientLabels) this.plugin.settings.clientLabels = {};
+              if (v.trim()) this.plugin.settings.clientLabels[cl] = v.trim();
+              else delete this.plugin.settings.clientLabels[cl];
+              await this.plugin.saveSettings();
+              this.plugin.refreshViews();
+            });
+        });
+        setting.addExtraButton((b) => b
+          .setIcon('trash')
+          .setTooltip(t('remove_color'))
+          .onClick(async () => {
+            if (this.plugin.settings.clientColors) delete this.plugin.settings.clientColors[cl];
+            if (this.plugin.settings.clientLabels) delete this.plugin.settings.clientLabels[cl];
             await this.plugin.saveSettings();
             this.display();
             this.plugin.refreshViews();

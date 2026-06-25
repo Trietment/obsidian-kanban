@@ -224,6 +224,14 @@
   text-shadow: 0 1px 0 rgba(0,0,0,0.2);
   white-space: nowrap;
 }
+/* Client-badge: zelfde pil als project maar hoekiger, zodat je 'm onderscheidt;
+   plus wat ruimte tussen client- en project-badge. */
+.tk-card-header-left {
+  gap: 4px;
+}
+.tk-client-badge {
+  border-radius: 4px;
+}
 .tk-project-badge:hover {
   filter: brightness(1.1);
 }
