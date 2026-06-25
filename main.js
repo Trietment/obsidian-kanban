@@ -38,6 +38,7 @@ const DEFAULT_SETTINGS = {
   inProgressColumn: 'doing',
   autoMoveOverdue: false,
   noteFolder: 'Kanban Notes', // map voor álle gekoppelde notities (leeg = bij de bron-note)
+  coverFolder: 'Kanban Notes/assets', // map voor geüploade cover-afbeeldingen (leeg = Obsidian-bijlagenmap)
   noteTemplate: '',   // leeg = ingebouwde template hieronder
   archiveNotesOnDone: true,   // gekoppelde notitie naar archief-submap verplaatsen bij afronden (terug bij heropenen)
   archiveFolder: '0. archive',// naam van de archief-submap binnen de notitie-map
@@ -214,6 +215,9 @@ const TRANSLATIONS = {
     cover_hint: 'Afbeelding ([[bestand]] of URL) of platte tekst (bv. een klantnaam).',
     cover_upload: 'Uploaden',
     cover_upload_failed: 'Uploaden van de afbeelding is mislukt.',
+    cover_folder: 'Cover-map',
+    cover_folder_desc: 'Map waarin geüploade cover-afbeeldingen worden opgeslagen (wordt automatisch aangemaakt). Leeg = de Obsidian-bijlagenmap (naast de bron-notitie).',
+    cover_folder_placeholder: 'bv. Kanban Notes/assets',
     repeat_edit_desc: 'Bij afvinken wordt er automatisch een volgende instance gemaakt.',
     project_edit_desc: 'Leeg laten om het project te verwijderen. Gebruik / voor subproject (bv. klant/acme).',
     project_placeholder2: 'bv. klant/acme',
@@ -450,6 +454,9 @@ const TRANSLATIONS = {
     cover_hint: 'Image ([[file]] or URL) or plain text (e.g. a client name).',
     cover_upload: 'Upload',
     cover_upload_failed: 'Uploading the image failed.',
+    cover_folder: 'Cover folder',
+    cover_folder_desc: 'Folder where uploaded cover images are saved (created automatically). Empty = the Obsidian attachment folder (next to the source note).',
+    cover_folder_placeholder: 'e.g. Kanban Notes/assets',
     repeat_edit_desc: 'When completed, the next instance is created automatically.',
     project_edit_desc: 'Leave empty to remove the project. Use / for a subproject (e.g. client/acme).',
     project_placeholder2: 'e.g. client/acme',
@@ -1251,16 +1258,46 @@ module.exports = class KanbanPlugin extends Plugin {
 
   // Sla een geüploade afbeelding op via Obsidians bijlage-instelling (respecteert
   // o.a. "submap naast de notitie") en geef het aangemaakte TFile terug.
+  // Maak een (geneste) map aan indien die nog niet bestaat.
+  async ensureFolder(folder) {
+    if (!folder) return;
+    let cur = '';
+    for (const part of folder.split('/')) {
+      cur = cur ? `${cur}/${part}` : part;
+      if (!this.app.vault.getAbstractFileByPath(cur)) {
+        try { await this.app.vault.createFolder(cur); } catch (_) {}
+      }
+    }
+  }
+
+  // Niet-botsend pad in een map: voegt " 1", " 2", … toe bij een naamconflict.
+  uniqueAttachmentPath(folder, fileName) {
+    const dot = fileName.lastIndexOf('.');
+    const base = dot > 0 ? fileName.slice(0, dot) : fileName;
+    const ext = dot > 0 ? fileName.slice(dot) : '';
+    const prefix = folder ? folder.replace(/\/+$/, '') + '/' : '';
+    let candidate = prefix + base + ext;
+    let n = 1;
+    while (this.app.vault.getAbstractFileByPath(candidate)) candidate = `${prefix}${base} ${n++}${ext}`;
+    return candidate;
+  }
+
   async uploadCoverImage(file, sourcePath) {
     try {
       const buf = await file.arrayBuffer();
       let path;
-      if (this.app.fileManager.getAvailablePathForAttachment) {
+      const coverFolder = (this.settings.coverFolder || '').trim().replace(/^\/+|\/+$/g, '');
+      if (coverFolder) {
+        // Eigen cover-map: aanmaken indien nodig + unieke bestandsnaam.
+        await this.ensureFolder(coverFolder);
+        path = this.uniqueAttachmentPath(coverFolder, file.name);
+      } else if (this.app.fileManager.getAvailablePathForAttachment) {
+        // Leeg = volg de Obsidian-bijlage-instelling (naast de bron-note).
         path = await this.app.fileManager.getAvailablePathForAttachment(file.name, sourcePath || '');
       } else {
         const dir = sourcePath && sourcePath.includes('/') ? sourcePath.slice(0, sourcePath.lastIndexOf('/')) + '/assets' : 'assets';
-        if (dir && !this.app.vault.getAbstractFileByPath(dir)) { try { await this.app.vault.createFolder(dir); } catch (_) {} }
-        path = `${dir}/${file.name}`;
+        await this.ensureFolder(dir);
+        path = this.uniqueAttachmentPath(dir, file.name);
       }
       return await this.app.vault.createBinary(path, buf);
     } catch (_) {
@@ -3646,6 +3683,17 @@ class KanbanSettingTab extends PluginSettingTab {
         .setValue(this.plugin.settings.noteTemplate)
         .onChange(async (v) => {
           this.plugin.settings.noteTemplate = v.trim();
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(t('cover_folder'))
+      .setDesc(t('cover_folder_desc'))
+      .addText((text) => text
+        .setPlaceholder(t('cover_folder_placeholder'))
+        .setValue(this.plugin.settings.coverFolder)
+        .onChange(async (v) => {
+          this.plugin.settings.coverFolder = v.trim().replace(/^\/+|\/+$/g, '');
           await this.plugin.saveSettings();
         }));
 
