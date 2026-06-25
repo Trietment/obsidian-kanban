@@ -84,6 +84,15 @@ const PRIORITY_ICONS = {
   low: '🔽',
   lowest: '⏬',
 };
+// Standaardkleuren voor de ingebouwde prioriteiten (te overschrijven in instellingen).
+const PRIORITY_COLORS = {
+  highest: '#e53e3e',
+  high: '#dd6b20',
+  medium: '#3b82f6',
+  low: '#10b981',
+  lowest: '#9ca3af',
+};
+const BUILTIN_PRIORITY_VALUES = ['highest', 'high', 'medium', 'low', 'lowest'];
 
 // -- i18n -------------------------------------------------------------------
 
@@ -185,6 +194,13 @@ const TRANSLATIONS = {
     prio_medium: '🔼 Middel',
     prio_low: '🔽 Laag',
     prio_lowest: '⏬ Laagst',
+    sec_priorities: 'Prioriteiten',
+    priorities_help: 'Stel je eigen prioriteiten in (naam + kleur). De vijf standaardniveaus gebruiken de bekende emoji; eigen prioriteiten komen als #priority/<naam> op de taakregel.',
+    add_priority: 'Prioriteit toevoegen',
+    add_priority_desc: 'Voeg een eigen prioriteit toe, bv. "Emergency" of "Active".',
+    add_priority_placeholder: 'naam van de prioriteit',
+    name_the_priority: 'Geef de prioriteit een naam.',
+    delete_priority: 'Prioriteit verwijderen',
     // Add task modal
     add_modal_title: 'Nieuwe Kanban-taak',
     task: 'Taak',
@@ -426,6 +442,13 @@ const TRANSLATIONS = {
     prio_medium: '🔼 Medium',
     prio_low: '🔽 Low',
     prio_lowest: '⏬ Lowest',
+    sec_priorities: 'Priorities',
+    priorities_help: 'Define your own priorities (name + color). The five built-in levels use the familiar emoji; your own priorities are written as #priority/<name> on the task line.',
+    add_priority: 'Add priority',
+    add_priority_desc: 'Add a custom priority, e.g. "Emergency" or "Active".',
+    add_priority_placeholder: 'priority name',
+    name_the_priority: 'Name the priority.',
+    delete_priority: 'Delete priority',
     add_modal_title: 'New Kanban task',
     task: 'Task',
     task_placeholder: 'What needs to be done?',
@@ -750,8 +773,11 @@ function parseTaskLine(line, filePath, lineNum) {
   const clientMatch = rest.match(/#client\/([\w-]+(?:\/[\w-]+)*)/);
   if (clientMatch) client = clientMatch[1];
 
+  // Prioriteit: een vrije #priority/<waarde>, óf een van de oude emoji's (back-compat).
   let priority = null;
-  if (rest.includes('🔺')) priority = 'highest';
+  const prioTag = rest.match(/#priority\/([\w-]+)/);
+  if (prioTag) priority = prioTag[1];
+  else if (rest.includes('🔺')) priority = 'highest';
   else if (rest.includes('⏫')) priority = 'high';
   else if (rest.includes('🔼')) priority = 'medium';
   else if (rest.includes('🔽')) priority = 'low';
@@ -782,6 +808,7 @@ function parseTaskLine(line, filePath, lineNum) {
     .replace(/#kanban\/[\w-]+/g, '')
     .replace(/#project\/[\w-]+(?:\/[\w-]+)*/g, '')
     .replace(/#client\/[\w-]+(?:\/[\w-]+)*/g, '')
+    .replace(/#priority\/[\w-]+/g, '')
     .replace(/\[\[[^\]]+\]\]/g, '')
     .replace(/[🔺⏫🔼🔽⏬]/g, '')
     .replace(/\s+/g, ' ')
@@ -1032,6 +1059,15 @@ module.exports = class KanbanPlugin extends Plugin {
     }
     if (!this.settings.activeBoardId) this.settings.activeBoardId = this.settings.boards[0].id;
 
+    // Prioriteiten: bij eerste keer de 5 standaardniveaus seeden (gelokaliseerde labels).
+    if (!Array.isArray(this.settings.priorities) || !this.settings.priorities.length) {
+      this.settings.priorities = BUILTIN_PRIORITY_VALUES.map((v) => ({
+        value: v,
+        label: this.t('prio_' + v).replace(/^\S+\s+/, ''),
+        color: PRIORITY_COLORS[v],
+      }));
+    }
+
     // Verse installatie in het Engels → Engelse standaard-kolomlabels.
     if (!saved) {
       if (this.lang === 'en') {
@@ -1065,7 +1101,7 @@ module.exports = class KanbanPlugin extends Plugin {
     if (task.dueDate) line += ` 📅 ${task.dueDate}`;
     if (task.time) line += ` ⏰ ${task.time}`;
     if (task.cover) line += ` [cover:: ${task.cover}]`;
-    if (task.priority && PRIORITY_ICONS[task.priority]) line += ` ${PRIORITY_ICONS[task.priority]}`;
+    if (task.priority) line += PRIORITY_ICONS[task.priority] ? ` ${PRIORITY_ICONS[task.priority]}` : ` #priority/${task.priority}`;
     if (task.client) line += ` #client/${task.client}`;
     if (task.project) line += ` #project/${task.project}`;
     if (task.column) line += ` #kanban/${task.column}`;
@@ -1110,6 +1146,17 @@ module.exports = class KanbanPlugin extends Plugin {
   getClientColor(name) {
     if (!name) return null;
     return (this.settings.clientColors || {})[name] || null;
+  }
+
+  // Prioriteiten: vrij instelbare lijst (waarde/label/kleur). Valt terug op de 5 standaard.
+  getPriorities() {
+    if (Array.isArray(this.settings.priorities) && this.settings.priorities.length) return this.settings.priorities;
+    return BUILTIN_PRIORITY_VALUES.map((v) => ({ value: v, label: v, color: PRIORITY_COLORS[v] }));
+  }
+
+  getPriorityDef(value) {
+    if (!value) return null;
+    return this.getPriorities().find((p) => p.value === value) || null;
   }
 
   activeBoard() {
@@ -1203,14 +1250,14 @@ module.exports = class KanbanPlugin extends Plugin {
     const lines = content.split('\n');
     if (task.line >= lines.length) return;
     let line = lines[task.line];
-    // Bestaande prioriteit-emoji weghalen (incl. de spatie ervoor).
-    line = line.replace(/\s*(?:🔺|⏫|🔼|🔽|⏬)/g, '');
-    const icon = newPriority ? PRIORITY_ICONS[newPriority] : null;
-    if (icon) {
-      // Vóór de eerste #project/#kanban-tag plaatsen (zoals formatTaskLine), anders achteraan.
-      const tagPos = line.search(/\s+#(?:project|kanban)\//);
-      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${icon}` + line.slice(tagPos);
-      else line = line.trimEnd() + ` ${icon}`;
+    // Bestaande prioriteit weghalen: zowel de emoji als #priority/<waarde>.
+    line = line.replace(/\s*(?:🔺|⏫|🔼|🔽|⏬)/g, '').replace(/\s*#priority\/[\w-]+/g, '');
+    if (newPriority) {
+      // Ingebouwde 5 → emoji (Tasks-compatibel); eigen prioriteiten → #priority/<waarde>.
+      const token = PRIORITY_ICONS[newPriority] || `#priority/${newPriority}`;
+      const tagPos = line.search(/\s+#(?:project|client|kanban)\//);
+      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
+      else line = line.trimEnd() + ` ${token}`;
     }
     lines[task.line] = line;
     await this.app.vault.modify(file, lines.join('\n'));
@@ -1830,8 +1877,7 @@ class KanbanView extends ItemView {
     const dim = this.groupBy;
     const tr = (k, v) => this.plugin.t(k, v);
     if (dim === 'priority') {
-      const order = ['highest', 'high', 'medium', 'low', 'lowest'];
-      const lanes = order.map((p) => ({ id: p, label: tr('prio_' + p), match: (x) => x.priority === p }));
+      const lanes = this.plugin.getPriorities().map((p) => ({ id: p.value, label: p.label, color: p.color, match: (x) => x.priority === p.value }));
       lanes.push({ id: '', label: tr('lane_none'), match: (x) => !x.priority });
       return lanes;
     }
@@ -2156,9 +2202,18 @@ class KanbanView extends ItemView {
       if (task.dueDate) dueEl.dataset.value = task.dueDate;
     }
     if (task.priority) {
-      const prioEl = meta.createSpan({ cls: 'tk-prio', text: PRIORITY_ICONS[task.priority] });
+      const def = this.plugin.getPriorityDef(task.priority);
+      const emoji = PRIORITY_ICONS[task.priority] || '';
+      const label = def ? def.label : task.priority;
+      const prioEl = meta.createSpan({ cls: 'tk-prio', text: (emoji ? emoji + ' ' : '') + label });
       prioEl.dataset.field = 'priority';
       prioEl.dataset.value = task.priority;
+      const color = (def && def.color) || PRIORITY_COLORS[task.priority];
+      if (color) {
+        prioEl.style.color = color;
+        const tint = hexToRgba(color, 0.16);
+        if (tint) prioEl.style.background = tint;
+      }
     }
     if (task.recurrence) {
       const rec = meta.createSpan({ cls: 'tk-recur', text: '🔁' });
@@ -3008,11 +3063,7 @@ class AddTaskModal extends Modal {
       .setName(t('priority'))
       .addDropdown((dd) => {
         dd.addOption('', t('prio_none'));
-        dd.addOption('highest', t('prio_highest'));
-        dd.addOption('high', t('prio_high'));
-        dd.addOption('medium', t('prio_medium'));
-        dd.addOption('low', t('prio_low'));
-        dd.addOption('lowest', t('prio_lowest'));
+        for (const p of this.plugin.getPriorities()) dd.addOption(p.value, p.label);
         dd.setValue(this.task.priority);
         dd.onChange((v) => (this.task.priority = v));
       });
@@ -3178,11 +3229,7 @@ class EditTaskModal extends Modal {
       .setName(t('priority'))
       .addDropdown((dd) => {
         dd.addOption('', t('prio_none'));
-        dd.addOption('highest', t('prio_highest'));
-        dd.addOption('high', t('prio_high'));
-        dd.addOption('medium', t('prio_medium'));
-        dd.addOption('low', t('prio_low'));
-        dd.addOption('lowest', t('prio_lowest'));
+        for (const p of this.plugin.getPriorities()) dd.addOption(p.value, p.label);
         dd.setValue(this.newPriority);
         dd.onChange((v) => (this.newPriority = v));
       });
@@ -3636,6 +3683,61 @@ class KanbanSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshViews();
         }));
+
+    // -- Prioriteiten --------------------------------------------------
+    new Setting(containerEl).setName(t('sec_priorities')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('priorities_help') });
+
+    (this.plugin.settings.priorities || []).forEach((prio, index) => {
+      const setting = new Setting(containerEl).setName(`#priority/${prio.value}`);
+      setting.addText((text) => text
+        .setPlaceholder(t('display_name'))
+        .setValue(prio.label || '')
+        .onChange(async (v) => {
+          prio.label = v.trim() || prio.value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+      setting.addColorPicker((picker) => {
+        picker.setValue(prio.color || DEFAULT_PALETTE[0]);
+        picker.onChange(async (val) => {
+          prio.color = val;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        });
+      });
+      setting.addExtraButton((b) => b.setIcon('arrow-up').setTooltip(t('move_up')).setDisabled(index === 0).onClick(async () => {
+        const a = this.plugin.settings.priorities;
+        [a[index - 1], a[index]] = [a[index], a[index - 1]];
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
+      setting.addExtraButton((b) => b.setIcon('arrow-down').setTooltip(t('move_down')).setDisabled(index === this.plugin.settings.priorities.length - 1).onClick(async () => {
+        const a = this.plugin.settings.priorities;
+        [a[index + 1], a[index]] = [a[index], a[index + 1]];
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
+      setting.addExtraButton((b) => b.setIcon('trash').setTooltip(t('delete_priority')).onClick(async () => {
+        this.plugin.settings.priorities = this.plugin.settings.priorities.filter((p) => p.value !== prio.value);
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
+    });
+
+    let newPrioName = '';
+    new Setting(containerEl)
+      .setName(t('add_priority'))
+      .setDesc(t('add_priority_desc'))
+      .addText((text) => text.setPlaceholder(t('add_priority_placeholder')).onChange((v) => { newPrioName = v; }))
+      .addButton((b) => b.setButtonText(t('add')).setCta().onClick(async () => {
+        const name = newPrioName.trim();
+        if (!name) { new Notice(t('name_the_priority')); return; }
+        let value = name.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '') || 'prio';
+        const base = value; let n = 2;
+        while (this.plugin.settings.priorities.some((p) => p.value === value)) value = `${base}-${n++}`;
+        const used = new Set(this.plugin.settings.priorities.map((p) => p.color));
+        const color = DEFAULT_PALETTE.find((c) => !used.has(c)) || DEFAULT_PALETTE[this.plugin.settings.priorities.length % DEFAULT_PALETTE.length];
+        this.plugin.settings.priorities.push({ value, label: name, color });
+        await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
+      }));
 
     // -- Gekoppelde notities -------------------------------------------
     new Setting(containerEl).setName(t('sec_linked_notes')).setHeading();

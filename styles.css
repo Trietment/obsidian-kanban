@@ -236,6 +236,13 @@
 }
 .tk-card.tk-prio-highest { border-top: 2px solid var(--color-red, #e53e3e); }
 .tk-card.tk-prio-high { border-top: 2px solid var(--color-orange, #dd6b20); }
+/* Prioriteit als kleine gekleurde pil (kleur/tekst via inline style uit de instellingen). */
+.tk-card-meta .tk-prio {
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* Project badge bovenaan de kaart */
 .tk-project-wrap {
