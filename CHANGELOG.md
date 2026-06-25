@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.1
+
+- **Shorten the plugin description** to stay within Obsidian's 250-character manifest limit (it was 272). No functional changes.
+
+> NL: Plugin-beschrijving ingekort zodat hij binnen Obsidians limiet van 250 tekens past (was 272). Geen functionele wijzigingen.
+
 ## 1.12.0
 
 **New: custom priorities, clients, swimlanes, multiple boards, #kanban-note collection, and richer cards**
