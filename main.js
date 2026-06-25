@@ -1221,8 +1221,9 @@ module.exports = class KanbanPlugin extends Plugin {
     if (task.line >= lines.length || lines[task.line] !== task.raw) return;
     const m = lines[task.line].match(/^(\s*- \[[ xX\-]\] )([\s\S]*)$/);
     if (!m) return;
-    // Tekst loopt tot het eerste metadata-/wikilink-token; alles daarna blijft staan.
-    const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|\[\[)/);
+    // Tekst loopt tot het eerste metadata-/cover-/wikilink-token; alles daarna blijft staan.
+    // [cover:: vóór [[ zodat een wikilink-cover bij het cover-token stopt, niet bij de inner [[.
+    const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|#client\/|\[cover::|\[\[)/);
     const rest = idx < 0 ? '' : m[2].slice(idx);
     lines[task.line] = m[1] + newText + rest;
     await this.app.vault.modify(file, lines.join('\n'));
