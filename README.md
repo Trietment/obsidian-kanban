@@ -14,9 +14,9 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
-### New in 1.11 — Week & day views, times on cards, and note archiving
+### New in 1.12 — Clients, swimlanes, multiple boards, customizable priorities & card covers
 
-The calendar now has **Week** and **Day** views next to Month; you can give a task a **time** that appears on one timeline with your appointments; and a completed card can **archive its linked note** automatically. Below: the board next to the Week agenda with Outlook events and timed tasks on one timeline, plus the month calendar and Outlook sync introduced in 1.10.
+Cards now carry a **client** alongside the project, **priorities are customizable** (your own names + colors), and you can give a card a **cover** (an image or plain text). Organize with **swimlanes** (group cards by project, client, priority or due date) and **multiple boards** (each scoped to its own projects/clients); edit the title and priority straight from a card; or tag a whole note `#kanban` to pull in all its tasks. (Earlier highlights — Week/Day calendar views, times on cards, note archiving and Outlook sync — are shown below.)
 
 ![Board next to the Week agenda with Outlook events and timed tasks — dark theme](assets/split-preview.png)
 
@@ -168,9 +168,9 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
-### Nieuw in 1.11 — Week- & dagweergave, tijd op kaarten, en notities archiveren
+### Nieuw in 1.12 — Klanten, swimlanes, meerdere borden, aanpasbare prioriteiten & kaart-covers
 
-De kalender heeft nu **Week**- en **Dag**weergave naast Maand; je kunt een taak een **tijd** geven die op één tijdlijn met je afspraken verschijnt; en een afgeronde kaart kan zijn **gekoppelde notitie automatisch archiveren**. Hieronder: het bord naast de Week-agenda met Outlook-afspraken en getimede taken op één tijdlijn, plus de maandkalender en Outlook-sync uit 1.10.
+Kaarten dragen nu een **klant** naast het project, **prioriteiten zijn aanpasbaar** (eigen namen + kleuren) en je kunt een kaart een **cover** geven (een afbeelding of platte tekst). Orden met **swimlanes** (groepeer op project, klant, prioriteit of datum) en **meerdere borden** (elk met een eigen bereik); bewerk titel en prioriteit direct vanuit een kaart; of tag een hele notitie met `#kanban` om al haar taken op te halen. (Eerdere hoogtepunten — Week-/Dagweergave, tijd op kaarten, notities archiveren en Outlook-sync — zie je hieronder.)
 
 ![Bord naast de Week-agenda met Outlook-afspraken en getimede taken — donker thema](assets/split-preview.png)
 
