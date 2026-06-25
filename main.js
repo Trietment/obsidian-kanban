@@ -3106,13 +3106,14 @@ class EditTaskModal extends Modal {
     contentEl.addClass('tk-modal');
     contentEl.createEl('h2', { text: t('edit_modal_title') });
 
-    new Setting(contentEl)
-      .setName(t('title'))
-      .setDesc(t('title_edit_desc'))
-      .addText((text) => {
-        text.setValue(this.newText).onChange((v) => (this.newText = v));
-        text.inputEl.addClass('tk-input-full');
-      });
+    // Titel als prominent veld over de volle breedte: ziet eruit als de titel,
+    // maar is altijd bewerkbaar (highlight bij hover/focus).
+    const titleInput = contentEl.createEl('input', { type: 'text', cls: 'tk-modal-title-input' });
+    titleInput.value = this.newText;
+    titleInput.placeholder = t('title');
+    titleInput.setAttr('aria-label', t('title'));
+    titleInput.addEventListener('input', (e) => { this.newText = e.target.value; });
+    contentEl.createDiv({ cls: 'tk-modal-titlehint', text: t('title_edit_desc') });
     contentEl.createDiv({ cls: 'tk-modal-sub', text: t('source_line', { file: this.task.file, line: this.task.line + 1 }) });
 
     let editCoverInput;
