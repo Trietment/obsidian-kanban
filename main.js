@@ -207,6 +207,8 @@ const TRANSLATIONS = {
     title_edit_desc: 'De taaktekst. Datum, tijd, project, prioriteit en koppelingen blijven behouden.',
     cover_label: 'Omslag',
     cover_hint: 'Afbeelding ([[bestand]] of URL) of platte tekst (bv. een klantnaam).',
+    cover_upload: 'Uploaden',
+    cover_upload_failed: 'Uploaden van de afbeelding is mislukt.',
     repeat_edit_desc: 'Bij afvinken wordt er automatisch een volgende instance gemaakt.',
     project_edit_desc: 'Leeg laten om het project te verwijderen. Gebruik / voor subproject (bv. klant/acme).',
     project_placeholder2: 'bv. klant/acme',
@@ -411,6 +413,8 @@ const TRANSLATIONS = {
     title_edit_desc: 'The task text. Date, time, project, priority and links are preserved.',
     cover_label: 'Cover',
     cover_hint: 'Image ([[file]] or URL) or plain text (e.g. a client name).',
+    cover_upload: 'Upload',
+    cover_upload_failed: 'Uploading the image failed.',
     repeat_edit_desc: 'When completed, the next instance is created automatically.',
     project_edit_desc: 'Leave empty to remove the project. Use / for a subproject (e.g. client/acme).',
     project_placeholder2: 'e.g. client/acme',
@@ -557,6 +561,23 @@ function resolveCover(plugin, value, sourcePath) {
   }
   if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(value)) return { kind: 'image', src: value };
   return { kind: 'text', text: value };
+}
+
+// Open een bestandskiezer voor een afbeelding, upload hem en geef de [[wikilink]] terug.
+function pickCoverImage(plugin, sourcePath, onPicked) {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.style.display = 'none';
+  inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0];
+    inp.remove();
+    if (!f) return;
+    const tfile = await plugin.uploadCoverImage(f, sourcePath);
+    if (tfile) onPicked(`[[${tfile.name}]]`);
+  });
+  document.body.appendChild(inp);
+  inp.click();
 }
 
 function hexToRgba(hex, alpha) {
@@ -1093,6 +1114,26 @@ module.exports = class KanbanPlugin extends Plugin {
     }
     lines[task.line] = line;
     await this.app.vault.modify(file, lines.join('\n'));
+  }
+
+  // Sla een geüploade afbeelding op via Obsidians bijlage-instelling (respecteert
+  // o.a. "submap naast de notitie") en geef het aangemaakte TFile terug.
+  async uploadCoverImage(file, sourcePath) {
+    try {
+      const buf = await file.arrayBuffer();
+      let path;
+      if (this.app.fileManager.getAvailablePathForAttachment) {
+        path = await this.app.fileManager.getAvailablePathForAttachment(file.name, sourcePath || '');
+      } else {
+        const dir = sourcePath && sourcePath.includes('/') ? sourcePath.slice(0, sourcePath.lastIndexOf('/')) + '/assets' : 'assets';
+        if (dir && !this.app.vault.getAbstractFileByPath(dir)) { try { await this.app.vault.createFolder(dir); } catch (_) {} }
+        path = `${dir}/${file.name}`;
+      }
+      return await this.app.vault.createBinary(path, buf);
+    } catch (_) {
+      new Notice(this.t('cover_upload_failed'));
+      return null;
+    }
   }
 
   async ensureFile(path, initialContent = '') {
@@ -2653,12 +2694,20 @@ class AddTaskModal extends Modal {
         dd.onChange((v) => (this.task.priority = v));
       });
 
+    let addCoverInput;
     new Setting(contentEl)
       .setName(t('cover_label'))
       .setDesc(t('cover_hint'))
       .addText((text) => {
+        addCoverInput = text;
         text.setValue(this.task.cover || '').onChange((v) => (this.task.cover = v.trim()));
-      });
+      })
+      .addButton((b) => b.setButtonText(t('cover_upload')).onClick(() => {
+        pickCoverImage(this.plugin, this.task.targetFile || this.plugin.settings.inboxNote, (link) => {
+          this.task.cover = link;
+          if (addCoverInput) addCoverInput.setValue(link);
+        });
+      }));
 
     new Setting(contentEl)
       .setName(t('repeat'))
@@ -2742,12 +2791,20 @@ class EditTaskModal extends Modal {
       });
     contentEl.createDiv({ cls: 'tk-modal-sub', text: t('source_line', { file: this.task.file, line: this.task.line + 1 }) });
 
+    let editCoverInput;
     new Setting(contentEl)
       .setName(t('cover_label'))
       .setDesc(t('cover_hint'))
       .addText((text) => {
+        editCoverInput = text;
         text.setValue(this.newCover).onChange((v) => (this.newCover = v.trim()));
-      });
+      })
+      .addButton((b) => b.setButtonText(t('cover_upload')).onClick(() => {
+        pickCoverImage(this.plugin, this.task.file, (link) => {
+          this.newCover = link;
+          if (editCoverInput) editCoverInput.setValue(link);
+        });
+      }));
 
     new Setting(contentEl)
       .setName(t('column_status'))
