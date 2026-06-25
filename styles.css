@@ -136,6 +136,32 @@
   transition: box-shadow 0.15s, transform 0.05s;
   user-select: none;
 }
+
+/* Kaart-cover: een afbeelding-banner of een platte-tekst-banner bovenaan de kaart.
+   De negatieve marges laten 'm tot de rand lopen (kaart-padding = 10px 12px 8px). */
+.tk-card-cover {
+  margin: -10px -12px 8px -12px;
+  border-radius: 6px 6px 0 0;
+  overflow: hidden;
+}
+.tk-card-cover-image .tk-cover-img {
+  display: block;
+  width: 100%;
+  max-height: var(--tk-cover-max-h, 120px);
+  object-fit: cover;
+}
+.tk-card-cover-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 8px 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-align: center;
+  background: var(--tk-project-tint, var(--background-secondary));
+  color: var(--text-normal);
+}
 .tk-card.tk-has-project {
   /* Tint over de kaart zonder color-mix() (werkt ook op oudere Android WebViews). */
   background-color: var(--background-primary);

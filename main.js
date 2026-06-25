@@ -205,6 +205,8 @@ const TRANSLATIONS = {
     time_clear_desc: 'Leeg laten om de tijd te verwijderen.',
     title: 'Titel',
     title_edit_desc: 'De taaktekst. Datum, tijd, project, prioriteit en koppelingen blijven behouden.',
+    cover_label: 'Omslag',
+    cover_hint: 'Afbeelding ([[bestand]] of URL) of platte tekst (bv. een klantnaam).',
     repeat_edit_desc: 'Bij afvinken wordt er automatisch een volgende instance gemaakt.',
     project_edit_desc: 'Leeg laten om het project te verwijderen. Gebruik / voor subproject (bv. klant/acme).',
     project_placeholder2: 'bv. klant/acme',
@@ -407,6 +409,8 @@ const TRANSLATIONS = {
     time_clear_desc: 'Leave empty to remove the time.',
     title: 'Title',
     title_edit_desc: 'The task text. Date, time, project, priority and links are preserved.',
+    cover_label: 'Cover',
+    cover_hint: 'Image ([[file]] or URL) or plain text (e.g. a client name).',
     repeat_edit_desc: 'When completed, the next instance is created automatically.',
     project_edit_desc: 'Leave empty to remove the project. Use / for a subproject (e.g. client/acme).',
     project_placeholder2: 'e.g. client/acme',
@@ -543,6 +547,18 @@ async function pkceChallenge(verifier) {
 }
 
 // Zet een hex-kleur om naar rgba() — voor de kaart-tint zonder color-mix().
+// Bepaalt of een cover-waarde een afbeelding is (vault-embed of URL) of platte tekst.
+function resolveCover(plugin, value, sourcePath) {
+  const wl = value.match(/^!?\[\[([^\]|#]+)/);
+  if (wl) {
+    const dest = plugin.app.metadataCache.getFirstLinkpathDest(wl[1].trim(), sourcePath || '');
+    if (dest) return { kind: 'image', src: plugin.app.vault.getResourcePath(dest) };
+    return { kind: 'text', text: value };
+  }
+  if (/^https?:\/\/\S+\.(png|jpe?g|gif|webp|svg|avif)(\?|$)/i.test(value)) return { kind: 'image', src: value };
+  return { kind: 'text', text: value };
+}
+
 function hexToRgba(hex, alpha) {
   if (!hex || typeof hex !== 'string') return null;
   let h = hex.replace('#', '').trim();
@@ -648,12 +664,21 @@ function parseTaskLine(line, filePath, lineNum) {
   const recMatch = rest.match(/🔁\s+(every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly))/i);
   if (recMatch) recurrence = recMatch[1].toLowerCase().replace(/\s+/g, ' ').trim();
 
-  // Gekoppelde notitie: eerste [[wikilink]] in de regel.
+  // Cover (omslag): [cover:: waarde] — waarde mag een [[embed]], URL of platte tekst zijn.
+  // Twee vormen, zodat een wikilink-waarde met geneste ]] correct wordt gepakt.
+  let cover = null, coverFull = null;
+  let cm = rest.match(/\[cover::\s*(!?\[\[[^\]]+\]\])\s*\]/i);
+  if (!cm) cm = rest.match(/\[cover::\s*([^\[\]]+?)\s*\]/i);
+  if (cm) { cover = cm[1].trim(); coverFull = cm[0]; }
+  // De cover uit de rest halen zodat een evt. wikilink erin niet als gekoppelde notitie telt.
+  const restNoCover = coverFull ? rest.split(coverFull).join(' ') : rest;
+
+  // Gekoppelde notitie: eerste [[wikilink]] in de regel (cover uitgezonderd).
   let noteLink = null;
-  const linkMatch = rest.match(/\[\[([^\]]+)\]\]/);
+  const linkMatch = restNoCover.match(/\[\[([^\]]+)\]\]/);
   if (linkMatch) noteLink = linkMatch[1].split('|')[0].split('#')[0].trim();
 
-  const text = rest
+  const text = restNoCover
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
     .replace(/⏰\s*\d{1,2}:\d{2}/g, '')
     .replace(/🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi, '')
@@ -665,7 +690,7 @@ function parseTaskLine(line, filePath, lineNum) {
     .trim();
 
   return {
-    text, dueDate, time, column, project, priority, recurrence, done, noteLink,
+    text, dueDate, time, column, project, priority, recurrence, done, noteLink, cover,
     file: filePath, line: lineNum, indent,
     raw: line, subtasks: [],
   };
@@ -935,6 +960,7 @@ module.exports = class KanbanPlugin extends Plugin {
     if (task.recurrence) line += ` 🔁 ${task.recurrence}`;
     if (task.dueDate) line += ` 📅 ${task.dueDate}`;
     if (task.time) line += ` ⏰ ${task.time}`;
+    if (task.cover) line += ` [cover:: ${task.cover}]`;
     if (task.priority && PRIORITY_ICONS[task.priority]) line += ` ${PRIORITY_ICONS[task.priority]}`;
     if (task.project) line += ` #project/${task.project}`;
     if (task.column) line += ` #kanban/${task.column}`;
@@ -1027,6 +1053,25 @@ module.exports = class KanbanPlugin extends Plugin {
     const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|\[\[)/);
     const rest = idx < 0 ? '' : m[2].slice(idx);
     lines[task.line] = m[1] + newText + rest;
+    await this.app.vault.modify(file, lines.join('\n'));
+  }
+
+  async setCover(task, newCover) {
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length) return;
+    let line = lines[task.line];
+    // Bestaande cover-token weghalen (beide vormen: wikilink en platte tekst/URL).
+    line = line.replace(/\s*\[cover::\s*!?\[\[[^\]]+\]\]\s*\]/i, '').replace(/\s*\[cover::\s*[^\[\]]+?\s*\]/i, '');
+    if (newCover) {
+      const token = `[cover:: ${newCover}]`;
+      const tagPos = line.search(/\s+#(?:project|kanban)\//);
+      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
+      else line = line.trimEnd() + ` ${token}`;
+    }
+    lines[task.line] = line;
     await this.app.vault.modify(file, lines.join('\n'));
   }
 
@@ -1605,6 +1650,32 @@ class KanbanView extends ItemView {
     });
     card.addEventListener('dragend', () => card.removeClass('tk-dragging'));
 
+    // Cover (afbeelding of platte tekst) bovenaan de kaart.
+    if (task.cover) {
+      const cov = resolveCover(this.plugin, task.cover, task.file);
+      const coverEl = card.createDiv({ cls: `tk-card-cover tk-card-cover-${cov.kind}` });
+      card.addClass('tk-has-cover');
+      if (cov.kind === 'image') {
+        const img = coverEl.createEl('img', { cls: 'tk-cover-img' });
+        img.src = cov.src;
+        img.alt = task.text || '';
+        img.loading = 'lazy';
+        img.onerror = () => {            // gebroken/ontbrekende afbeelding → val terug op tekst
+          coverEl.empty();
+          coverEl.removeClass('tk-card-cover-image');
+          coverEl.addClass('tk-card-cover-text');
+          coverEl.createSpan({ cls: 'tk-cover-text', text: task.cover });
+        };
+      } else {
+        coverEl.createSpan({ cls: 'tk-cover-text', text: cov.text });
+      }
+    }
+
+    // Data-attributen zodat gebruikers metadata-waarden met eigen CSS kunnen targeten.
+    card.dataset.column = task.column || 'inbox';
+    if (task.priority) card.dataset.priority = task.priority;
+    if (task.project) card.dataset.project = task.project;
+
     // ---- Header: project-badge links, subtaak-badge + notitie + acties rechts
     const header = card.createDiv({ cls: 'tk-card-header' });
     const headLeft = header.createDiv({ cls: 'tk-card-header-left' });
@@ -1627,6 +1698,8 @@ class KanbanView extends ItemView {
       const customLabel = (this.plugin.settings.projectLabels || {})[task.project];
       const displayLabel = customLabel || segments[segments.length - 1];
       badge.setText(displayLabel);
+      badge.dataset.field = 'project';
+      badge.dataset.value = task.project;
       badge.setAttr('title', this.plugin.t('project_of', { p: task.project }));
       badge.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1727,13 +1800,19 @@ class KanbanView extends ItemView {
       let dueText = '';
       if (task.dueDate) dueText = `📅 ${task.dueDate}`;
       if (task.time) dueText += `${dueText ? ' ' : ''}⏰ ${task.time}`;
-      meta.createSpan({ cls: 'tk-due', text: dueText });
+      const dueEl = meta.createSpan({ cls: 'tk-due', text: dueText });
+      dueEl.dataset.field = 'due';
+      if (task.dueDate) dueEl.dataset.value = task.dueDate;
     }
     if (task.priority) {
-      meta.createSpan({ cls: 'tk-prio', text: PRIORITY_ICONS[task.priority] });
+      const prioEl = meta.createSpan({ cls: 'tk-prio', text: PRIORITY_ICONS[task.priority] });
+      prioEl.dataset.field = 'priority';
+      prioEl.dataset.value = task.priority;
     }
     if (task.recurrence) {
       const rec = meta.createSpan({ cls: 'tk-recur', text: '🔁' });
+      rec.dataset.field = 'recurrence';
+      rec.dataset.value = task.recurrence;
       rec.setAttr('title', this.plugin.t('repeats', { r: task.recurrence }));
     }
 
@@ -2467,6 +2546,7 @@ class AddTaskModal extends Modal {
       priority: '',
       project: '',
       recurrence: '',
+      cover: '',
       targetFile: defaultFile || plugin.settings.inboxNote,
     };
   }
@@ -2554,6 +2634,13 @@ class AddTaskModal extends Modal {
       });
 
     new Setting(contentEl)
+      .setName(t('cover_label'))
+      .setDesc(t('cover_hint'))
+      .addText((text) => {
+        text.setValue(this.task.cover || '').onChange((v) => (this.task.cover = v.trim()));
+      });
+
+    new Setting(contentEl)
       .setName(t('repeat'))
       .setDesc(t('repeat_add_desc'))
       .addDropdown((dd) => {
@@ -2614,6 +2701,7 @@ class EditTaskModal extends Modal {
     this.newProject = task.project || '';
     this.newRecurrence = task.recurrence || '';
     this.newText = task.text || '';
+    this.newCover = task.cover || '';
     this.newColumn = task.column || 'inbox';
   }
 
@@ -2632,6 +2720,13 @@ class EditTaskModal extends Modal {
         text.inputEl.addClass('tk-input-full');
       });
     contentEl.createDiv({ cls: 'tk-modal-sub', text: t('source_line', { file: this.task.file, line: this.task.line + 1 }) });
+
+    new Setting(contentEl)
+      .setName(t('cover_label'))
+      .setDesc(t('cover_hint'))
+      .addText((text) => {
+        text.setValue(this.newCover).onChange((v) => (this.newCover = v.trim()));
+      });
 
     new Setting(contentEl)
       .setName(t('column_status'))
@@ -2770,6 +2865,9 @@ class EditTaskModal extends Modal {
         // lezen het bestand daarna telkens vers opnieuw in.
         if (this.newText.trim() && this.newText.trim() !== (this.task.text || '')) {
           await this.plugin.setText(this.task, this.newText.trim());
+        }
+        if (this.newCover !== (this.task.cover || '')) {
+          await this.plugin.setCover(this.task, this.newCover || null);
         }
         if (this.newDate !== (this.task.dueDate || '')) {
           await this.plugin.setDueDate(this.task, this.newDate);

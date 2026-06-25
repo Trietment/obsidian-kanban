@@ -83,9 +83,22 @@ A task is a plain markdown checkbox with optional metadata:
 | `🔁 every week` | Recurrence (`every day/week/month/year`, also `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Priority (highest → lowest) |
 | `[[Note]]` | Linked note |
+| `[cover:: …]` | Card cover — an image (`[[file]]` or URL) or plain text |
 | indented `- [ ]` | Subtask of the task above it |
 
 You can put tasks in **any** note in your vault — they are picked up automatically.
+
+### Styling cards with CSS
+
+Card metadata is rendered with `data-field` / `data-value` attributes, so you can style values from a [CSS snippet](https://help.obsidian.md/snippets) (Settings → Appearance → CSS snippets) — for example, turn priorities into colored pills:
+
+```css
+.tk-prio { padding: 1px 8px; border-radius: 999px; }
+.tk-prio[data-value="highest"] { background: var(--color-red); color: #fff; }
+.tk-prio[data-value="low"]     { background: var(--color-green); color: #fff; }
+```
+
+Each meta element (`.tk-prio`, `.tk-due`, `.tk-recur`, the project badge) carries `data-field` + `data-value`, and the card carries `data-column`, `data-priority` and `data-project`.
 
 ## Usage
 
@@ -218,9 +231,22 @@ Een taak is een gewone markdown-checkbox met optionele metadata:
 | `🔁 every week` | Herhaling (`every day/week/month/year`, ook `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Prioriteit (hoogst → laagst) |
 | `[[Notitie]]` | Gekoppelde notitie |
+| `[cover:: …]` | Kaart-cover — een afbeelding (`[[bestand]]` of URL) of platte tekst |
 | ingesprongen `- [ ]` | Subtaak van de taak erboven |
 
 Je kunt taken in **elke** note van je vault zetten — ze worden vanzelf opgepikt.
+
+### Kaarten stylen met CSS
+
+Metadata op een kaart krijgt `data-field` / `data-value`-attributen, zodat je waarden vanuit een [CSS-snippet](https://help.obsidian.md/snippets) (Instellingen → Weergave → CSS-snippets) kunt stylen — bijvoorbeeld prioriteiten als gekleurde pillen:
+
+```css
+.tk-prio { padding: 1px 8px; border-radius: 999px; }
+.tk-prio[data-value="highest"] { background: var(--color-red); color: #fff; }
+.tk-prio[data-value="low"]     { background: var(--color-green); color: #fff; }
+```
+
+Elk meta-element (`.tk-prio`, `.tk-due`, `.tk-recur`, de project-badge) draagt `data-field` + `data-value`, en de kaart draagt `data-column`, `data-priority` en `data-project`.
 
 ## Gebruik
 
