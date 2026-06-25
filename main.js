@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   inboxNote: 'Kanban Inbox.md',
   showInbox: true,
   swimlaneGroupBy: 'none',
+  activeBoardId: 'default',
   projectColors: {},
   projectLabels: {},
   clientColors: {},
@@ -304,6 +305,16 @@ const TRANSLATIONS = {
     lane_tomorrow: 'Morgen',
     lane_week: 'Deze week',
     lane_later: 'Later',
+    sec_boards: 'Borden',
+    boards_help: 'Maak meerdere borden, elk met een eigen bereik (projecten/klanten) en banen-groepering. Bovenaan het bord kies je het actieve bord (verschijnt zodra je meer dan één bord hebt).',
+    board_name_ph: 'Bordnaam',
+    board_projects_ph: 'projecten (komma)',
+    board_clients_ph: 'klanten (komma)',
+    add_board: 'Bord toevoegen',
+    delete_board: 'Bord verwijderen',
+    board_name_required: 'Geef het bord een naam.',
+    switch_board: 'Wissel van bord',
+    default_board_name: 'Kanban',
     project_label_placeholder: 'weergave-label (optioneel)',
     remove_color: 'Verwijder kleur (taken blijven bestaan)',
     sec_help: 'Hoe werkt het?',
@@ -529,6 +540,16 @@ const TRANSLATIONS = {
     lane_tomorrow: 'Tomorrow',
     lane_week: 'This week',
     lane_later: 'Later',
+    sec_boards: 'Boards',
+    boards_help: 'Create multiple boards, each with its own scope (projects/clients) and lane grouping. Pick the active board at the top of the board (appears once you have more than one).',
+    board_name_ph: 'Board name',
+    board_projects_ph: 'projects (comma)',
+    board_clients_ph: 'clients (comma)',
+    add_board: 'Add board',
+    delete_board: 'Delete board',
+    board_name_required: 'Name the board.',
+    switch_board: 'Switch board',
+    default_board_name: 'Kanban',
     project_label_placeholder: 'display label (optional)',
     remove_color: 'Remove color (tasks remain)',
     sec_help: 'How does it work?',
@@ -997,6 +1018,12 @@ module.exports = class KanbanPlugin extends Plugin {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
     this.applyLanguage();
 
+    // Borden: zorg voor minstens één bord (eigen kopie, niet de default-referentie).
+    if (!Array.isArray(this.settings.boards) || !this.settings.boards.length) {
+      this.settings.boards = [{ id: 'default', name: this.t('default_board_name'), projects: [], clients: [], groupBy: this.settings.swimlaneGroupBy || 'none' }];
+    }
+    if (!this.settings.activeBoardId) this.settings.activeBoardId = this.settings.boards[0].id;
+
     // Verse installatie in het Engels → Engelse standaard-kolomlabels.
     if (!saved) {
       if (this.lang === 'en') {
@@ -1075,6 +1102,12 @@ module.exports = class KanbanPlugin extends Plugin {
   getClientColor(name) {
     if (!name) return null;
     return (this.settings.clientColors || {})[name] || null;
+  }
+
+  activeBoard() {
+    const boards = this.settings.boards || [];
+    return boards.find((b) => b.id === this.settings.activeBoardId) || boards[0]
+      || { id: 'default', name: 'Kanban', projects: [], clients: [], groupBy: 'none' };
   }
 
   async assignClientColor(name) {
@@ -1641,6 +1674,9 @@ class KanbanView extends ItemView {
   async render() {
     await this.loadTasks();
 
+    this.board = this.plugin.activeBoard();
+    this.groupBy = this.board.groupBy || 'none';
+
     // Taken die vandaag due zijn automatisch naar Bezig schuiven, daarna opnieuw inlezen.
     if (this.plugin.settings.autoMoveToday) {
       const moved = await this.plugin.autoMoveDueTasks(this.tasks);
@@ -1654,6 +1690,19 @@ class KanbanView extends ItemView {
     // Header
     const header = container.createDiv({ cls: 'tk-header' });
     header.createEl('h2', { text: this.plugin.t('board_title'), cls: 'tk-title' });
+
+    // Bord-kiezer (alleen tonen als er meer dan één bord is).
+    if ((this.plugin.settings.boards || []).length > 1) {
+      const boardSel = header.createEl('select', { cls: 'tk-board-picker dropdown' });
+      boardSel.setAttr('title', this.plugin.t('switch_board'));
+      for (const b of this.plugin.settings.boards) boardSel.createEl('option', { value: b.id, text: b.name });
+      boardSel.value = this.board.id;
+      boardSel.addEventListener('change', async (e) => {
+        this.plugin.settings.activeBoardId = e.target.value;
+        await this.plugin.saveSettings();
+        this.plugin.refreshViews();
+      });
+    }
 
     const filter = header.createEl('input', { cls: 'tk-filter', type: 'text', placeholder: this.plugin.t('filter_placeholder') });
     filter.value = this.filterText;
@@ -1680,6 +1729,7 @@ class KanbanView extends ItemView {
     groupSel.value = this.groupBy;
     groupSel.addEventListener('change', async (e) => {
       this.groupBy = e.target.value;
+      if (this.board) this.board.groupBy = this.groupBy;
       this.plugin.settings.swimlaneGroupBy = this.groupBy;
       await this.plugin.saveSettings();
       this.renderBoard(container);
@@ -1772,11 +1822,21 @@ class KanbanView extends ItemView {
 
   filterTask(t) {
     if (this.hideDone && t.done) return false;
+    if (!this.boardMatch(t)) return false;
     if (this.filterText) {
       const subText = (t.subtasks || []).map((s) => s.text).join(' ');
       const hay = (t.text + ' ' + t.file + ' ' + (t.dueDate || '') + ' ' + (t.project || '') + ' ' + (t.client || '') + ' ' + subText).toLowerCase();
       if (!hay.includes(this.filterText)) return false;
     }
+    return true;
+  }
+
+  // Bereik van het actieve bord: lege lijst = geen beperking op die dimensie.
+  boardMatch(t) {
+    const b = this.board || this.plugin.activeBoard();
+    if (!b) return true;
+    if (b.projects && b.projects.length && !(t.project && b.projects.some((p) => t.project === p || t.project.startsWith(p + '/')))) return false;
+    if (b.clients && b.clients.length && !(t.client && b.clients.includes(t.client))) return false;
     return true;
   }
 
@@ -3308,6 +3368,84 @@ class KanbanSettingTab extends PluginSettingTab {
       });
 
     // -- Kolommen ------------------------------------------------------
+    // -- Borden --------------------------------------------------------
+    new Setting(containerEl).setName(t('sec_boards')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('boards_help') });
+
+    for (const board of this.plugin.settings.boards) {
+      const isDefault = board.id === 'default';
+      const s = new Setting(containerEl).setName(board.name || board.id);
+      s.addText((text) => text
+        .setPlaceholder(t('board_name_ph'))
+        .setValue(board.name || '')
+        .onChange(async (v) => {
+          board.name = v.trim() || board.id;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+      s.addText((text) => {
+        text.inputEl.style.width = '9em';
+        text.setPlaceholder(t('board_projects_ph'))
+          .setValue((board.projects || []).join(', '))
+          .onChange(async (v) => {
+            board.projects = v.split(',').map((x) => x.trim().toLowerCase().replace(/[^\w\-\/]/g, '')).filter(Boolean);
+            await this.plugin.saveSettings();
+            this.plugin.refreshViews();
+          });
+      });
+      s.addText((text) => {
+        text.inputEl.style.width = '9em';
+        text.setPlaceholder(t('board_clients_ph'))
+          .setValue((board.clients || []).join(', '))
+          .onChange(async (v) => {
+            board.clients = v.split(',').map((x) => x.trim().toLowerCase().replace(/[^\w\-\/]/g, '')).filter(Boolean);
+            await this.plugin.saveSettings();
+            this.plugin.refreshViews();
+          });
+      });
+      s.addDropdown((dd) => {
+        for (const g of ['none', 'project', 'client', 'priority', 'due']) dd.addOption(g, t('group_' + g));
+        dd.setValue(board.groupBy || 'none');
+        dd.onChange(async (v) => {
+          board.groupBy = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        });
+      });
+      if (!isDefault) {
+        s.addExtraButton((b) => b
+          .setIcon('trash')
+          .setTooltip(t('delete_board'))
+          .onClick(async () => {
+            this.plugin.settings.boards = this.plugin.settings.boards.filter((x) => x.id !== board.id);
+            if (this.plugin.settings.activeBoardId === board.id) this.plugin.settings.activeBoardId = this.plugin.settings.boards[0].id;
+            await this.plugin.saveSettings();
+            this.display();
+            this.plugin.refreshViews();
+          }));
+      }
+    }
+
+    let newBoardName = '';
+    new Setting(containerEl)
+      .setName(t('add_board'))
+      .addText((text) => text.setPlaceholder(t('board_name_ph')).onChange((v) => { newBoardName = v; }))
+      .addButton((b) => b
+        .setButtonText(t('add'))
+        .setCta()
+        .onClick(async () => {
+          const name = newBoardName.trim();
+          if (!name) { new Notice(t('board_name_required')); return; }
+          const base = 'board-' + name.toLowerCase().replace(/[^\w]+/g, '-').replace(/^-+|-+$/g, '');
+          let id = base, n = 2;
+          while (this.plugin.settings.boards.some((x) => x.id === id)) id = base + '-' + (n++);
+          this.plugin.settings.boards.push({ id, name, projects: [], clients: [], groupBy: 'none' });
+          this.plugin.settings.activeBoardId = id;
+          await this.plugin.saveSettings();
+          this.display();
+          this.plugin.refreshViews();
+        }));
+
     new Setting(containerEl).setName(t('sec_columns')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('columns_help') });
 
