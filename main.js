@@ -203,6 +203,8 @@ const TRANSLATIONS = {
     column_status: 'Kolom / status',
     due_clear_desc: 'Leeg laten om de datum te verwijderen.',
     time_clear_desc: 'Leeg laten om de tijd te verwijderen.',
+    title: 'Titel',
+    title_edit_desc: 'De taaktekst. Datum, tijd, project, prioriteit en koppelingen blijven behouden.',
     repeat_edit_desc: 'Bij afvinken wordt er automatisch een volgende instance gemaakt.',
     project_edit_desc: 'Leeg laten om het project te verwijderen. Gebruik / voor subproject (bv. klant/acme).',
     project_placeholder2: 'bv. klant/acme',
@@ -403,6 +405,8 @@ const TRANSLATIONS = {
     column_status: 'Column / status',
     due_clear_desc: 'Leave empty to remove the date.',
     time_clear_desc: 'Leave empty to remove the time.',
+    title: 'Title',
+    title_edit_desc: 'The task text. Date, time, project, priority and links are preserved.',
     repeat_edit_desc: 'When completed, the next instance is created automatically.',
     project_edit_desc: 'Leave empty to remove the project. Use / for a subproject (e.g. client/acme).',
     project_placeholder2: 'e.g. client/acme',
@@ -1004,6 +1008,26 @@ module.exports = class KanbanPlugin extends Plugin {
     lines[task.line] = line;
     await this.app.vault.modify(file, lines.join('\n'));
     if (newProject) await this.assignProjectColor(newProject);
+  }
+
+  // Hernoem alleen de zichtbare taaktekst; alle tokens (datum/tijd/tags/prioriteit/
+  // wikilink) blijven byte-voor-byte staan. Bewust een raw-guard: een titel-rewrite
+  // mag nooit op een verschoven regel landen.
+  async setText(task, newText) {
+    newText = (newText || '').trim();
+    if (!newText) return;
+    const file = this.app.vault.getAbstractFileByPath(task.file);
+    if (!(file instanceof TFile)) return;
+    const content = await this.app.vault.read(file);
+    const lines = content.split('\n');
+    if (task.line >= lines.length || lines[task.line] !== task.raw) return;
+    const m = lines[task.line].match(/^(\s*- \[[ xX\-]\] )([\s\S]*)$/);
+    if (!m) return;
+    // Tekst loopt tot het eerste metadata-/wikilink-token; alles daarna blijft staan.
+    const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|\[\[)/);
+    const rest = idx < 0 ? '' : m[2].slice(idx);
+    lines[task.line] = m[1] + newText + rest;
+    await this.app.vault.modify(file, lines.join('\n'));
   }
 
   async ensureFile(path, initialContent = '') {
@@ -2589,6 +2613,7 @@ class EditTaskModal extends Modal {
     this.newTime = task.time || '';
     this.newProject = task.project || '';
     this.newRecurrence = task.recurrence || '';
+    this.newText = task.text || '';
     this.newColumn = task.column || 'inbox';
   }
 
@@ -2599,7 +2624,13 @@ class EditTaskModal extends Modal {
     contentEl.addClass('tk-modal');
     contentEl.createEl('h2', { text: t('edit_modal_title') });
 
-    contentEl.createDiv({ cls: 'tk-modal-info', text: this.task.text });
+    new Setting(contentEl)
+      .setName(t('title'))
+      .setDesc(t('title_edit_desc'))
+      .addText((text) => {
+        text.setValue(this.newText).onChange((v) => (this.newText = v));
+        text.inputEl.addClass('tk-input-full');
+      });
     contentEl.createDiv({ cls: 'tk-modal-sub', text: t('source_line', { file: this.task.file, line: this.task.line + 1 }) });
 
     new Setting(contentEl)
@@ -2735,6 +2766,11 @@ class EditTaskModal extends Modal {
         this.close();
       }))
       .addButton((b) => b.setButtonText(t('save')).setCta().onClick(async () => {
+        // Titel als eerste wijzigen — zolang task.raw nog klopt; de overige mutators
+        // lezen het bestand daarna telkens vers opnieuw in.
+        if (this.newText.trim() && this.newText.trim() !== (this.task.text || '')) {
+          await this.plugin.setText(this.task, this.newText.trim());
+        }
         if (this.newDate !== (this.task.dueDate || '')) {
           await this.plugin.setDueDate(this.task, this.newDate);
         }
