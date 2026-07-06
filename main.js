@@ -156,6 +156,7 @@ const TRANSLATIONS = {
     cmd_auto_move: 'Verplaats taken die vandaag due zijn naar Bezig',
     moved_n: '{n} ta(a)k(en) naar Bezig verplaatst.',
     nothing_to_move: 'Geen taken om te verplaatsen.',
+    sync_busy: 'Let op: synchronisatie lijkt nog bezig — controleer het bord na afloop even.',
     refresh: 'Vernieuwen',
     filter_placeholder: 'Filter taken…',
     hide_done: ' Verberg klaar',
@@ -409,6 +410,7 @@ const TRANSLATIONS = {
     cmd_auto_move: 'Move tasks due today to In progress',
     moved_n: '{n} task(s) moved to In progress.',
     nothing_to_move: 'No tasks to move.',
+    sync_busy: 'Note: sync still appears to be running — double-check the board afterwards.',
     refresh: 'Refresh',
     filter_placeholder: 'Filter tasks…',
     hide_done: ' Hide done',
@@ -826,6 +828,15 @@ function parseTaskLine(line, filePath, lineNum) {
   };
 }
 
+// -- Sync-bewuste auto-move --------------------------------------------------
+// Automatische schrijfacties (auto-move) wachten tot de vault "in rust" is.
+// Als twee apparaten rond een sync-moment dezelfde taakregel herschrijven,
+// voegt Obsidian Sync de versies op tekenniveau samen — dat levert kapotte
+// tags (#kanban/ingdoing) en herrezen regels op. Zie vaultSettled().
+const AUTO_QUIET_MS = 10 * 1000;            // vereiste rust: geen vault-wijzigingen
+const AUTO_RETRY_MS = 15 * 1000;            // interval om opnieuw te proberen
+const AUTO_STALE_STATUS_MS = 3 * 60 * 1000; // onbekende syncstatus: na deze rust alsnog door (mits online)
+
 // -- The plugin -------------------------------------------------------------
 
 module.exports = class KanbanPlugin extends Plugin {
@@ -883,14 +894,23 @@ module.exports = class KanbanPlugin extends Plugin {
     });
 
     this.refreshTimer = null;
-    this.registerEvent(this.app.vault.on('modify', () => this.scheduleRefresh()));
-    this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
-    this.registerEvent(this.app.vault.on('rename', () => this.scheduleRefresh()));
+    this.autoMoveTimer = null;
+    this.autoMoveBusy = false;
+    // Laatste moment waarop de vault wijzigde — sync-pulls vuren deze events ook,
+    // dus dit is de rust-poort voor automatische schrijfacties (vaultSettled).
+    this.lastVaultActivity = Date.now();
+    const touch = () => { this.lastVaultActivity = Date.now(); this.scheduleRefresh(); };
+    this.registerEvent(this.app.vault.on('modify', touch));
+    this.registerEvent(this.app.vault.on('delete', touch));
+    this.registerEvent(this.app.vault.on('rename', touch));
 
     this.addCommand({
       id: 'auto-move-due-today',
       name: this.t('cmd_auto_move'),
       callback: async () => {
+        // Handmatig commando blijft altijd werken; alleen waarschuwen als de
+        // sync mogelijk nog bezig is.
+        if (!this.vaultSettled()) new Notice(this.t('sync_busy'));
         const moved = await this.autoMoveDueTasks();
         new Notice(moved > 0 ? this.t('moved_n', { n: moved }) : this.t('nothing_to_move'));
         this.refreshViews();
@@ -900,18 +920,21 @@ module.exports = class KanbanPlugin extends Plugin {
     this.settingTab = new KanbanSettingTab(this.app, this);
     this.addSettingTab(this.settingTab);
 
-    // Eén keer draaien zodra de vault klaar is, daarna periodiek (om middernacht-rollover op te vangen).
+    // Eén keer draaien zodra de vault klaar én in rust is — queueAutoMove wacht
+    // desnoods tot de sync volledig klaar is (offline = niet schrijven). Daarna
+    // periodiek, o.a. voor de middernacht-rollover.
     this.app.workspace.onLayoutReady(() => {
-      this.autoMoveDueTasks().then((moved) => { if (moved > 0) this.refreshViews(); });
+      // 'create' pas ná layout-ready registreren: tijdens het laden van de vault
+      // vuurt dat event voor elk bestaand bestand.
+      this.registerEvent(this.app.vault.on('create', touch));
+      this.queueAutoMove();
     });
-    this.registerInterval(window.setInterval(async () => {
-      const moved = await this.autoMoveDueTasks();
-      if (moved > 0) this.refreshViews();
-    }, 10 * 60 * 1000));
+    this.registerInterval(window.setInterval(() => this.queueAutoMove(), 10 * 60 * 1000));
   }
 
   onunload() {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    if (this.autoMoveTimer) clearTimeout(this.autoMoveTimer);
   }
 
   // Vertaal een sleutel; ondersteunt {var}-interpolatie.
@@ -1014,6 +1037,49 @@ module.exports = class KanbanPlugin extends Plugin {
     return files.filter((f) => folders.some((d) => f.path === d || f.path.startsWith(d + '/')));
   }
 
+  // Is de vault in rust genoeg voor automatische schrijfacties? Met Obsidian
+  // Sync eisen we "Fully synced" — dat impliceert online, dus offline wordt er
+  // niet geschreven. Die status-API is intern/ongedocumenteerd; mocht de string
+  // ooit wijzigen, dan vallen we na een lange rustperiode terug op het
+  // rustvenster (maar nooit offline). Zonder Sync geldt alleen het rustvenster.
+  vaultSettled() {
+    const quiet = Date.now() - (this.lastVaultActivity || 0);
+    const plugins = this.app.internalPlugins && this.app.internalPlugins.plugins;
+    const sync = plugins ? plugins.sync : null;
+    const inst = sync && sync.enabled ? sync.instance : null;
+    if (inst) {
+      const status = String(inst.syncStatus || '');
+      if (status !== 'Fully synced') {
+        const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+        if (!online || quiet < AUTO_STALE_STATUS_MS) return false;
+      }
+    }
+    return quiet >= AUTO_QUIET_MS;
+  }
+
+  // Draai auto-move zodra de vault in rust is; zo niet, blijf het proberen.
+  // Blokkeert dus bewust zolang de sync niet klaar of het apparaat offline is.
+  queueAutoMove() {
+    if (!this.settings.autoMoveToday) return;
+    if (this.autoMoveTimer || this.autoMoveBusy) return;
+    const attempt = async () => {
+      this.autoMoveTimer = null;
+      if (!this.settings.autoMoveToday) return;
+      if (!this.vaultSettled()) {
+        this.autoMoveTimer = window.setTimeout(attempt, AUTO_RETRY_MS);
+        return;
+      }
+      this.autoMoveBusy = true;
+      try {
+        const moved = await this.autoMoveDueTasks();
+        if (moved > 0) this.refreshViews();
+      } finally {
+        this.autoMoveBusy = false;
+      }
+    };
+    attempt();
+  }
+
   // Verplaats taken die vandaag (of overdue) due zijn vanuit Inbox/Te-doen naar de Bezig-kolom.
   async autoMoveDueTasks(tasks) {
     if (!this.settings.autoMoveToday) return 0;
@@ -1023,6 +1089,7 @@ module.exports = class KanbanPlugin extends Plugin {
     if (!tasks) tasks = await this.scanTasks();
     const today = todayISO();
     const startCols = new Set([this.settings.defaultColumn]); // inbox = geen kolom, valt hieronder ook
+    const knownCols = this.settings.columns;
 
     // Groepeer per bestand om reads/writes te beperken.
     const byFile = {};
@@ -1030,7 +1097,9 @@ module.exports = class KanbanPlugin extends Plugin {
       if (t.done || !t.dueDate) continue;
       const isDue = this.settings.autoMoveOverdue ? t.dueDate <= today : t.dueDate === today;
       if (!isDue) continue;
-      const notStarted = !t.column || startCols.has(t.column);
+      // Een onbekende kolom-id (bv. een kapotgemergde tag) telt als Inbox,
+      // net als bij het renderen — de herschrijving herstelt de tag meteen.
+      const notStarted = !t.column || startCols.has(t.column) || !knownCols.includes(t.column);
       if (!notStarted) continue;
       (byFile[t.file] = byFile[t.file] || []).push(t);
     }
@@ -1797,10 +1866,17 @@ class KanbanView extends ItemView {
     this.board = this.plugin.activeBoard();
     this.groupBy = this.board.groupBy || 'none';
 
-    // Taken die vandaag due zijn automatisch naar Bezig schuiven, daarna opnieuw inlezen.
+    // Taken die vandaag due zijn automatisch naar Bezig schuiven, daarna opnieuw
+    // inlezen — maar alleen als de vault in rust is. Zo niet, dan neemt
+    // queueAutoMove het over zodra de sync klaar is (voorkomt dat twee apparaten
+    // dezelfde regels herschrijven en Obsidian Sync de tags kapot merget).
     if (this.plugin.settings.autoMoveToday) {
-      const moved = await this.plugin.autoMoveDueTasks(this.tasks);
-      if (moved > 0) await this.loadTasks();
+      if (this.plugin.vaultSettled()) {
+        const moved = await this.plugin.autoMoveDueTasks(this.tasks);
+        if (moved > 0) await this.loadTasks();
+      } else {
+        this.plugin.queueAutoMove();
+      }
     }
 
     const container = this.containerEl.children[1];
@@ -1962,7 +2038,9 @@ class KanbanView extends ItemView {
   tasksForColumn(columnId, sourceTasks) {
     return (sourceTasks || this.tasks).filter((t) => {
       if (!this.filterTask(t)) return false;
-      if (columnId === 'inbox') return !t.column;
+      // De Inbox toont ook taken met een onbekende kolom-id (bv. een kapot-
+      // gemergde tag): liever zichtbaar dan stilletjes van het bord verdwenen.
+      if (columnId === 'inbox') return !t.column || !this.plugin.settings.columns.includes(t.column);
       return t.column === columnId;
     }).sort((a, b) => {
       // overdue first, then by due date
@@ -3181,7 +3259,10 @@ class EditTaskModal extends Modal {
     this.newText = task.text || '';
     this.newCover = task.cover || '';
     this.newPriority = task.priority || '';
-    this.newColumn = task.column || 'inbox';
+    // Een onbekende kolom-id behandelen we als Inbox (daar staat de kaart ook op
+    // het bord); opslaan normaliseert de kapotte tag dan vanzelf.
+    this.newColumn = task.column && plugin.settings.columns.includes(task.column)
+      ? task.column : 'inbox';
   }
 
   onOpen() {
