@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.12.2
+
+**Bugfix: sync-safe auto-move — no more disappearing cards on multi-device vaults**
+
+- **Auto-move waits for sync.** When two devices rewrote the same task line around a sync moment (e.g. opening the app while Obsidian Sync was still pulling), Obsidian Sync could merge the versions character by character and mangle the column tag (e.g. `#kanban/ingdoing`), making the card invisible on every device. The automatic "move due tasks to In progress" now only runs once Obsidian Sync reports *Fully synced* and the vault has been quiet for a few seconds; offline it writes nothing and retries until you are back online and synced. Vaults without Obsidian Sync use the quiet window. The manual command keeps working and warns while sync is busy.
+- **Unknown column tags show in the Inbox.** Cards whose `#kanban/` tag matches no column appear in the Inbox instead of nowhere, auto-move repairs due cards with a mangled tag, and editing such a card normalizes the tag.
+
+---
+
+### Nederlands
+
+**Bugfix: sync-veilige auto-move — geen verdwijnende kaarten meer bij meerdere apparaten**
+
+- **Auto-move wacht op de sync.** Als twee apparaten rond een sync-moment dezelfde taakregel herschreven (bv. de app openen terwijl Obsidian Sync nog aan het binnenhalen was), kon Obsidian Sync de versies teken voor teken samenvoegen en de kolom-tag verhaspelen (bv. `#kanban/ingdoing`), waardoor de kaart op elk apparaat onzichtbaar werd. Het automatische "due taken naar Bezig" draait nu pas zodra Obsidian Sync *Fully synced* meldt en de vault een paar seconden in rust is; offline schrijft hij niets en probeert hij het opnieuw zodra je weer online en gesynchroniseerd bent. Vaults zonder Obsidian Sync gebruiken het rustvenster. Het handmatige commando blijft werken en waarschuwt zolang de sync bezig is.
+- **Onbekende kolom-tags in de Inbox.** Kaarten waarvan de `#kanban/`-tag bij geen kolom hoort staan voortaan in de Inbox in plaats van nergens, auto-move herstelt due kaarten met een verhaspelde tag, en bewerken normaliseert de tag.
+
 ## 1.12.1
 
 - **Shorten the plugin description** to stay within Obsidian's 250-character manifest limit (it was 272). No functional changes.
