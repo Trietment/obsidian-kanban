@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.0
+
+**New: hide an empty Inbox, and ignored folders for archived clients**
+
+- **Hide empty inbox** — optional (under "Show inbox column"): the Inbox column hides itself while it has no cards and reappears as soon as something lands in it — a new untagged task, or a card with an unknown/broken column tag, so the 1.12.2 safety net stays visible. Works on the plain board and in swimlanes.
+- **Ignored folders (archive)** — notes in these folders are skipped entirely: their tasks never appear on the board or the calendar, and project detection ignores them too. Archive a client by moving its folder here; the notes themselves stay untouched.
+
+---
+
+### Nederlands
+
+**Nieuw: lege Inbox verbergen, en genegeerde mappen voor gearchiveerde klanten**
+
+- **Lege Inbox verbergen** — optioneel (onder "Inbox-kolom tonen"): de Inbox-kolom verbergt zichzelf zolang er geen kaarten in staan en verschijnt vanzelf weer zodra er iets in belandt — een nieuwe taak zonder kolomtag, of een kaart met een onbekende/kapotte kolomtag, zodat het vangnet uit 1.12.2 zichtbaar blijft. Werkt op het gewone bord en bij swimlanes.
+- **Genegeerde mappen (archief)** — notities in deze mappen worden volledig overgeslagen: hun taken verschijnen niet op het bord en niet in de kalender, en ook de projectdetectie negeert ze. Archiveer een klant door zijn map hierheen te verplaatsen; de notities zelf blijven onaangetast.
+
 ## 1.12.2
 
 **Bugfix: sync-safe auto-move — no more disappearing cards on multi-device vaults**
