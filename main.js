@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   doneColumn: 'done',
   inboxNote: 'Kanban Inbox.md',
   showInbox: true,
+  hideEmptyInbox: false,
   collectKanbanNotes: false,    // notitie met note-level #kanban-tag → alle taken op het bord
   swimlaneGroupBy: 'none',
   calendarViewMode: 'month',    // onthoudt de laatst gekozen kalenderweergave (month/week/day)
@@ -35,6 +36,7 @@ const DEFAULT_SETTINGS = {
   clientColors: {},
   clientLabels: {},
   projectScanFolders: [], // map(pen) die op #project/-tags doorzocht worden (leeg = hele vault)
+  excludeScanFolders: [], // mappen die de takenscan volledig negeert (bv. archief met oude klanten)
   autoMoveToday: true,
   inProgressColumn: 'doing',
   autoMoveOverdue: false,
@@ -277,6 +279,8 @@ const TRANSLATIONS = {
     inbox_note_desc: 'Standaardbestand voor nieuwe taken. Wordt aangemaakt als het niet bestaat.',
     show_inbox: 'Inbox-kolom tonen',
     show_inbox_desc: 'Toon taken zonder #kanban/ tag in een aparte Inbox-kolom.',
+    hide_empty_inbox: 'Lege Inbox verbergen',
+    hide_empty_inbox_desc: 'Verberg de Inbox-kolom op het bord zolang er geen kaarten in staan. (Alleen van toepassing als "Inbox-kolom tonen" aan staat.)',
     collect_kanban_notes: 'Taken uit #kanban-notities',
     collect_kanban_notes_desc: 'Beperkt het bord tot je #kanban-notities: een notitie met de tag #kanban (frontmatter of inline) levert ál haar taken aan het bord, zonder per-taak-tag. Nieuwe (open) taken komen in de Inbox om te sorteren, afgevinkte in de afgerond-kolom; taken met een eigen #kanban/<kolom> gaan naar die kolom. Overige checkboxes in de vault worden genegeerd. (Houd "Inbox tonen" aan.)',
     sec_linked_notes: 'Gekoppelde notities',
@@ -305,6 +309,9 @@ const TRANSLATIONS = {
     scan_folders: 'Scan-map(pen) voor projecten',
     scan_folders_desc: 'Beperk de projectdetectie tot deze map(pen). Eén pad per regel (bv. Klanten of Werk/Projecten). Leeg = de hele vault.',
     scan_folders_placeholder: 'leeg = hele vault',
+    exclude_folders: 'Genegeerde mappen (archief)',
+    exclude_folders_desc: 'Notities in deze map(pen) doen niet mee: taken erin verschijnen niet op het bord of in de kalender. Eén pad per regel (bv. 5. Klanten/99. Archief). Zo archiveer je een klant door zijn map hierheen te verplaatsen.',
+    exclude_folders_placeholder: 'bv. 5. Klanten/99. Archief',
     detect_projects: 'Detecteer projecten uit vault',
     detect_projects_desc: 'Doorzoek de ingestelde map(pen) (of de hele vault) naar #project/ tags en wijs automatisch een kleur toe aan ontbrekende projecten.',
     scan_vault: 'Scannen',
@@ -525,6 +532,8 @@ const TRANSLATIONS = {
     inbox_note_desc: 'Default file for new tasks. Created if it does not exist.',
     show_inbox: 'Show inbox column',
     show_inbox_desc: 'Show tasks without a #kanban/ tag in a separate Inbox column.',
+    hide_empty_inbox: 'Hide empty inbox',
+    hide_empty_inbox_desc: 'Hide the Inbox column on the board while it has no cards. (Only applies when "Show inbox column" is on.)',
     collect_kanban_notes: 'Tasks from #kanban notes',
     collect_kanban_notes_desc: 'Limits the board to your #kanban notes: a note tagged #kanban (frontmatter or inline) contributes all of its tasks, without per-task tagging. New (open) tasks land in the Inbox to sort, checked ones in the done column; tasks with an explicit #kanban/<column> go to that column. All other checkboxes in the vault are ignored. (Keep "Show inbox" on.)',
     sec_linked_notes: 'Linked notes',
@@ -553,6 +562,9 @@ const TRANSLATIONS = {
     scan_folders: 'Scan folder(s) for projects',
     scan_folders_desc: 'Limit project detection to these folder(s). One path per line (e.g. Clients or Work/Projects). Empty = the whole vault.',
     scan_folders_placeholder: 'empty = whole vault',
+    exclude_folders: 'Ignored folders (archive)',
+    exclude_folders_desc: 'Notes in these folder(s) are skipped entirely: their tasks never appear on the board or calendar. One path per line (e.g. Clients/Archive). Archive a client by moving its folder here.',
+    exclude_folders_placeholder: 'e.g. Clients/Archive',
     detect_projects: 'Detect projects from vault',
     detect_projects_desc: 'Search the configured folder(s) (or the whole vault) for #project/ tags and assign a color to missing projects automatically.',
     scan_vault: 'Scan',
@@ -979,11 +991,25 @@ module.exports = class KanbanPlugin extends Plugin {
     return false;
   }
 
+  // Mappen (of losse notities) die de takenscan volledig negeert — bv. het
+  // archief met oude klanten. Genormaliseerd zonder slashes aan de randen.
+  excludedScanFolders() {
+    return (this.settings.excludeScanFolders || [])
+      .map((f) => String(f).trim().replace(/^\/+|\/+$/g, ''))
+      .filter(Boolean);
+  }
+
+  inExcludedFolder(path, excluded) {
+    return excluded.some((d) => path === d || path.startsWith(d + '/'));
+  }
+
   async scanTasks() {
     const tasks = [];
     const files = this.app.vault.getMarkdownFiles();
     const collectNotes = !!this.settings.collectKanbanNotes;
+    const excluded = this.excludedScanFolders();
     for (const file of files) {
+      if (this.inExcludedFolder(file.path, excluded)) continue;
       let content;
       try { content = await this.app.vault.cachedRead(file); }
       catch (_) { continue; }
@@ -1029,7 +1055,9 @@ module.exports = class KanbanPlugin extends Plugin {
 
   // Markdown-bestanden binnen de ingestelde scan-map(pen) (leeg = hele vault).
   projectScanFiles() {
-    const files = this.app.vault.getMarkdownFiles();
+    const excluded = this.excludedScanFolders();
+    const files = this.app.vault.getMarkdownFiles()
+      .filter((f) => !this.inExcludedFolder(f.path, excluded));
     const folders = (this.settings.projectScanFolders || [])
       .map((f) => f.replace(/^\/+|\/+$/g, '').trim())
       .filter(Boolean);
@@ -1955,7 +1983,7 @@ class KanbanView extends ItemView {
 
     const board = container.createDiv({ cls: 'tk-board' });
     const columns = [...this.plugin.settings.columns];
-    if (this.plugin.settings.showInbox) columns.unshift('inbox');
+    if (this.showInboxColumn()) columns.unshift('inbox');
     for (const col of columns) {
       this.renderColumn(board, col);
     }
@@ -1967,7 +1995,7 @@ class KanbanView extends ItemView {
     const lanesEl = container.createDiv({ cls: 'tk-lanes' });
     const lanes = this.buildLanes();
     const columns = [...this.plugin.settings.columns];
-    if (this.plugin.settings.showInbox) columns.unshift('inbox');
+    if (this.showInboxColumn()) columns.unshift('inbox');
     for (const lane of lanes) {
       const laneTasks = this.tasks.filter((x) => this.filterTask(x) && lane.match(x));
       if (laneTasks.length === 0) continue; // lege banen niet tonen
@@ -2033,6 +2061,18 @@ class KanbanView extends ItemView {
     if (b.projects && b.projects.length && !(t.project && b.projects.some((p) => t.project === p || t.project.startsWith(p + '/')))) return false;
     if (b.clients && b.clients.length && !(t.client && b.clients.includes(t.client))) return false;
     return true;
+  }
+
+  // Moet de Inbox-kolom op het bord staan? Met "Lege Inbox verbergen" aan
+  // verbergt hij zichzelf zolang er geen enkele kaart in staat (onbekende
+  // kolom-id's tellen als Inbox, dus merge-schade blijft altijd zichtbaar).
+  // Bij swimlanes geldt één beslissing voor alle banen, zodat het raster in
+  // elke baan dezelfde kolommen houdt.
+  showInboxColumn() {
+    const s = this.plugin.settings;
+    if (!s.showInbox) return false;
+    if (!s.hideEmptyInbox) return true;
+    return this.tasksForColumn('inbox').length > 0;
   }
 
   tasksForColumn(columnId, sourceTasks) {
@@ -3800,6 +3840,17 @@ class KanbanSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
+      .setName(t('hide_empty_inbox'))
+      .setDesc(t('hide_empty_inbox_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.hideEmptyInbox)
+        .onChange(async (v) => {
+          this.plugin.settings.hideEmptyInbox = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+
+    new Setting(containerEl)
       .setName(t('collect_kanban_notes'))
       .setDesc(t('collect_kanban_notes_desc'))
       .addToggle((toggle) => toggle
@@ -3809,6 +3860,25 @@ class KanbanSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshViews();
         }));
+
+    new Setting(containerEl)
+      .setName(t('exclude_folders'))
+      .setDesc(t('exclude_folders_desc'))
+      .addTextArea((text) => {
+        text.inputEl.rows = 3;
+        text.inputEl.addClass('tk-input-full');
+        text
+          .setPlaceholder(t('exclude_folders_placeholder'))
+          .setValue((this.plugin.settings.excludeScanFolders || []).join('\n'))
+          .onChange(async (value) => {
+            this.plugin.settings.excludeScanFolders = value
+              .split('\n')
+              .map((s) => s.trim().replace(/^\/+|\/+$/g, ''))
+              .filter(Boolean);
+            await this.plugin.saveSettings();
+            this.plugin.refreshViews();
+          });
+      });
 
     // -- Prioriteiten --------------------------------------------------
     new Setting(containerEl).setName(t('sec_priorities')).setHeading();
