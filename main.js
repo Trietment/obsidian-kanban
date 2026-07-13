@@ -50,7 +50,7 @@ const DEFAULT_SETTINGS = {
   // Outlook / Microsoft Graph
   outlookEnabled: false,        // events tonen in de kalender
   microsoftClientId: '',        // eigen Azure app (leeg = ingebouwde standaard, indien meegeleverd)
-  outlookAccounts: [],          // [{ id, label, email, customName, color, calendars, selected, needsReauth }] — tokens staan device-lokaal (localStorage), niet hier
+  outlookAccounts: [],          // [{ id, label, email, color, calendars, selected, needsReauth }] — kleur is alleen nog fallback voor accounts zonder agenda-keuze; tokens staan device-lokaal (localStorage), niet hier
   outlookShowEvents: true,      // snelle aan/uit in de kalenderkop
 };
 
@@ -144,8 +144,6 @@ const TRANSLATIONS = {
     ol_token_failed: 'Token ophalen mislukt: {msg}',
     ol_state_mismatch: 'Aanmelding kwam niet overeen (state mismatch). Probeer opnieuw.',
     ol_account: 'Account',
-    ol_account_name: 'Naam',
-    ol_account_name_hint: 'Geef dit account een herkenbare naam',
     ol_event_untitled: '(geen titel)',
     ol_calendars: 'Agenda’s',
     ol_refresh_calendars: 'Agenda’s vernieuwen',
@@ -403,8 +401,6 @@ const TRANSLATIONS = {
     ol_token_failed: 'Token exchange failed: {msg}',
     ol_state_mismatch: 'Sign-in did not match (state mismatch). Please try again.',
     ol_account: 'Account',
-    ol_account_name: 'Name',
-    ol_account_name_hint: 'Give this account a recognizable name',
     ol_event_untitled: '(no title)',
     ol_calendars: 'Calendars',
     ol_refresh_calendars: 'Refresh calendars',
@@ -2151,16 +2147,23 @@ class KanbanView extends ItemView {
     }
     if (task.priority) card.addClass(`tk-prio-${task.priority}`);
 
-    // Project color
+    // Kaartkleuren: de klant kleurt de kaart (rail + waas), het project de ring.
+    if (task.client) {
+      const color = this.plugin.getClientColor(task.client);
+      if (color) {
+        card.style.setProperty('--tk-client-color', color);
+        // Aparte alpha voor light vs dark — op een donkere achtergrond is 6% nauwelijks zichtbaar.
+        const tintLight = hexToRgba(color, 0.06);
+        const tintDark = hexToRgba(color, 0.20);
+        if (tintLight) card.style.setProperty('--tk-client-tint', tintLight);
+        if (tintDark) card.style.setProperty('--tk-client-tint-dark', tintDark);
+        card.addClass('tk-has-client');
+      }
+    }
     if (task.project) {
       const color = this.plugin.getProjectColor(task.project);
       if (color) {
         card.style.setProperty('--tk-project-color', color);
-        // Aparte alpha voor light vs dark — op een donkere achtergrond is 6% nauwelijks zichtbaar.
-        const tintLight = hexToRgba(color, 0.06);
-        const tintDark = hexToRgba(color, 0.20);
-        if (tintLight) card.style.setProperty('--tk-project-tint', tintLight);
-        if (tintDark) card.style.setProperty('--tk-project-tint-dark', tintDark);
         card.addClass('tk-has-project');
       }
     }
@@ -3594,6 +3597,7 @@ class KanbanSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const t = (k, v) => this.plugin.t(k, v);
     containerEl.empty();
+    containerEl.addClass('tk-settings');
 
     // -- Algemeen ------------------------------------------------------
     new Setting(containerEl).setName(t('sec_general')).setHeading();
@@ -3615,7 +3619,6 @@ class KanbanSettingTab extends PluginSettingTab {
         });
       });
 
-    // -- Kolommen ------------------------------------------------------
     // -- Borden --------------------------------------------------------
     new Setting(containerEl).setName(t('sec_boards')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('boards_help') });
@@ -3935,226 +3938,6 @@ class KanbanSettingTab extends PluginSettingTab {
         await this.plugin.saveSettings(); this.display(); this.plugin.refreshViews();
       }));
 
-    // -- Gekoppelde notities -------------------------------------------
-    new Setting(containerEl).setName(t('sec_linked_notes')).setHeading();
-    containerEl.createEl('p', { cls: 'tk-help-line', text: t('linked_notes_help') });
-
-    new Setting(containerEl)
-      .setName(t('note_folder'))
-      .setDesc(t('note_folder_desc'))
-      .addText((text) => text
-        .setPlaceholder(t('note_folder_placeholder'))
-        .setValue(this.plugin.settings.noteFolder)
-        .onChange(async (v) => {
-          this.plugin.settings.noteFolder = v.trim().replace(/^\/+|\/+$/g, '');
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(t('archive_notes'))
-      .setDesc(t('archive_notes_desc'))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.archiveNotesOnDone)
-        .onChange(async (v) => {
-          this.plugin.settings.archiveNotesOnDone = v;
-          await this.plugin.saveSettings();
-          this.display();
-        }));
-
-    if (this.plugin.settings.archiveNotesOnDone) {
-      new Setting(containerEl)
-        .setName(t('archive_folder'))
-        .setDesc(t('archive_folder_desc'))
-        .addText((text) => text
-          .setPlaceholder('0. archive')
-          .setValue(this.plugin.settings.archiveFolder)
-          .onChange(async (v) => {
-            this.plugin.settings.archiveFolder = v.trim().replace(/^\/+|\/+$/g, '');
-            await this.plugin.saveSettings();
-          }));
-    }
-
-    new Setting(containerEl)
-      .setName(t('template_file'))
-      .setDesc(t('template_file_desc'))
-      .addText((text) => text
-        .setPlaceholder(t('template_file_placeholder'))
-        .setValue(this.plugin.settings.noteTemplate)
-        .onChange(async (v) => {
-          this.plugin.settings.noteTemplate = v.trim();
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(t('cover_folder'))
-      .setDesc(t('cover_folder_desc'))
-      .addText((text) => text
-        .setPlaceholder(t('cover_folder_placeholder'))
-        .setValue(this.plugin.settings.coverFolder)
-        .onChange(async (v) => {
-          this.plugin.settings.coverFolder = v.trim().replace(/^\/+|\/+$/g, '');
-          await this.plugin.saveSettings();
-        }));
-
-    // -- Automatisch verplaatsen ---------------------------------------
-    new Setting(containerEl).setName(t('sec_automove')).setHeading();
-
-    new Setting(containerEl)
-      .setName(t('automove_today'))
-      .setDesc(t('automove_today_desc'))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.autoMoveToday)
-        .onChange(async (v) => {
-          this.plugin.settings.autoMoveToday = v;
-          await this.plugin.saveSettings();
-          this.plugin.refreshViews();
-        }));
-
-    new Setting(containerEl)
-      .setName(t('inprogress_column'))
-      .setDesc(t('inprogress_column_desc'))
-      .addDropdown((dd) => {
-        dd.addOption('', t('none_paren'));
-        for (const c of this.plugin.settings.columns) dd.addOption(c, this.plugin.settings.columnLabels[c] || c);
-        dd.setValue(this.plugin.settings.inProgressColumn);
-        dd.onChange(async (v) => {
-          this.plugin.settings.inProgressColumn = v;
-          await this.plugin.saveSettings();
-        });
-      });
-
-    new Setting(containerEl)
-      .setName(t('automove_overdue'))
-      .setDesc(t('automove_overdue_desc'))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.autoMoveOverdue)
-        .onChange(async (v) => {
-          this.plugin.settings.autoMoveOverdue = v;
-          await this.plugin.saveSettings();
-          this.plugin.refreshViews();
-        }));
-
-    // -- Outlook -------------------------------------------------------
-    new Setting(containerEl).setName(t('ol_section')).setHeading();
-    containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_help') });
-
-    new Setting(containerEl)
-      .setName(t('ol_client_id'))
-      .setDesc(t('ol_client_id_desc'))
-      .addText((text) => {
-        text.inputEl.addClass('tk-input-full');
-        text
-          .setPlaceholder(DEFAULT_MS_CLIENT_ID ? t('ol_client_id_ph_builtin') : t('ol_client_id_ph'))
-          .setValue(this.plugin.settings.microsoftClientId || '')
-          .onChange(async (v) => {
-            this.plugin.settings.microsoftClientId = v.trim();
-            await this.plugin.saveSettings();
-            if (statusEl) {
-              statusEl.setText(clientStatus());
-              statusEl.toggleClass('tk-client-status-warn', !this.plugin.outlook.isConfigured());
-            }
-          });
-      });
-    const clientStatus = () => {
-      if ((this.plugin.settings.microsoftClientId || '').trim()) return t('ol_client_id_custom');
-      if (DEFAULT_MS_CLIENT_ID) return t('ol_client_id_builtin');
-      return t('ol_client_id_none');
-    };
-    const statusEl = containerEl.createEl('p', { cls: 'tk-client-status', text: clientStatus() });
-    if (!this.plugin.outlook.isConfigured()) statusEl.addClass('tk-client-status-warn');
-
-    new Setting(containerEl)
-      .setName(t('ol_show_events'))
-      .setDesc(t('ol_show_events_desc'))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.outlookShowEvents)
-        .onChange(async (v) => {
-          this.plugin.settings.outlookShowEvents = v;
-          await this.plugin.saveSettings();
-          this.plugin.refreshViews();
-        }));
-
-    // Gekoppelde accounts
-    new Setting(containerEl).setName(t('ol_accounts')).setHeading();
-    const accounts = this.plugin.outlook.accounts();
-    if (!accounts.length) {
-      containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_no_accounts') });
-    } else {
-      containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_shared_note') });
-      for (const acc of accounts) {
-        // Automatische naam uit Graph (displayName/e-mail); 'Account' telt als leeg.
-        const autoName = (acc.label && acc.label !== t('ol_account')) ? acc.label : (acc.email || '');
-        const row = new Setting(containerEl)
-          .setName(t('ol_account_name'))
-          .setDesc(acc.needsReauth ? `${acc.email || ''} — ${t('ol_reauth_needed')}` : (acc.email || ''));
-        if (acc.color) {
-          const dot = row.nameEl.createSpan({ cls: 'tk-account-dot' });
-          dot.style.background = acc.color;
-          row.nameEl.prepend(dot);
-        }
-        // Bewerkbare, herkenbare naam (overschrijft de automatische naam).
-        row.addText((text) => {
-          text.inputEl.addClass('tk-account-name-input');
-          text
-            .setPlaceholder(autoName || t('ol_account_name_hint'))
-            .setValue(acc.customName || '')
-            .onChange(async (v) => {
-              acc.customName = v.trim();
-              await this.plugin.saveSettings();
-            });
-        });
-        row.addExtraButton((b) => b
-          .setIcon('refresh-cw')
-          .setTooltip(t('ol_refresh_calendars'))
-          .onClick(async () => {
-            await this.plugin.outlook.fetchCalendars(acc);
-            this.plugin.refreshViews();
-            this.display();
-          }));
-        row.addExtraButton((b) => b
-          .setIcon('trash')
-          .setTooltip(t('ol_remove'))
-          .onClick(async () => {
-            await this.plugin.outlook.removeAccount(acc.id);
-            this.display();
-          }));
-
-        // Agenda-kiezer: per agenda een toggle (aan = tonen in de kalender).
-        if (!Array.isArray(acc.calendars)) {
-          containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_loading_calendars') });
-          // Eenmalig laden; daarna opnieuw tekenen (zet altijd een array, geen loop).
-          this.plugin.outlook.fetchCalendars(acc).then(() => this.display());
-        } else if (!acc.calendars.length) {
-          containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_no_calendars') });
-        } else {
-          for (const cal of acc.calendars) {
-            const cs = new Setting(containerEl).setName(cal.name).setClass('tk-setting-child');
-            const cdot = cs.nameEl.createSpan({ cls: 'tk-account-dot' });
-            cdot.style.background = cal.color;
-            cs.nameEl.prepend(cdot);
-            cs.addToggle((tg) => tg
-              .setValue((acc.selected || []).includes(cal.id))
-              .onChange(async (v) => {
-                const sel = new Set(acc.selected || []);
-                if (v) sel.add(cal.id); else sel.delete(cal.id);
-                acc.selected = [...sel];
-                await this.plugin.saveSettings();
-                this.plugin.outlook.clearCache();
-                this.plugin.refreshViews();
-              }));
-          }
-        }
-      }
-    }
-
-    new Setting(containerEl)
-      .setName(t('ol_add_account'))
-      .setDesc(t('ol_add_account_desc'))
-      .addButton((b) => b
-        .setButtonText(t('ol_connect'))
-        .setCta()
-        .onClick(() => this.plugin.outlook.startAuth()));
-
     // -- Projects ------------------------------------------------------
     new Setting(containerEl).setName(t('sec_projects')).setHeading();
     containerEl.createEl('p', { cls: 'tk-help-line', text: t('projects_help') });
@@ -4302,6 +4085,213 @@ class KanbanSettingTab extends PluginSettingTab {
       }
     }
 
+    // -- Gekoppelde notities -------------------------------------------
+    new Setting(containerEl).setName(t('sec_linked_notes')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('linked_notes_help') });
+
+    new Setting(containerEl)
+      .setName(t('note_folder'))
+      .setDesc(t('note_folder_desc'))
+      .addText((text) => text
+        .setPlaceholder(t('note_folder_placeholder'))
+        .setValue(this.plugin.settings.noteFolder)
+        .onChange(async (v) => {
+          this.plugin.settings.noteFolder = v.trim().replace(/^\/+|\/+$/g, '');
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(t('archive_notes'))
+      .setDesc(t('archive_notes_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.archiveNotesOnDone)
+        .onChange(async (v) => {
+          this.plugin.settings.archiveNotesOnDone = v;
+          await this.plugin.saveSettings();
+          this.display();
+        }));
+
+    if (this.plugin.settings.archiveNotesOnDone) {
+      new Setting(containerEl)
+        .setName(t('archive_folder'))
+        .setDesc(t('archive_folder_desc'))
+        .addText((text) => text
+          .setPlaceholder('0. archive')
+          .setValue(this.plugin.settings.archiveFolder)
+          .onChange(async (v) => {
+            this.plugin.settings.archiveFolder = v.trim().replace(/^\/+|\/+$/g, '');
+            await this.plugin.saveSettings();
+          }));
+    }
+
+    new Setting(containerEl)
+      .setName(t('template_file'))
+      .setDesc(t('template_file_desc'))
+      .addText((text) => text
+        .setPlaceholder(t('template_file_placeholder'))
+        .setValue(this.plugin.settings.noteTemplate)
+        .onChange(async (v) => {
+          this.plugin.settings.noteTemplate = v.trim();
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(t('cover_folder'))
+      .setDesc(t('cover_folder_desc'))
+      .addText((text) => text
+        .setPlaceholder(t('cover_folder_placeholder'))
+        .setValue(this.plugin.settings.coverFolder)
+        .onChange(async (v) => {
+          this.plugin.settings.coverFolder = v.trim().replace(/^\/+|\/+$/g, '');
+          await this.plugin.saveSettings();
+        }));
+
+    // -- Automatisch verplaatsen ---------------------------------------
+    new Setting(containerEl).setName(t('sec_automove')).setHeading();
+
+    new Setting(containerEl)
+      .setName(t('automove_today'))
+      .setDesc(t('automove_today_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.autoMoveToday)
+        .onChange(async (v) => {
+          this.plugin.settings.autoMoveToday = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+
+    new Setting(containerEl)
+      .setName(t('inprogress_column'))
+      .setDesc(t('inprogress_column_desc'))
+      .addDropdown((dd) => {
+        dd.addOption('', t('none_paren'));
+        for (const c of this.plugin.settings.columns) dd.addOption(c, this.plugin.settings.columnLabels[c] || c);
+        dd.setValue(this.plugin.settings.inProgressColumn);
+        dd.onChange(async (v) => {
+          this.plugin.settings.inProgressColumn = v;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName(t('automove_overdue'))
+      .setDesc(t('automove_overdue_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.autoMoveOverdue)
+        .onChange(async (v) => {
+          this.plugin.settings.autoMoveOverdue = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+
+    // -- Outlook -------------------------------------------------------
+    new Setting(containerEl).setName(t('ol_section')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_help') });
+
+    new Setting(containerEl)
+      .setName(t('ol_client_id'))
+      .setDesc(t('ol_client_id_desc'))
+      .addText((text) => {
+        text.inputEl.addClass('tk-input-full');
+        text
+          .setPlaceholder(DEFAULT_MS_CLIENT_ID ? t('ol_client_id_ph_builtin') : t('ol_client_id_ph'))
+          .setValue(this.plugin.settings.microsoftClientId || '')
+          .onChange(async (v) => {
+            this.plugin.settings.microsoftClientId = v.trim();
+            await this.plugin.saveSettings();
+            if (statusEl) {
+              statusEl.setText(clientStatus());
+              statusEl.toggleClass('tk-client-status-warn', !this.plugin.outlook.isConfigured());
+            }
+          });
+      });
+    const clientStatus = () => {
+      if ((this.plugin.settings.microsoftClientId || '').trim()) return t('ol_client_id_custom');
+      if (DEFAULT_MS_CLIENT_ID) return t('ol_client_id_builtin');
+      return t('ol_client_id_none');
+    };
+    const statusEl = containerEl.createEl('p', { cls: 'tk-client-status', text: clientStatus() });
+    if (!this.plugin.outlook.isConfigured()) statusEl.addClass('tk-client-status-warn');
+
+    new Setting(containerEl)
+      .setName(t('ol_show_events'))
+      .setDesc(t('ol_show_events_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.outlookShowEvents)
+        .onChange(async (v) => {
+          this.plugin.settings.outlookShowEvents = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshViews();
+        }));
+
+    // Gekoppelde accounts
+    new Setting(containerEl).setName(t('ol_accounts')).setHeading();
+    const accounts = this.plugin.outlook.accounts();
+    if (!accounts.length) {
+      containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_no_accounts') });
+    } else {
+      containerEl.createEl('p', { cls: 'tk-help-line', text: t('ol_shared_note') });
+      for (const acc of accounts) {
+        // Eén visuele groep per account: de accountrij als kop en de agenda's
+        // ingesprongen eronder, achter een neutrale rail.
+        const group = containerEl.createDiv({ cls: 'tk-account-group' });
+        // Het e-mailadres ís de identiteit van het account; een los naamlabel
+        // en naamveld werden nergens anders gebruikt en zijn daarom weg.
+        const row = new Setting(group)
+          .setName(acc.email || acc.label || t('ol_account'))
+          .setDesc(acc.needsReauth ? t('ol_reauth_needed') : '');
+        row.addExtraButton((b) => b
+          .setIcon('refresh-cw')
+          .setTooltip(t('ol_refresh_calendars'))
+          .onClick(async () => {
+            await this.plugin.outlook.fetchCalendars(acc);
+            this.plugin.refreshViews();
+            this.display();
+          }));
+        row.addExtraButton((b) => b
+          .setIcon('trash')
+          .setTooltip(t('ol_remove'))
+          .onClick(async () => {
+            await this.plugin.outlook.removeAccount(acc.id);
+            this.display();
+          }));
+
+        // Agenda-kiezer: per agenda een toggle (aan = tonen in de kalender).
+        if (!Array.isArray(acc.calendars)) {
+          group.createEl('p', { cls: 'tk-help-line', text: t('ol_loading_calendars') });
+          // Eenmalig laden; daarna opnieuw tekenen (zet altijd een array, geen loop).
+          this.plugin.outlook.fetchCalendars(acc).then(() => this.display());
+        } else if (!acc.calendars.length) {
+          group.createEl('p', { cls: 'tk-help-line', text: t('ol_no_calendars') });
+        } else {
+          for (const cal of acc.calendars) {
+            const cs = new Setting(group).setName(cal.name).setClass('tk-setting-child');
+            const cdot = cs.nameEl.createSpan({ cls: 'tk-account-dot' });
+            cdot.style.background = cal.color;
+            cs.nameEl.prepend(cdot);
+            cs.addToggle((tg) => tg
+              .setValue((acc.selected || []).includes(cal.id))
+              .onChange(async (v) => {
+                const sel = new Set(acc.selected || []);
+                if (v) sel.add(cal.id); else sel.delete(cal.id);
+                acc.selected = [...sel];
+                await this.plugin.saveSettings();
+                this.plugin.outlook.clearCache();
+                this.plugin.refreshViews();
+              }));
+          }
+        }
+      }
+    }
+
+    new Setting(containerEl)
+      .setName(t('ol_add_account'))
+      .setDesc(t('ol_add_account_desc'))
+      .addButton((b) => b
+        .setButtonText(t('ol_connect'))
+        .setCta()
+        .onClick(() => this.plugin.outlook.startAuth()));
+
     // -- Help ----------------------------------------------------------
     new Setting(containerEl).setName(t('sec_help')).setHeading();
     const help = containerEl.createDiv({ cls: 'tk-help' });
@@ -4321,5 +4311,30 @@ class KanbanSettingTab extends PluginSettingTab {
         .setButtonText(t('support_btn'))
         .setCta()
         .onClick(() => window.open('https://buymeacoffee.com/trietment', '_blank')));
+
+    this.groupSections(containerEl);
+  }
+
+  // Visuele groepering: alle rijen tussen twee sectiekoppen komen samen in één
+  // kaart, zodat elke sectie als één blok leest. De kopjes zelf en de
+  // introtekst direct onder een kopje blijven erbuiten staan.
+  groupSections(containerEl) {
+    const children = [...containerEl.children];
+    let group = null;
+    let afterHeading = false;
+    for (const el of children) {
+      if (el.classList.contains('setting-item-heading')) {
+        group = null;
+        afterHeading = true;
+        continue;
+      }
+      if (afterHeading && el.classList.contains('tk-help-line')) continue;
+      afterHeading = false;
+      if (!group) {
+        group = containerEl.createDiv({ cls: 'tk-settings-group' });
+        containerEl.insertBefore(group, el);
+      }
+      group.appendChild(el);
+    }
   }
 }

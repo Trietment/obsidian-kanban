@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.14.0
+
+**New: client card colors, and a tidier settings page**
+
+- **The client colors the card, the project colors the ring.** The left rail and background wash follow the card's client; a card with a project gets a thin colored ring all around (the project pill stays). Priority keeps the top edge. Previously the project colored the whole card and the client was only a pill.
+- **Tidier settings.** Sections are ordered thematically (Projects and Clients now sit with the board content) and every section renders as one visual block: heading and intro on top, its rows together in a rounded card.
+- **Clearer linked accounts.** Each Outlook account is a card with its calendars indented behind a rail. The redundant "Name" label, the unused rename field and the account color dot are gone — the email address is the account's title; the dots next to calendars still show each calendar's color in the calendar view.
+
+---
+
+### Nederlands
+
+**Nieuw: klantkleuren op kaarten, en een overzichtelijkere instellingenpagina**
+
+- **De klant kleurt de kaart, het project de ring.** De linkerrail en de achtergrondwaas volgen de klant van de kaart; een kaart met een project krijgt een dun gekleurd randje rondom (de projectpill blijft). Prioriteit houdt de bovenrand. Voorheen kleurde het project de hele kaart en was de klant alleen een pill.
+- **Overzichtelijkere instellingen.** Secties staan thematisch geordend (Projecten en Klanten bij de bord-inhoud) en elke sectie is één visueel blok: kopje en intro erboven, de rijen samen in een afgeronde kaart.
+- **Duidelijkere gekoppelde accounts.** Elk Outlook-account is een kaartje met zijn agenda's ingesprongen achter een rail. Het overbodige "Naam"-label, het ongebruikte naamveld en het accountkleur-bolletje zijn weg — het e-mailadres is de titel van het account; de bolletjes naast de agenda's tonen nog steeds de kleur van die agenda in de kalenderweergave.
+
 ## 1.13.0
 
 **New: hide an empty Inbox, and ignored folders for archived clients**
