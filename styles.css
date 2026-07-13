@@ -171,10 +171,15 @@
 }
 
 .tk-card {
+  /* Twee kleurdimensies: de klant kleurt de kaart (rail links + waas), het
+     project de ring (dunne rand rondom). Zonder kleur valt alles terug op de
+     neutrale randkleur. Prioriteit houdt de bovenrand (.tk-prio-*), die wint
+     bewust van de projectring op die ene rand. */
+  --tk-client-color: var(--background-modifier-border);
   --tk-project-color: var(--background-modifier-border);
   background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-left: 4px solid var(--tk-project-color);
+  border: 1px solid var(--tk-project-color);
+  border-left: 4px solid var(--tk-client-color);
   border-radius: 8px;
   padding: 10px 12px 8px;
   margin-bottom: 8px;
@@ -206,22 +211,27 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   text-align: center;
-  background: var(--tk-project-tint, var(--background-secondary));
+  background: var(--tk-client-tint, var(--background-secondary));
   color: var(--text-normal);
 }
-.tk-card.tk-has-project {
+.tk-card.tk-has-client {
   /* Tint over de kaart zonder color-mix() (werkt ook op oudere Android WebViews). */
   background-color: var(--background-primary);
-  background-image: linear-gradient(var(--tk-project-tint, transparent), var(--tk-project-tint, transparent));
+  background-image: linear-gradient(var(--tk-client-tint, transparent), var(--tk-client-tint, transparent));
 }
 /* Sterkere tint in dark mode — 6% over zwart is bijna onzichtbaar, zeker op AMOLED. */
-.theme-dark .tk-card.tk-has-project {
-  background-image: linear-gradient(var(--tk-project-tint-dark, transparent), var(--tk-project-tint-dark, transparent));
+.theme-dark .tk-card.tk-has-client {
+  background-image: linear-gradient(var(--tk-client-tint-dark, transparent), var(--tk-client-tint-dark, transparent));
 }
 .tk-card:hover {
   box-shadow: 0 2px 8px rgba(0,0,0,0.12);
   border-color: var(--background-modifier-border-hover);
-  border-left-color: var(--tk-project-color);
+  border-left-color: var(--tk-client-color);
+}
+/* Projectkaarten houden hun ring ook bij hover. */
+.tk-card.tk-has-project:hover {
+  border-color: var(--tk-project-color);
+  border-left-color: var(--tk-client-color);
 }
 .tk-card:active {
   cursor: grabbing;
@@ -1037,12 +1047,8 @@
   color: var(--text-warning, var(--color-orange, #dd6b20));
 }
 
-/* Bewerkbaar naamveld voor een gekoppeld account. */
-.tk-account-name-input {
-  min-width: 220px;
-}
-
-/* Gekleurde stip voor een gekoppeld account in de instellingen. */
+/* Gekleurde stip voor een agenda in de instellingen (de kleur waarmee die
+   agenda in de kalenderweergave verschijnt). */
 .tk-account-dot {
   display: inline-block;
   width: 10px;
@@ -1050,6 +1056,67 @@
   border-radius: 50%;
   margin-right: 8px;
   vertical-align: middle;
+}
+
+/* Gekoppeld account + zijn agenda's als één visuele groep: de accountrij als
+   kop in een kaartje, de agenda's ingesprongen erachter met een neutrale
+   rail — zo is direct te zien bij welk account een agenda hoort. */
+.tk-account-group {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 2px 14px;
+  margin: 10px 0;
+  background: var(--background-secondary);
+}
+.tk-account-group .setting-item {
+  border-top: none;
+}
+.tk-account-group .setting-item.tk-setting-child {
+  margin-left: 4px;
+  padding: 8px 0 8px 18px;
+  border-left: 2px solid var(--background-modifier-border);
+  border-top: 1px dashed var(--background-modifier-border);
+}
+.tk-account-group .tk-help-line {
+  margin: 0 0 10px 24px;
+}
+
+/* -- Instellingen: secties als blokken ---------------------------------
+   groupSections() bundelt alle rijen tussen twee kopjes in één kaart; het
+   kopje en de introtekst staan erboven. Zo leest de pagina als duidelijke
+   thematische blokken in plaats van een lange lijst losse rijen. */
+.tk-settings .setting-item.setting-item-heading {
+  border-top: none;
+  margin-top: 30px;
+  padding-bottom: 2px;
+}
+.tk-settings > .setting-item.setting-item-heading:first-child {
+  margin-top: 6px;
+}
+.tk-settings .setting-item.setting-item-heading .setting-item-name {
+  font-size: 1.02em;
+  font-weight: 700;
+}
+.tk-settings-group {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 2px 14px;
+  background: var(--background-secondary);
+  margin-bottom: 4px;
+}
+.tk-settings-group > .setting-item {
+  border-top: 1px solid var(--background-modifier-border);
+}
+.tk-settings-group > .setting-item:first-child {
+  border-top: none;
+}
+/* Accountkaartjes binnen de Outlook-sectie: iets lichter zodat de nesting
+   (kaart in kaart) leesbaar blijft. */
+.tk-settings-group > .tk-account-group {
+  background: var(--background-primary);
+}
+.tk-settings > .tk-help-line {
+  margin: -2px 2px 10px;
 }
 
 /* Smalle schermen: compacter raster. */
