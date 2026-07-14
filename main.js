@@ -219,6 +219,10 @@ const TRANSLATIONS = {
     target_file: 'Doel-bestand',
     target_file_desc: 'Waar de taak wordt opgeslagen. Leeg = inbox-note uit instellingen.',
     cancel: 'Annuleer',
+    select_mode: 'Selecteer',
+    n_selected: '{n} geselecteerd',
+    bulk_move: 'Verplaats',
+    bulk_moved_n: '{n} kaart(en) verplaatst.',
     add: 'Voeg toe',
     task_required: 'Taaktekst is verplicht.',
     // Edit task modal
@@ -472,6 +476,10 @@ const TRANSLATIONS = {
     target_file: 'Target file',
     target_file_desc: 'Where the task is saved. Empty = inbox note from settings.',
     cancel: 'Cancel',
+    select_mode: 'Select',
+    n_selected: '{n} selected',
+    bulk_move: 'Move',
+    bulk_moved_n: '{n} card(s) moved.',
     add: 'Add',
     task_required: 'Task text is required.',
     edit_modal_title: 'Edit task',
@@ -1511,41 +1519,67 @@ module.exports = class KanbanPlugin extends Plugin {
   }
 
   async moveTask(taskId, newColumn) {
-    const sepIdx = taskId.lastIndexOf('::');
-    if (sepIdx < 0) return;
-    const filePath = taskId.substring(0, sepIdx);
-    const lineNum = parseInt(taskId.substring(sepIdx + 2), 10);
+    return this.bulkMoveTasks([taskId], newColumn);
+  }
 
-    const file = this.app.vault.getAbstractFileByPath(filePath);
-    if (!(file instanceof TFile)) return;
-
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (lineNum < 0 || lineNum >= lines.length) return;
-
-    let line = lines[lineNum];
-    const parsed = parseTaskLine(line, filePath, lineNum);
-    if (!parsed) return;
-
-    if (newColumn === 'inbox') {
-      line = line.replace(/\s*#kanban\/[\w-]+/g, '');
-    } else if (/#kanban\/[\w-]+/.test(line)) {
-      line = line.replace(/#kanban\/[\w-]+/, `#kanban/${newColumn}`);
-    } else {
-      line = line.trimEnd() + ` #kanban/${newColumn}`;
+  // Verplaats één of meer kaarten (taskId = "pad::regel") naar een kolom.
+  // Gegroepeerd per notitie zodat een bulk-verplaatsing één schrijfactie per
+  // bestand doet. Verplaatsen wijzigt regels alleen in-place (geen invoegen),
+  // dus de regelnummers van de overige selectie blijven kloppen.
+  async bulkMoveTasks(taskIds, newColumn) {
+    const byFile = {};
+    for (const id of taskIds) {
+      const sepIdx = id.lastIndexOf('::');
+      if (sepIdx < 0) continue;
+      const filePath = id.substring(0, sepIdx);
+      const lineNum = parseInt(id.substring(sepIdx + 2), 10);
+      if (Number.isNaN(lineNum)) continue;
+      (byFile[filePath] = byFile[filePath] || []).push(lineNum);
     }
 
-    if (newColumn === this.settings.doneColumn) {
-      line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
-    } else {
-      line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
+    let moved = 0;
+    for (const filePath of Object.keys(byFile)) {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!(file instanceof TFile)) continue;
+      const content = await this.app.vault.read(file);
+      const lines = content.split('\n');
+      const touched = [];
+      let changed = false;
+      for (const lineNum of byFile[filePath]) {
+        if (lineNum < 0 || lineNum >= lines.length) continue;
+        let line = lines[lineNum];
+        const parsed = parseTaskLine(line, filePath, lineNum);
+        if (!parsed) continue; // regel is verschoven of geen taak meer
+
+        if (newColumn === 'inbox') {
+          line = line.replace(/\s*#kanban\/[\w-]+/g, '');
+        } else if (/#kanban\/[\w-]+/.test(line)) {
+          line = line.replace(/#kanban\/[\w-]+/, `#kanban/${newColumn}`);
+        } else {
+          line = line.trimEnd() + ` #kanban/${newColumn}`;
+        }
+
+        if (newColumn === this.settings.doneColumn) {
+          line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
+        } else {
+          line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
+        }
+
+        if (line !== lines[lineNum]) {
+          lines[lineNum] = line;
+          changed = true;
+          moved++;
+        }
+        touched.push(parsed);
+      }
+      if (changed) await this.app.vault.modify(file, lines.join('\n'));
+
+      // Notities mee-archiveren bij afronden (en terughalen bij heropenen).
+      for (const parsed of touched) {
+        await this.syncNoteArchive(parsed, newColumn === this.settings.doneColumn);
+      }
     }
-
-    lines[lineNum] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
-
-    // Notitie mee-archiveren bij afronden (en terughalen bij heropenen).
-    await this.syncNoteArchive(parsed, newColumn === this.settings.doneColumn);
+    return moved;
   }
 
   async deleteTask(task) {
@@ -1871,6 +1905,11 @@ class KanbanView extends ItemView {
     this.filterText = '';
     this.hideDone = false;
     this.groupBy = (plugin.settings && plugin.settings.swimlaneGroupBy) || 'none';
+    // Bulk-selectie: in selectiemodus togglet een tik/klik kaarten en verplaatst
+    // de actiebalk onderaan de hele selectie in één keer.
+    this.selectMode = false;
+    this.selected = new Set();   // taskId's ("pad::regel")
+    this.bulkTarget = null;      // laatst gekozen doelkolom in de balk
   }
 
   getViewType() { return VIEW_TYPE_KANBAN; }
@@ -1904,6 +1943,9 @@ class KanbanView extends ItemView {
     }
 
     const container = this.containerEl.children[1];
+    // Scrollposities vasthouden vóór het leegmaken, zodat het bord na de
+    // rebuild niet verspringt (het herstel gebeurt in renderBoard).
+    const scroll = this.captureScroll(container);
     container.empty();
     container.addClass('trietment-kanban-container');
 
@@ -1955,6 +1997,11 @@ class KanbanView extends ItemView {
       this.renderBoard(container);
     });
 
+    const selectBtn = header.createEl('button', { text: '☑ ' + this.plugin.t('select_mode'), cls: 'tk-btn' });
+    if (this.selectMode) selectBtn.addClass('tk-btn-active');
+    this.selectBtnEl = selectBtn;
+    selectBtn.onclick = () => this.setSelectMode(!this.selectMode);
+
     const addBtn = header.createEl('button', { text: this.plugin.t('new_task'), cls: 'tk-btn tk-btn-cta' });
     addBtn.onclick = () => {
       new AddTaskModal(this.app, this.plugin, async (task) => {
@@ -1969,20 +2016,106 @@ class KanbanView extends ItemView {
     const refreshBtn = header.createEl('button', { text: '↻', cls: 'tk-btn', title: this.plugin.t('refresh') });
     refreshBtn.onclick = () => this.render();
 
-    this.renderBoard(container);
+    this.renderBoard(container, scroll);
+    this.updateBulkBar(container);
   }
 
-  renderBoard(container) {
+  // Selectiemodus aan/uit. Uitzetten wist de selectie; de kaarten krijgen hun
+  // selectiegedrag bij de eerstvolgende render van het bord.
+  setSelectMode(on) {
+    this.selectMode = on;
+    if (!on) this.selected.clear();
+    if (this.selectBtnEl) this.selectBtnEl.toggleClass('tk-btn-active', on);
+    const container = this.containerEl.children[1];
+    this.renderBoard(container);
+    this.updateBulkBar(container);
+  }
+
+  // Actiebalk onder het bord: aantal geselecteerd, doelkolom, verplaats/annuleer.
+  updateBulkBar(container) {
+    container.querySelectorAll('.tk-bulk-bar').forEach((e) => e.remove());
+    if (!this.selectMode) return;
+
+    const bar = container.createDiv({ cls: 'tk-bulk-bar' });
+    bar.createSpan({ cls: 'tk-bulk-count', text: this.plugin.t('n_selected', { n: this.selected.size }) });
+
+    const dd = bar.createEl('select', { cls: 'dropdown' });
+    if (this.plugin.settings.showInbox) dd.createEl('option', { value: 'inbox', text: this.plugin.t('inbox') });
+    for (const col of this.plugin.settings.columns) {
+      dd.createEl('option', { value: col, text: this.plugin.settings.columnLabels[col] || col });
+    }
+    if (this.bulkTarget) dd.value = this.bulkTarget;
+    dd.addEventListener('change', (e) => { this.bulkTarget = e.target.value; });
+
+    const moveBtn = bar.createEl('button', { text: this.plugin.t('bulk_move'), cls: 'tk-btn tk-btn-cta' });
+    moveBtn.disabled = this.selected.size === 0;
+    moveBtn.onclick = async () => {
+      const moved = await this.plugin.bulkMoveTasks([...this.selected], dd.value);
+      this.selectMode = false;
+      this.selected.clear();
+      new Notice(this.plugin.t('bulk_moved_n', { n: moved }));
+      await this.render();
+    };
+
+    const cancelBtn = bar.createEl('button', { text: this.plugin.t('cancel'), cls: 'tk-btn' });
+    cancelBtn.onclick = () => this.setSelectMode(false);
+  }
+
+  // Sleutel per scroller: de banen-stapel, het bord (per baan) horizontaal en
+  // de kaartenlijst per kolom verticaal. Zo blijft de kijkpositie behouden
+  // over elke re-render heen — ook onderin een lange kolom.
+  scrollLaneOf(el) {
+    const lane = el.closest('.tk-lane');
+    return lane ? (lane.dataset.lane || '') : '';
+  }
+
+  captureScroll(container) {
+    const state = {};
+    if (!container) return state;
+    const lanes = container.querySelector('.tk-lanes');
+    if (lanes && lanes.scrollTop) state.lanes = lanes.scrollTop;
+    container.querySelectorAll('.tk-board').forEach((el) => {
+      if (el.scrollLeft) state[`board:${this.scrollLaneOf(el)}`] = el.scrollLeft;
+    });
+    container.querySelectorAll('.tk-column').forEach((col) => {
+      const cards = col.querySelector('.tk-cards');
+      if (cards && cards.scrollTop) state[`cards:${this.scrollLaneOf(col)}:${col.dataset.column}`] = cards.scrollTop;
+    });
+    return state;
+  }
+
+  restoreScroll(container, state) {
+    if (!state) return;
+    const lanes = container.querySelector('.tk-lanes');
+    if (lanes && state.lanes != null) lanes.scrollTop = state.lanes;
+    container.querySelectorAll('.tk-board').forEach((el) => {
+      const v = state[`board:${this.scrollLaneOf(el)}`];
+      if (v != null) el.scrollLeft = v;
+    });
+    container.querySelectorAll('.tk-column').forEach((col) => {
+      const v = state[`cards:${this.scrollLaneOf(col)}:${col.dataset.column}`];
+      const cards = col.querySelector('.tk-cards');
+      if (cards && v != null) cards.scrollTop = v;
+    });
+  }
+
+  renderBoard(container, scroll) {
+    // Zonder meegegeven snapshot (filter/banen/verberg-klaar) zelf vastleggen
+    // vóór de teardown; render() geeft 'm mee omdat die de container al leegt.
+    const state = scroll || this.captureScroll(container);
     container.querySelectorAll('.tk-board, .tk-lanes').forEach((e) => e.remove());
 
-    if (this.groupBy && this.groupBy !== 'none') return this.renderLanes(container);
-
-    const board = container.createDiv({ cls: 'tk-board' });
-    const columns = [...this.plugin.settings.columns];
-    if (this.showInboxColumn()) columns.unshift('inbox');
-    for (const col of columns) {
-      this.renderColumn(board, col);
+    if (this.groupBy && this.groupBy !== 'none') {
+      this.renderLanes(container);
+    } else {
+      const board = container.createDiv({ cls: 'tk-board' });
+      const columns = [...this.plugin.settings.columns];
+      if (this.showInboxColumn()) columns.unshift('inbox');
+      for (const col of columns) {
+        this.renderColumn(board, col);
+      }
     }
+    this.restoreScroll(container, state);
   }
 
   // Swimlanes: één horizontale baan per groepswaarde; binnen elke baan het
@@ -1996,6 +2129,7 @@ class KanbanView extends ItemView {
       const laneTasks = this.tasks.filter((x) => this.filterTask(x) && lane.match(x));
       if (laneTasks.length === 0) continue; // lege banen niet tonen
       const laneEl = lanesEl.createDiv({ cls: 'tk-lane' });
+      laneEl.dataset.lane = String(lane.id != null ? lane.id : '');
       if (lane.color) laneEl.style.setProperty('--tk-lane-color', lane.color);
       const head = laneEl.createDiv({ cls: 'tk-lane-head' });
       head.createSpan({ cls: 'tk-lane-title', text: lane.label });
@@ -2135,9 +2269,48 @@ class KanbanView extends ItemView {
 
   renderCard(parent, task) {
     const card = parent.createDiv({ cls: 'tk-card' });
-    card.draggable = true;
+    card.draggable = !this.selectMode; // in selectiemodus niet slepen
     const taskId = `${task.file}::${task.line}`;
     card.dataset.taskId = taskId;
+
+    if (this.selectMode) {
+      // Selectiemodus: de hele kaart is één toggle. Capture + stopPropagation
+      // zodat knoppen/checkbox/badges op de kaart niet óók reageren.
+      card.addClass('tk-selecting');
+      if (this.selected.has(taskId)) {
+        card.addClass('tk-selected');
+        card.createDiv({ cls: 'tk-select-badge', text: '✓' });
+      }
+      card.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (this.justLongPressed && Date.now() - this.justLongPressed < 800) {
+          this.justLongPressed = 0;
+          return;
+        }
+        if (this.selected.has(taskId)) this.selected.delete(taskId);
+        else this.selected.add(taskId);
+        const container = this.containerEl.children[1];
+        this.renderBoard(container);
+        this.updateBulkBar(container);
+      }, { capture: true });
+    } else {
+      // Lang indrukken (Android-patroon) start de selectiemodus met deze kaart;
+      // bewegen of loslaten binnen een halve seconde annuleert.
+      card.addEventListener('touchstart', () => {
+        this.longPressTimer = window.setTimeout(() => {
+          this.justLongPressed = Date.now();
+          this.selected.add(taskId);
+          this.setSelectMode(true);
+        }, 500);
+      }, { passive: true });
+      const cancelPress = () => {
+        if (this.longPressTimer) { clearTimeout(this.longPressTimer); this.longPressTimer = null; }
+      };
+      card.addEventListener('touchmove', cancelPress, { passive: true });
+      card.addEventListener('touchend', cancelPress);
+      card.addEventListener('touchcancel', cancelPress);
+    }
 
     if (task.done) card.addClass('tk-done');
     if (task.dueDate) {

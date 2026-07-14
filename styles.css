@@ -58,6 +58,49 @@
 .tk-btn-cta:hover {
   background: var(--interactive-accent-hover);
 }
+.tk-btn-active {
+  border-color: var(--interactive-accent);
+  color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+/* -- Bulk-selectie: kaarten aantikken en in één keer verplaatsen ---------- */
+.tk-card.tk-selecting {
+  cursor: pointer;
+}
+.tk-card.tk-selected {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+.tk-select-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
+  font-weight: 700;
+  z-index: 2;
+}
+.tk-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+}
+.tk-bulk-count {
+  font-weight: 600;
+}
 
 .tk-board {
   display: flex;
