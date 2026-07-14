@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.15.0
+
+**New: bulk move, and the board keeps your scroll position**
+
+- **Bulk move.** "☑ Select" in the board header (or long-press a card on mobile) switches to selection mode: tap cards to select, then move them all at once via the action bar below the board (count, target column, Move, Cancel). One write per note; dragging and opening cards are disabled while selecting.
+- **No more scroll jumps.** The board remembers the horizontal position and each column's scroll position (and the swimlane stack) across every re-render — dragging, filtering, sync refreshes and auto-move no longer throw you back to the top.
+
+---
+
+### Nederlands
+
+**Nieuw: bulk verplaatsen, en het bord onthoudt je scrollpositie**
+
+- **Bulk verplaatsen.** "☑ Selecteer" in de bordkop (of een kaart lang indrukken op mobiel) zet de selectiemodus aan: tik kaarten aan en verplaats ze in één keer via de balk onder het bord (aantal, doelkolom, Verplaats, Annuleer). Eén schrijfactie per notitie; slepen en kaarten openen staan tijdens het selecteren uit.
+- **Geen scroll-sprongen meer.** Het bord onthoudt de horizontale positie en de scrollpositie van elke kolom (en de banen-stapel) over elke re-render heen — slepen, filteren, sync-refreshes en auto-move gooien je niet meer terug naar boven.
+
 ## 1.14.0
 
 **New: client card colors, and a tidier settings page**
