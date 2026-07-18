@@ -1192,15 +1192,20 @@
   margin-bottom: calc(12px + var(--tk-bottom-inset, 0px));
 }
 
-/* iPhone-modals als bottom-sheet die boven het toetsenbord blijft. --tk-kb
-   komt uit installIosKeyboardFix(), --keyboard-height houdt Obsidian zelf
-   bij; max() pakt de betrouwbaarste van de twee. */
+/* iPhone-modals als bottom-sheet die boven het toetsenbord blijft. Het
+   verankeren gebeurt op de container (align-items: flex-end + padding), zodat
+   de modal zelf in de flex-flow blijft en Obsidians eigen breedte/centrering
+   behouden blijft — anders valt de sheet tegen de linkerrand met rechts een
+   kier. --tk-kb komt uit installIosKeyboardFix(), --keyboard-height houdt
+   Obsidian zelf bij; max() pakt de betrouwbaarste van de twee. */
+body.is-ios.is-phone .modal-container.tk-ios-modal-container {
+  align-items: flex-end;
+  padding-bottom: max(var(--tk-kb, 0px), var(--keyboard-height, 0px));
+  transition: padding-bottom 120ms ease-out;
+}
 body.is-ios.is-phone .modal.tk-ios-modal {
-  position: absolute;
-  top: auto;
-  bottom: max(var(--tk-kb, 0px), var(--keyboard-height, 0px));
   max-height: calc(100vh - var(--safe-area-inset-top, 0px) - max(var(--tk-kb, 0px), var(--keyboard-height, 0px)));
-  transition: bottom 120ms ease-out, max-height 120ms ease-out;
+  transition: max-height 120ms ease-out;
 }
 /* Onderste inhoud (o.a. de Voeg toe/Opslaan-knoppen en de subtaak-invoer)
    uit de home-indicator-zone houden zolang het toetsenbord dicht is. */
