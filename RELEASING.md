@@ -5,7 +5,7 @@ The plugin is published in Obsidian's community-plugins directory (repo `trietme
 1. Branch from `main` (e.g. `fix-something`) and commit the code changes (`main.js`, `styles.css`).
 2. Add the new version's notes:
    - Prepend a `## x.y.z` section to `CHANGELOG.md` (English bullets, then `---` and `### Nederlands`).
-   - Run `scripts/sync-readme-changelog.sh` — mirrors the changelog into the block at the end of `README.md`, which is what the plugin page shows.
+   - Run `scripts/sync-readme-changelog.py` — refreshes the "New in x.y.z" banners (EN + NL) at the top of `README.md` and mirrors the full changelog into the block at the end. The plugin page in Obsidian shows the README, so this is what users see when installing.
    - Rewrite `release-notes.md` with this version's notes only (becomes the GitHub release body).
 3. Bump the version: `manifest.json` and a new entry in `versions.json`.
 4. Commit as `Release x.y.z: notes, changelog, version bump`, push, open a PR, merge it (merge commit).
