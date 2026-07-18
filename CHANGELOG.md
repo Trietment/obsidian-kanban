@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.15.1
+
+**Fixed: iPhone keyboard and bottom-bar problems**
+
+- **Add button reachable again.** The floating navigation bar / home indicator overlapped the bottom of the board on iPhone, covering "+ Add task" at the end of a column. The board now measures the actual overlap and keeps its bottom edge clear (the bulk-move bar too). Android and desktop are untouched.
+- **No more jumping screen while typing.** iOS pans the whole app towards a focused input field, which shoved the fixed layout out of view when editing a card title. The add/edit dialogs now undo that panning immediately, so what you type stays visible.
+- **Nothing behind the keyboard.** On iPhone the add/edit dialogs become a bottom sheet that stays above the keyboard; subtasks and buttons low on the card scroll into view and the active field is brought into view automatically. With the keyboard closed, the Save/Add buttons stay clear of the home indicator.
+
+---
+
+### Nederlands
+
+**Opgelost: toetsenbord- en balkje-problemen op de iPhone**
+
+- **Toevoegen-knop weer bereikbaar.** De zwevende navigatiebalk/home-indicator viel op de iPhone over de onderkant van het bord, waardoor "+ Taak toevoegen" onder in een kolom onbereikbaar was. Het bord meet nu de werkelijke overlap en houdt de onderrand vrij (ook voor de bulk-verplaatsbalk). Android en desktop blijven ongewijzigd.
+- **Geen verspringend scherm meer tijdens het typen.** iOS schuift de hele app richting een gefocust invoerveld, waardoor de vaste layout uit beeld schoof bij het aanpassen van een kaarttitel. De vensters draaien dat schuiven nu direct terug, zodat je ziet wat je typt.
+- **Niets meer achter het toetsenbord.** Op de iPhone worden de toevoeg-/bewerkvensters een bottom-sheet die boven het toetsenbord blijft; subtaken en knoppen laag op de kaart scrollen gewoon in beeld en het actieve veld springt automatisch in beeld. Met het toetsenbord dicht blijven de knoppen Opslaan/Voeg toe boven de home-indicator.
+
 ## 1.15.0
 
 **New: bulk move, and the board keeps your scroll position**

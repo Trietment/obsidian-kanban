@@ -1,7 +1,7 @@
 'use strict';
 
 const obsidian = require('obsidian');
-const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, MarkdownView } = obsidian;
+const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, MarkdownView, Platform } = obsidian;
 
 const VIEW_TYPE_KANBAN = 'trietment-kanban-view';
 const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
@@ -2116,6 +2116,34 @@ class KanbanView extends ItemView {
       }
     }
     this.restoreScroll(container, state);
+    this.applyIosBottomInset(container);
+  }
+
+  // iOS: de navigatiebalk van Obsidian en/of de home-indicator zweven daar
+  // over de onderkant van het bord heen, waardoor de "+ Taak toevoegen"-knop
+  // onder in een kolom onbereikbaar wordt. Meet de werkelijke overlap en
+  // reserveer die ruimte onderaan via --tk-bottom-inset (zie styles.css).
+  applyIosBottomInset(container) {
+    if (!Platform.isIosApp || !container) return;
+    requestAnimationFrame(() => {
+      if (!container.isConnected) return;
+      const rect = container.getBoundingClientRect();
+      let boundary;
+      const navbar = document.body.querySelector('.mobile-navbar');
+      if (navbar && navbar.offsetHeight > 0) {
+        boundary = navbar.getBoundingClientRect().top;
+      } else {
+        const safe = parseFloat(getComputedStyle(document.body).getPropertyValue('--safe-area-inset-bottom')) || 0;
+        boundary = window.innerHeight - safe;
+      }
+      const overlap = Math.max(0, Math.round(rect.bottom - boundary));
+      container.style.setProperty('--tk-bottom-inset', overlap + 'px');
+    });
+  }
+
+  onResize() {
+    const container = this.containerEl.children[1];
+    this.applyIosBottomInset(container);
   }
 
   // Swimlanes: één horizontale baan per groepswaarde; binnen elke baan het
@@ -3271,6 +3299,91 @@ class OutlookManager {
   }
 }
 
+// -- iOS-toetsenbordfix voor modals -----------------------------------------
+// Op de iPhone verkleint Obsidian bij een open toetsenbord alleen de
+// .app-container (via --keyboard-height); modals hangen op body-niveau en
+// vallen daarbuiten. Bovendien "pant" WebKit het hele venster naar een
+// gefocust invoerveld, wat in een vaste layout het bekende verspring-effect
+// geeft: het scherm schuift scheef en het veld is juist onzichtbaar.
+// Deze helper (alleen op iOS):
+//  1. draait dat venster-pannen telkens terug (de app scrollt zelf nooit);
+//  2. meet de toetsenbordhoogte en geeft die als --tk-kb aan de CSS door,
+//     die de modal als bottom-sheet boven het toetsenbord houdt;
+//  3. scrollt het actieve veld na de toetsenbord-animatie in beeld binnen
+//     de modal-inhoud (o.a. de subtaak-invoer onderin het bewerk-venster).
+function installIosKeyboardFix(modal) {
+  if (!Platform.isIosApp) return;
+  const { modalEl, contentEl } = modal;
+  modalEl.addClass('tk-ios-modal');
+
+  const vv = window.visualViewport;
+  let capKb = 0;    // hoogte volgens Capacitor-events (iOS meldt die vooraf)
+  let timers = [];
+
+  const kbHeight = () => {
+    let kb = capKb;
+    if (vv) kb = Math.max(kb, Math.round(window.innerHeight - vv.height));
+    return Math.max(0, kb);
+  };
+
+  const unpan = () => {
+    if (window.scrollY) window.scrollTo(0, 0);
+    const de = document.documentElement;
+    if (de.scrollTop) de.scrollTop = 0;
+    if (document.body.scrollTop) document.body.scrollTop = 0;
+  };
+
+  const update = () => {
+    unpan();
+    modalEl.style.setProperty('--tk-kb', kbHeight() + 'px');
+  };
+
+  // Actief veld in beeld brengen binnen de scroller van de modal.
+  const reveal = () => {
+    update();
+    const el = document.activeElement;
+    if (!el || !modalEl.contains(el)) return;
+    const scroller = contentEl.scrollHeight > contentEl.clientHeight + 1 ? contentEl : modalEl;
+    const c = scroller.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    if (r.bottom > c.bottom - 12) scroller.scrollTop += r.bottom - (c.bottom - 12);
+    else if (r.top < c.top + 12) scroller.scrollTop -= (c.top + 12) - r.top;
+  };
+
+  // De toetsenbord-animatie duurt ~250 ms en iOS meldt maten niet op één vast
+  // moment; een paar nametingen vangen elke volgorde van events af.
+  const settle = () => {
+    update();
+    timers.forEach(clearTimeout);
+    timers = [90, 300, 650].map((ms) => setTimeout(reveal, ms));
+  };
+
+  const onShow = (e) => { capKb = (e && e.keyboardHeight) || 0; settle(); };
+  const onHide = () => { capKb = 0; settle(); };
+
+  window.addEventListener('keyboardWillShow', onShow);
+  window.addEventListener('keyboardWillHide', onHide);
+  window.addEventListener('scroll', unpan);
+  if (vv) {
+    vv.addEventListener('resize', settle);
+    vv.addEventListener('scroll', unpan);
+  }
+  modalEl.addEventListener('focusin', settle);
+
+  const prevOnClose = modal.onClose.bind(modal);
+  modal.onClose = () => {
+    timers.forEach(clearTimeout);
+    window.removeEventListener('keyboardWillShow', onShow);
+    window.removeEventListener('keyboardWillHide', onHide);
+    window.removeEventListener('scroll', unpan);
+    if (vv) {
+      vv.removeEventListener('resize', settle);
+      vv.removeEventListener('scroll', unpan);
+    }
+    return prevOnClose();
+  };
+}
+
 // -- Add Task Modal ---------------------------------------------------------
 
 class AddTaskModal extends Modal {
@@ -3295,6 +3408,7 @@ class AddTaskModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     const t = (k, v) => this.plugin.t(k, v);
+    installIosKeyboardFix(this);
     contentEl.empty();
     contentEl.addClass('tk-modal');
     contentEl.createEl('h2', { text: t('add_modal_title') });
@@ -3442,7 +3556,9 @@ class AddTaskModal extends Modal {
       })
     );
 
-    setTimeout(() => textInput && textInput.inputEl.focus(), 30);
+    // preventScroll op iOS: anders pant WebKit het venster naar het veld
+    // terwijl de modal nog aan het openen is (verspringend scherm).
+    setTimeout(() => textInput && textInput.inputEl.focus(Platform.isIosApp ? { preventScroll: true } : undefined), 30);
 
     // Submit on Enter from text input
     if (textInput) {
@@ -3484,6 +3600,7 @@ class EditTaskModal extends Modal {
   onOpen() {
     const { contentEl } = this;
     const t = (k, v) => this.plugin.t(k, v);
+    installIosKeyboardFix(this);
     contentEl.empty();
     contentEl.addClass('tk-modal');
     contentEl.createEl('h2', { text: t('edit_modal_title') });
@@ -3653,7 +3770,7 @@ class EditTaskModal extends Modal {
         this.onDone && this.onDone();
         renderSubs();
         const next = subWrap.querySelector('.tk-subtask-add .tk-subtask-input');
-        if (next) next.focus();
+        if (next) next.focus(Platform.isIosApp ? { preventScroll: true } : undefined);
       };
       input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); commit(); } };
       const addBtn = addRow.createEl('button', { cls: 'tk-subtask-addbtn', text: '+', title: t('add_subtask') });
