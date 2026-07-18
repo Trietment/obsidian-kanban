@@ -1171,3 +1171,39 @@
     font-size: 0.72em;
   }
 }
+
+/* -- iOS ------------------------------------------------------------------
+   Twee iPhone-eigenaardigheden (Android heeft ze niet):
+   1. De navigatiebalk/home-indicator zweeft over de onderkant van het bord.
+      De view meet op iOS de werkelijke overlap en zet die als
+      --tk-bottom-inset op de container; elders blijft de variabele 0px.
+   2. Het toetsenbord verkleint de webview niet; Obsidian verkleint alleen de
+      .app-container (via --keyboard-height), maar modals hangen op
+      body-niveau. installIosKeyboardFix() meet daarom zelf de hoogte
+      (--tk-kb) en hieronder schuift de modal als bottom-sheet mee omhoog,
+      zodat titel, subtaken en knoppen nooit achter het toetsenbord zitten. */
+.trietment-kanban-container > .tk-board {
+  padding-bottom: calc(12px + var(--tk-bottom-inset, 0px));
+}
+.trietment-kanban-container > .tk-lanes {
+  padding-bottom: calc(12px + var(--tk-bottom-inset, 0px));
+}
+.trietment-kanban-container > .tk-bulk-bar {
+  margin-bottom: calc(12px + var(--tk-bottom-inset, 0px));
+}
+
+/* iPhone-modals als bottom-sheet die boven het toetsenbord blijft. --tk-kb
+   komt uit installIosKeyboardFix(), --keyboard-height houdt Obsidian zelf
+   bij; max() pakt de betrouwbaarste van de twee. */
+body.is-ios.is-phone .modal.tk-ios-modal {
+  position: absolute;
+  top: auto;
+  bottom: max(var(--tk-kb, 0px), var(--keyboard-height, 0px));
+  max-height: calc(100vh - var(--safe-area-inset-top, 0px) - max(var(--tk-kb, 0px), var(--keyboard-height, 0px)));
+  transition: bottom 120ms ease-out, max-height 120ms ease-out;
+}
+/* Onderste inhoud (o.a. de Voeg toe/Opslaan-knoppen en de subtaak-invoer)
+   uit de home-indicator-zone houden zolang het toetsenbord dicht is. */
+body.is-ios.is-phone .modal.tk-ios-modal .modal-content {
+  padding-bottom: calc(16px + var(--safe-area-inset-bottom, 0px));
+}
