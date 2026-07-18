@@ -3313,8 +3313,12 @@ class OutlookManager {
 //     de modal-inhoud (o.a. de subtaak-invoer onderin het bewerk-venster).
 function installIosKeyboardFix(modal) {
   if (!Platform.isIosApp) return;
-  const { modalEl, contentEl } = modal;
+  const { modalEl, contentEl, containerEl } = modal;
   modalEl.addClass('tk-ios-modal');
+  // Bottom-sheet via de container (align-items) i.p.v. de modal absoluut te
+  // positioneren: zo blijft Obsidians eigen breedte/centrering gelden en
+  // lijnt de sheet links en rechts exact zoals elke andere modal.
+  containerEl.addClass('tk-ios-modal-container');
 
   const vv = window.visualViewport;
   let capKb = 0;    // hoogte volgens Capacitor-events (iOS meldt die vooraf)
@@ -3335,7 +3339,8 @@ function installIosKeyboardFix(modal) {
 
   const update = () => {
     unpan();
-    modalEl.style.setProperty('--tk-kb', kbHeight() + 'px');
+    // Op de container: de CSS leest de variabele op zowel container als modal.
+    containerEl.style.setProperty('--tk-kb', kbHeight() + 'px');
   };
 
   // Actief veld in beeld brengen binnen de scroller van de modal.
