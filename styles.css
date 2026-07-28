@@ -1339,3 +1339,26 @@ body.is-phone .tk-board-single .tk-col-head {
 body.is-phone .tk-groupby {
   display: none;
 }
+
+/* ---- Telefoon: ⋮-menu op de kaart ---------------------------------------
+   Slepen werkt niet in de iOS-webview; verplaatsen gaat via dit menu. Beide
+   knoppen in de actiebalk krijgen een duimformaat raakvlak zonder de kop
+   hoger te maken: de knop zelf blijft compact, het raakvlak groeit via een
+   pseudo-element eroverheen. */
+body.is-phone .tk-card-actions button {
+  position: relative;
+  padding: var(--size-4-1) var(--size-4-2);
+}
+body.is-phone .tk-card-actions button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+body.is-phone .tk-card-menu-btn {
+  font-size: 1.2em;
+  line-height: 1;
+}

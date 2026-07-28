@@ -1,7 +1,7 @@
 'use strict';
 
 const obsidian = require('obsidian');
-const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, MarkdownView, Platform } = obsidian;
+const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, MarkdownView, Platform, Menu } = obsidian;
 
 const VIEW_TYPE_KANBAN = 'trietment-kanban-view';
 const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
@@ -223,6 +223,9 @@ const TRANSLATIONS = {
     n_selected: '{n} geselecteerd',
     bulk_move: 'Verplaats',
     bulk_moved_n: '{n} kaart(en) verplaatst.',
+    card_menu: 'Kaartacties',
+    move_to_col: 'Verplaats naar {col}',
+    moved_to_col: 'Verplaatst naar {col}.',
     add: 'Voeg toe',
     task_required: 'Taaktekst is verplicht.',
     // Edit task modal
@@ -480,6 +483,9 @@ const TRANSLATIONS = {
     n_selected: '{n} selected',
     bulk_move: 'Move',
     bulk_moved_n: '{n} card(s) moved.',
+    card_menu: 'Card actions',
+    move_to_col: 'Move to {col}',
+    moved_to_col: 'Moved to {col}.',
     add: 'Add',
     task_required: 'Task text is required.',
     edit_modal_title: 'Edit task',
@@ -2579,15 +2585,58 @@ class KanbanView extends ItemView {
 
     // Acties (verwijderen) — in de header zodat ze ook op mobiel bereikbaar zijn
     const actions = headRight.createDiv({ cls: 'tk-card-actions' });
-    const delBtn = actions.createEl('button', { text: '×', title: this.plugin.t('delete') });
-    delBtn.onclick = (e) => {
-      e.stopPropagation();
+
+    const confirmDelete = () => {
       const extra = subtasks.length ? this.plugin.t('delete_extra', { n: subtasks.length }) : '';
       const msg = this.plugin.t('confirm_delete', { text: task.text, extra });
       new ConfirmModal(this.app, this.plugin, msg, async () => {
         await this.plugin.deleteTask(task);
         this.plugin.scheduleRefresh();
       }).open();
+    };
+
+    // Telefoon: slepen werkt niet in de iOS-webview, dus krijgt elke kaart een
+    // ⋮-menu om te verplaatsen. Desktop houdt drag-and-drop en krijgt de knop
+    // niet. Het menu draait op moveTask — geen tweede schrijfpad.
+    if (this.isPhoneLayout()) {
+      const menuBtn = actions.createEl('button', { cls: 'tk-card-menu-btn', text: '⋮', title: this.plugin.t('card_menu') });
+      // De kaart start een selectiemodus na 500 ms touchstart; die timer mag
+      // niet lopen als je het menu aantikt.
+      menuBtn.addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+      menuBtn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const menu = new Menu();
+        const current = (task.column && this.plugin.settings.columns.includes(task.column)) ? task.column : 'inbox';
+        const targets = [...this.plugin.settings.columns];
+        if (this.plugin.settings.showInbox) targets.unshift('inbox');
+        for (const col of targets) {
+          if (col === current) continue;
+          const label = col === 'inbox'
+            ? this.plugin.t('inbox')
+            : (this.plugin.settings.columnLabels[col] || col);
+          menu.addItem((item) => item
+            .setTitle(this.plugin.t('move_to_col', { col: label }))
+            .setIcon('arrow-right')
+            .onClick(async () => {
+              await this.plugin.moveTask(taskId, col);
+              new Notice(this.plugin.t('moved_to_col', { col: label }));
+              this.plugin.scheduleRefresh();
+            }));
+        }
+        menu.addSeparator();
+        menu.addItem((item) => item
+          .setTitle(this.plugin.t('delete'))
+          .setIcon('trash')
+          .onClick(() => confirmDelete()));
+        menu.showAtMouseEvent(e);
+      };
+    }
+
+    const delBtn = actions.createEl('button', { text: '×', title: this.plugin.t('delete') });
+    delBtn.onclick = (e) => {
+      e.stopPropagation();
+      confirmDelete();
     };
 
     // Checkbox + text
