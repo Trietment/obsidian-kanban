@@ -48,8 +48,16 @@ jobs:
           else
             NOTES=(--notes="Automated release for $TAG. See the README for details.")
           fi
-          gh release create "$TAG" \
-            --title="$TAG" \
-            "${NOTES[@]}" \
-            --target="$GITHUB_SHA" \
-            main.js manifest.json styles.css
+          # RELEASING.md laat de release met de hand aanmaken; het aanmaken zet
+          # ook de tag, waardoor deze workflow alsnog start. Bestaat de release
+          # dus al, dan alleen de assets bijwerken in plaats van falen.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG bestaat al — assets bijwerken."
+            gh release upload "$TAG" main.js manifest.json styles.css --clobber
+          else
+            gh release create "$TAG" \
+              --title="$TAG" \
+              "${NOTES[@]}" \
+              --target="$GITHUB_SHA" \
+              main.js manifest.json styles.css
+          fi
