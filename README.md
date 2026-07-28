@@ -15,18 +15,22 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
 <!-- LATEST-EN:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
-### New in 1.15.2
+### New in 1.16.0
 
-**Fixed: dialog alignment on iPhone — and the full changelog on the plugin page**
+**New: a phone board you can actually use — and writes that survive sync**
 
-- **Dialogs line up again on iPhone.** The bottom-sheet fix in 1.15.1 took the add/edit dialogs out of Obsidian's own centering, pushing them against the left edge with a gap on the right. They now use Obsidian's normal centering again (only anchored to the bottom), so they line up exactly like every other dialog.
-- **All changes visible when installing.** Obsidian's community-plugins page shows a plugin's README — release notes and CHANGELOG.md never appear there. The README now ends with the full changelog, so you can read every version's changes right on the plugin page.
+- **One column at a time on your phone.** Four columns side by side never fit on a phone screen. The board now shows one column at full width, with a scrollable row of chips above it to switch between them. Each chip names the column and how many cards are in it, following your filter and "hide done". The board remembers which column you were on, per board. Tablets and desktop keep the familiar column grid.
+- **Move cards without dragging.** Drag-and-drop has never worked in the iOS webview, so on iPhone a card could only be moved via selection mode. Every card now has a ⋮ button with "Move to …" for each other column, Inbox included — plus the same delete action as the × button. Long-press for multi-select still works alongside it.
+- **No more edits lost to sync.** Every change to a note read the file and saved it back as two separate steps. If Obsidian Sync changed that same note in between, saving overwrote the synced change. Reading and writing now happen as one atomic step, so two devices working on the same note no longer overwrite each other. This covers every write: moving, bulk moving, auto-move, completing, subtasks, adding and deleting tasks, and every field in the edit dialog.
+- **Swimlanes are skipped on phones.** Lanes on top of a single column is too much for that screen, so the "Group by" control is hidden there. Tablet and desktop are unchanged.
+- **Now requires Obsidian 1.5 or newer** (was 1.4), for the atomic writes above.
 <!-- LATEST-EN:END -->
 
 ## Features
 
 - **Tasks from your whole vault** — every `- [ ]` checkbox with a `#kanban/` tag appears on the board.
-- **Dynamic columns** — defaults: To do / In progress / Waiting for response / Done. Add, rename, reorder or remove columns in the settings. Drag cards between columns (desktop) or change the column in the edit modal (mobile).
+- **Dynamic columns** — defaults: To do / In progress / Waiting for response / Done. Add, rename, reorder or remove columns in the settings. Drag cards between columns (desktop), or use a card's ⋮ menu or the edit modal (phone).
+- **Made for phones** — on a phone the board shows one column at full width with a row of chips above it to switch columns (each with its card count), and every card gets a ⋮ menu to move or delete it without dragging. Tablets and desktop keep the multi-column grid.
 - **Bilingual (EN/NL)** — the whole interface is available in English and Dutch. By default the plugin follows the Obsidian language; you can also choose manually.
 - **Projects with colors** — group with `#project/name`, each with its own color and optional label. Subprojects (`#project/client/acme`) are supported.
 - **Clients** — a second colored tag dimension with `#client/name` alongside the project, so a card can carry both a client and a project.
@@ -162,18 +166,22 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
 <!-- LATEST-NL:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
-### Nieuw in 1.15.2
+### Nieuw in 1.16.0
 
-**Opgelost: uitlijning van vensters op de iPhone — en de volledige changelog op de pluginpagina**
+**Nieuw: een telefoonbord dat echt werkt — en schrijfacties die een sync overleven**
 
-- **Vensters lijnen weer netjes uit op de iPhone.** De bottom-sheet-fix uit 1.15.1 haalde de toevoeg-/bewerkvensters uit Obsidians eigen centrering, waardoor ze tegen de linkerrand vielen met rechts een kier. Ze gebruiken nu weer de normale centrering (alleen onderaan verankerd), zodat ze precies uitlijnen zoals elk ander venster.
-- **Alle wijzigingen zichtbaar bij installeren.** De community-plugins-pagina van Obsidian toont de README van een plugin — release notes en CHANGELOG.md verschijnen daar nooit. De README eindigt nu met de volledige changelog, zodat je op de pluginpagina per versie alle wijzigingen kunt lezen.
+- **Eén kolom tegelijk op je telefoon.** Vier kolommen naast elkaar passen nooit op een telefoonscherm. Het bord toont nu één kolom op volle breedte, met daarboven een scrollbare rij chips om te wisselen. Elke chip noemt de kolom en het aantal kaarten erin, en volgt je filter en "verberg klaar". Het bord onthoudt per bord welke kolom je open had staan. Tablet en desktop houden het vertrouwde kolommenraster.
+- **Kaarten verplaatsen zonder slepen.** Slepen heeft nooit gewerkt in de iOS-webview, dus op de iPhone kon een kaart alleen via de selectiemodus verplaatst worden. Elke kaart heeft nu een ⋮-knop met "Verplaats naar …" voor elke andere kolom, Inbox inbegrepen — plus dezelfde verwijderactie als de ×-knop. Lang indrukken voor meervoudige selectie blijft daarnaast gewoon werken.
+- **Geen wijzigingen meer kwijt door sync.** Elke wijziging in een notitie las het bestand en schreef het in een aparte stap terug. Wijzigde Obsidian Sync diezelfde notitie ertussenin, dan overschreef het opslaan die sync-wijziging. Lezen en schrijven gebeuren nu als één ondeelbare stap, zodat twee apparaten in dezelfde notitie elkaar niet meer overschrijven. Dit geldt voor élke schrijfactie: verplaatsen, bulk verplaatsen, automatisch verplaatsen, afvinken, subtaken, taken toevoegen en verwijderen, en elk veld in het bewerkvenster.
+- **Banen worden overgeslagen op de telefoon.** Banen bovenop één kolom is te veel voor dat scherm, dus de keuze "Groeperen in banen" is daar verborgen. Tablet en desktop blijven ongewijzigd.
+- **Vraagt nu Obsidian 1.5 of nieuwer** (was 1.4), voor de atomaire schrijfacties hierboven.
 <!-- LATEST-NL:END -->
 
 ## Functies
 
 - **Taken uit je hele vault** — elke `- [ ]` checkbox met een `#kanban/`-tag verschijnt op het bord.
-- **Dynamische kolommen** — standaard: Te doen / Bezig / Wacht op reactie / Klaar. Voeg in de instellingen zelf kolommen toe, hernoem ze, wijzig de volgorde of verwijder ze. Sleep kaarten tussen kolommen (desktop) of wijzig de kolom in de edit-modal (mobiel).
+- **Dynamische kolommen** — standaard: Te doen / Bezig / Wacht op reactie / Klaar. Voeg in de instellingen zelf kolommen toe, hernoem ze, wijzig de volgorde of verwijder ze. Sleep kaarten tussen kolommen (desktop), of gebruik het ⋮-menu op een kaart of de edit-modal (telefoon).
+- **Gemaakt voor de telefoon** — op een telefoon toont het bord één kolom op volle breedte, met daarboven een rij chips om te wisselen (elk met het aantal kaarten), en heeft elke kaart een ⋮-menu om te verplaatsen of te verwijderen zonder slepen. Tablet en desktop houden het kolommenraster.
 - **Tweetalig (NL/EN)** — de hele interface is beschikbaar in het Nederlands en het Engels. Standaard volgt de plugin de taal van Obsidian; je kunt ook handmatig kiezen.
 - **Projecten met kleuren** — groepeer met `#project/naam`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/acme`) worden ondersteund.
 - **Klanten** — een tweede gekleurde tag-dimensie met `#client/naam` naast het project, zodat een kaart zowel een klant als een project kan dragen.
@@ -297,6 +305,28 @@ Aanmeld-tokens worden per apparaat bewaard (in lokale opslag, niet in `data.json
 All changes per version, in English and Dutch — this is what you see on the plugin page in Obsidian. / Alle wijzigingen per versie, in het Engels en Nederlands — dit is wat je op de pluginpagina in Obsidian ziet.
 
 <!-- CHANGELOG:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
+## 1.16.0
+
+**New: a phone board you can actually use — and writes that survive sync**
+
+- **One column at a time on your phone.** Four columns side by side never fit on a phone screen. The board now shows one column at full width, with a scrollable row of chips above it to switch between them. Each chip names the column and how many cards are in it, following your filter and "hide done". The board remembers which column you were on, per board. Tablets and desktop keep the familiar column grid.
+- **Move cards without dragging.** Drag-and-drop has never worked in the iOS webview, so on iPhone a card could only be moved via selection mode. Every card now has a ⋮ button with "Move to …" for each other column, Inbox included — plus the same delete action as the × button. Long-press for multi-select still works alongside it.
+- **No more edits lost to sync.** Every change to a note read the file and saved it back as two separate steps. If Obsidian Sync changed that same note in between, saving overwrote the synced change. Reading and writing now happen as one atomic step, so two devices working on the same note no longer overwrite each other. This covers every write: moving, bulk moving, auto-move, completing, subtasks, adding and deleting tasks, and every field in the edit dialog.
+- **Swimlanes are skipped on phones.** Lanes on top of a single column is too much for that screen, so the "Group by" control is hidden there. Tablet and desktop are unchanged.
+- **Now requires Obsidian 1.5 or newer** (was 1.4), for the atomic writes above.
+
+---
+
+### Nederlands
+
+**Nieuw: een telefoonbord dat echt werkt — en schrijfacties die een sync overleven**
+
+- **Eén kolom tegelijk op je telefoon.** Vier kolommen naast elkaar passen nooit op een telefoonscherm. Het bord toont nu één kolom op volle breedte, met daarboven een scrollbare rij chips om te wisselen. Elke chip noemt de kolom en het aantal kaarten erin, en volgt je filter en "verberg klaar". Het bord onthoudt per bord welke kolom je open had staan. Tablet en desktop houden het vertrouwde kolommenraster.
+- **Kaarten verplaatsen zonder slepen.** Slepen heeft nooit gewerkt in de iOS-webview, dus op de iPhone kon een kaart alleen via de selectiemodus verplaatst worden. Elke kaart heeft nu een ⋮-knop met "Verplaats naar …" voor elke andere kolom, Inbox inbegrepen — plus dezelfde verwijderactie als de ×-knop. Lang indrukken voor meervoudige selectie blijft daarnaast gewoon werken.
+- **Geen wijzigingen meer kwijt door sync.** Elke wijziging in een notitie las het bestand en schreef het in een aparte stap terug. Wijzigde Obsidian Sync diezelfde notitie ertussenin, dan overschreef het opslaan die sync-wijziging. Lezen en schrijven gebeuren nu als één ondeelbare stap, zodat twee apparaten in dezelfde notitie elkaar niet meer overschrijven. Dit geldt voor élke schrijfactie: verplaatsen, bulk verplaatsen, automatisch verplaatsen, afvinken, subtaken, taken toevoegen en verwijderen, en elk veld in het bewerkvenster.
+- **Banen worden overgeslagen op de telefoon.** Banen bovenop één kolom is te veel voor dat scherm, dus de keuze "Groeperen in banen" is daar verborgen. Tablet en desktop blijven ongewijzigd.
+- **Vraagt nu Obsidian 1.5 of nieuwer** (was 1.4), voor de atomaire schrijfacties hierboven.
+
 ## 1.15.2
 
 **Fixed: dialog alignment on iPhone — and the full changelog on the plugin page**

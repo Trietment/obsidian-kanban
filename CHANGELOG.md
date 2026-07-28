@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.16.0
+
+**New: a phone board you can actually use — and writes that survive sync**
+
+- **One column at a time on your phone.** Four columns side by side never fit on a phone screen. The board now shows one column at full width, with a scrollable row of chips above it to switch between them. Each chip names the column and how many cards are in it, following your filter and "hide done". The board remembers which column you were on, per board. Tablets and desktop keep the familiar column grid.
+- **Move cards without dragging.** Drag-and-drop has never worked in the iOS webview, so on iPhone a card could only be moved via selection mode. Every card now has a ⋮ button with "Move to …" for each other column, Inbox included — plus the same delete action as the × button. Long-press for multi-select still works alongside it.
+- **No more edits lost to sync.** Every change to a note read the file and saved it back as two separate steps. If Obsidian Sync changed that same note in between, saving overwrote the synced change. Reading and writing now happen as one atomic step, so two devices working on the same note no longer overwrite each other. This covers every write: moving, bulk moving, auto-move, completing, subtasks, adding and deleting tasks, and every field in the edit dialog.
+- **Swimlanes are skipped on phones.** Lanes on top of a single column is too much for that screen, so the "Group by" control is hidden there. Tablet and desktop are unchanged.
+- **Now requires Obsidian 1.5 or newer** (was 1.4), for the atomic writes above.
+
+---
+
+### Nederlands
+
+**Nieuw: een telefoonbord dat echt werkt — en schrijfacties die een sync overleven**
+
+- **Eén kolom tegelijk op je telefoon.** Vier kolommen naast elkaar passen nooit op een telefoonscherm. Het bord toont nu één kolom op volle breedte, met daarboven een scrollbare rij chips om te wisselen. Elke chip noemt de kolom en het aantal kaarten erin, en volgt je filter en "verberg klaar". Het bord onthoudt per bord welke kolom je open had staan. Tablet en desktop houden het vertrouwde kolommenraster.
+- **Kaarten verplaatsen zonder slepen.** Slepen heeft nooit gewerkt in de iOS-webview, dus op de iPhone kon een kaart alleen via de selectiemodus verplaatst worden. Elke kaart heeft nu een ⋮-knop met "Verplaats naar …" voor elke andere kolom, Inbox inbegrepen — plus dezelfde verwijderactie als de ×-knop. Lang indrukken voor meervoudige selectie blijft daarnaast gewoon werken.
+- **Geen wijzigingen meer kwijt door sync.** Elke wijziging in een notitie las het bestand en schreef het in een aparte stap terug. Wijzigde Obsidian Sync diezelfde notitie ertussenin, dan overschreef het opslaan die sync-wijziging. Lezen en schrijven gebeuren nu als één ondeelbare stap, zodat twee apparaten in dezelfde notitie elkaar niet meer overschrijven. Dit geldt voor élke schrijfactie: verplaatsen, bulk verplaatsen, automatisch verplaatsen, afvinken, subtaken, taken toevoegen en verwijderen, en elk veld in het bewerkvenster.
+- **Banen worden overgeslagen op de telefoon.** Banen bovenop één kolom is te veel voor dat scherm, dus de keuze "Groeperen in banen" is daar verborgen. Tablet en desktop blijven ongewijzigd.
+- **Vraagt nu Obsidian 1.5 of nieuwer** (was 1.4), voor de atomaire schrijfacties hierboven.
+
 ## 1.15.2
 
 **Fixed: dialog alignment on iPhone — and the full changelog on the plugin page**
