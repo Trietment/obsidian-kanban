@@ -283,7 +283,7 @@ const TRANSLATIONS = {
     inbox_note: 'Inbox-note',
     inbox_note_desc: 'Standaardbestand voor nieuwe taken. Wordt aangemaakt als het niet bestaat.',
     show_inbox: 'Inbox-kolom tonen',
-    show_inbox_desc: 'Toon taken zonder #kanban/ tag in een aparte Inbox-kolom.',
+    show_inbox_desc: 'Toon ópen taken zonder #kanban/ tag in een aparte Inbox-kolom. Vink je zo\'n taak af (waar dan ook), dan verhuist hij naar de afgerond-kolom.',
     hide_empty_inbox: 'Lege Inbox verbergen',
     hide_empty_inbox_desc: 'Verberg de Inbox-kolom op het bord zolang er geen kaarten in staan. (Alleen van toepassing als "Inbox-kolom tonen" aan staat.)',
     collect_kanban_notes: 'Taken uit #kanban-notities',
@@ -541,7 +541,7 @@ const TRANSLATIONS = {
     inbox_note: 'Inbox note',
     inbox_note_desc: 'Default file for new tasks. Created if it does not exist.',
     show_inbox: 'Show inbox column',
-    show_inbox_desc: 'Show tasks without a #kanban/ tag in a separate Inbox column.',
+    show_inbox_desc: 'Show open tasks without a #kanban/ tag in a separate Inbox column. Checking such a task (anywhere) moves it to the done column.',
     hide_empty_inbox: 'Hide empty inbox',
     hide_empty_inbox_desc: 'Hide the Inbox column on the board while it has no cards. (Only applies when "Show inbox column" is on.)',
     collect_kanban_notes: 'Tasks from #kanban notes',
@@ -1051,9 +1051,12 @@ module.exports = class KanbanPlugin extends Plugin {
             current = null; currentWidth = 0; skipWidth = w;
             continue;
           }
-          // In een #kanban-notitie: afgevinkte taken → afgerond-kolom; open taken
-          // blijven kolomloos en landen in de Inbox als intake (sleep ze naar een kolom).
-          if (kanbanNote && !parsed.column && parsed.done) parsed.column = this.settings.doneColumn;
+          // Afgevinkt zonder eigen #kanban/-tag → afgerond-kolom. Dit vangt taken
+          // die búiten het bord zijn afgevinkt (in de notitie zelf, in leesweergave,
+          // via een andere plugin) en anders als afgevinkte kaart in de Inbox bleven
+          // hangen. De Inbox is intake voor ópen taken; open taken zonder kolom
+          // blijven daar dus wél staan om te sorteren.
+          if (!parsed.column && parsed.done) parsed.column = this.settings.doneColumn;
           tasks.push(parsed);
           current = parsed;
           currentWidth = w;
