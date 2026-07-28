@@ -1910,6 +1910,8 @@ class KanbanView extends ItemView {
     this.selectMode = false;
     this.selected = new Set();   // taskId's ("pad::regel")
     this.bulkTarget = null;      // laatst gekozen doelkolom in de balk
+    // Telefoon: welke kolom staat er in beeld, per bord-id (zie renderPhoneBoard).
+    this.activeColumns = {};
   }
 
   getViewType() { return VIEW_TYPE_KANBAN; }
@@ -1918,6 +1920,32 @@ class KanbanView extends ItemView {
 
   async onOpen() { await this.render(); }
   async onClose() {}
+
+  // De actieve kolom hoort bij deze view, niet bij de plugin-settings: elke
+  // schrijfactie naar data.json of naar een notitie is een sync-risico. Via de
+  // view-state overleeft de keuze een re-render én het herstellen van de leaf.
+  getState() {
+    const state = super.getState() || {};
+    state.activeColumns = { ...this.activeColumns };
+    return state;
+  }
+
+  async setState(state, result) {
+    if (state && state.activeColumns && typeof state.activeColumns === 'object') {
+      this.activeColumns = { ...state.activeColumns };
+    }
+    return super.setState(state, result);
+  }
+
+  // Telefoons krijgen de gestapelde single-column-layout; tablets en desktop
+  // houden het kolommenraster. De body-class is leidend omdat de CSS daar ook
+  // op scopet — zo blijven JS en CSS het altijd eens, ook onder
+  // app.emulateMobile() bij het testen op desktop. Platform.isPhone is de
+  // fallback, en Platform.isMobile weer daaronder voor oudere API-versies.
+  isPhoneLayout() {
+    if (document.body.classList.contains('is-phone')) return true;
+    return Platform.isPhone !== undefined ? !!Platform.isPhone : !!Platform.isMobile;
+  }
 
   async loadTasks() {
     this.tasks = await this.plugin.scanTasks();
@@ -2074,8 +2102,13 @@ class KanbanView extends ItemView {
     if (!container) return state;
     const lanes = container.querySelector('.tk-lanes');
     if (lanes && lanes.scrollTop) state.lanes = lanes.scrollTop;
+    const strip = container.querySelector('.tk-col-switch');
+    if (strip && strip.scrollLeft) state.switch = strip.scrollLeft;
     container.querySelectorAll('.tk-board').forEach((el) => {
       if (el.scrollLeft) state[`board:${this.scrollLaneOf(el)}`] = el.scrollLeft;
+      // Op de telefoon staan de kolommen gestapeld en is het bord de verticale
+      // scroller; op desktop blijft scrollTop 0 en slaat dit niets op.
+      if (el.scrollTop) state[`boardY:${this.scrollLaneOf(el)}`] = el.scrollTop;
     });
     container.querySelectorAll('.tk-column').forEach((col) => {
       const cards = col.querySelector('.tk-cards');
@@ -2088,9 +2121,13 @@ class KanbanView extends ItemView {
     if (!state) return;
     const lanes = container.querySelector('.tk-lanes');
     if (lanes && state.lanes != null) lanes.scrollTop = state.lanes;
+    const strip = container.querySelector('.tk-col-switch');
+    if (strip && state.switch != null) strip.scrollLeft = state.switch;
     container.querySelectorAll('.tk-board').forEach((el) => {
       const v = state[`board:${this.scrollLaneOf(el)}`];
       if (v != null) el.scrollLeft = v;
+      const vy = state[`boardY:${this.scrollLaneOf(el)}`];
+      if (vy != null) el.scrollTop = vy;
     });
     container.querySelectorAll('.tk-column').forEach((col) => {
       const v = state[`cards:${this.scrollLaneOf(col)}:${col.dataset.column}`];
@@ -2103,9 +2140,11 @@ class KanbanView extends ItemView {
     // Zonder meegegeven snapshot (filter/banen/verberg-klaar) zelf vastleggen
     // vóór de teardown; render() geeft 'm mee omdat die de container al leegt.
     const state = scroll || this.captureScroll(container);
-    container.querySelectorAll('.tk-board, .tk-lanes').forEach((e) => e.remove());
+    container.querySelectorAll('.tk-board, .tk-lanes, .tk-col-switch').forEach((e) => e.remove());
 
-    if (this.groupBy && this.groupBy !== 'none') {
+    if (this.isPhoneLayout()) {
+      this.renderPhoneBoard(container);
+    } else if (this.groupBy && this.groupBy !== 'none') {
       this.renderLanes(container);
     } else {
       const board = container.createDiv({ cls: 'tk-board' });
@@ -2117,6 +2156,51 @@ class KanbanView extends ItemView {
     }
     this.restoreScroll(container, state);
     this.applyIosBottomInset(container);
+  }
+
+  // Telefoon: vijf kolommen naast elkaar passen niet en onder elkaar scrol je
+  // je duim blauw. Toon er daarom één tegelijk, met een horizontaal
+  // scrollbare chiprij erboven om te wisselen. Swimlanes worden hier bewust
+  // genegeerd — twee niveaus van groepering is te veel voor dit scherm.
+  renderPhoneBoard(container) {
+    const columns = [...this.plugin.settings.columns];
+    if (this.showInboxColumn()) columns.unshift('inbox');
+    if (!columns.length) {
+      container.createDiv({ cls: 'tk-board tk-board-single' });
+      return;
+    }
+
+    const boardId = this.board ? this.board.id : 'default';
+    // De onthouden kolom kan hernoemd of verwijderd zijn, of (bij Inbox) net
+    // verborgen omdat hij leeg raakte: val dan terug op de eerste chip.
+    let active = this.activeColumns[boardId];
+    if (!columns.includes(active)) active = columns[0];
+    this.activeColumns[boardId] = active;
+
+    const strip = container.createDiv({ cls: 'tk-col-switch' });
+    for (const col of columns) {
+      const chip = strip.createEl('button', { cls: 'tk-col-chip' });
+      chip.dataset.column = col;
+      const label = col === 'inbox'
+        ? this.plugin.t('inbox')
+        : (this.plugin.settings.columnLabels[col] || col);
+      chip.createSpan({ cls: 'tk-col-chip-label', text: label });
+      chip.createSpan({ cls: 'tk-col-chip-count', text: String(this.tasksForColumn(col).length) });
+      if (col === active) chip.addClass('tk-col-chip-active');
+      chip.onclick = () => {
+        if (this.activeColumns[boardId] === col) return;
+        this.activeColumns[boardId] = col;
+        // Andere kolom = andere inhoud: bovenaan beginnen in plaats van de
+        // scrollpositie van de vorige kolom overnemen. De chiprij zelf houdt
+        // zijn horizontale positie wél vast.
+        const state = this.captureScroll(container);
+        delete state['boardY:'];
+        this.renderBoard(container, state);
+      };
+    }
+
+    const board = container.createDiv({ cls: 'tk-board tk-board-single' });
+    this.renderColumn(board, active);
   }
 
   // iOS: de navigatiebalk van Obsidian en/of de home-indicator zweven daar

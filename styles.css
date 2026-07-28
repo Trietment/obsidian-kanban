@@ -1283,3 +1283,59 @@ body.is-phone .tk-bulk-bar .dropdown,
 body.is-phone .tk-bulk-bar .tk-btn {
   min-height: 44px;
 }
+
+/* ---- Telefoon: kolom-switcher -------------------------------------------
+   Eén kolom tegelijk in beeld (renderPhoneBoard), met daarboven een
+   horizontaal scrollbare rij chips om te wisselen. */
+body.is-phone .tk-col-switch {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  display: flex;
+  gap: var(--size-4-2);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  padding: var(--size-4-1) 0 var(--size-4-2);
+  background: var(--background-primary);
+}
+body.is-phone .tk-col-switch::-webkit-scrollbar {
+  display: none;
+}
+body.is-phone .tk-col-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-height: 44px;
+  padding: 0 var(--size-4-3);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  white-space: nowrap;
+  cursor: pointer;
+}
+body.is-phone .tk-col-chip-active {
+  background: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+body.is-phone .tk-col-chip-count {
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* De actieve chip vertelt al welke kolom dit is en hoeveel kaarten erin
+   zitten; de kolomkop eronder zou datzelfde herhalen én met de sticky chiprij
+   om dezelfde bovenrand vechten. */
+body.is-phone .tk-board-single .tk-col-head {
+  display: none;
+}
+
+/* Swimlanes worden op de telefoon genegeerd: verberg de keuze in plaats van
+   een dropdown te tonen die daar niets doet. */
+body.is-phone .tk-groupby {
+  display: none;
+}
