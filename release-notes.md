@@ -1,13 +1,13 @@
-## Housekeeping: no functional changes
+## Checked cards no longer linger in the Inbox
 
-Everything new is in [1.16.0](https://github.com/Trietment/obsidian-kanban/releases/tag/1.16.0) — the phone board with one column at a time, the ⋮ move menu, and atomic writes. This release only cleans up after it.
-
-- **Dead phone styling removed.** The single-column board from 1.16.0 made a handful of stylesheet rules unreachable (the sticky column header it now hides, and the swimlane rules for a layout that no longer renders on phones). Removed — behaviour on every device is unchanged.
-- **Releases no longer leave a failed build.** The release workflow starts on the version tag, but the release is created by hand, so the workflow always tripped over "a release with the same tag name already exists". It now updates the assets instead of failing.
+- **Completing a task outside the board now moves it to the done column.** Ticking a card on the board has always tagged the line `#kanban/done`. Ticking that same task anywhere else — in the note itself, in reading view, on your phone, from another plugin — only changed the checkbox. With no `#kanban/` tag on the line the card fell back to the Inbox, so finished work piled up in the one column meant for sorting. A checked task without its own column tag now lands in the done column. Open tasks without a tag still go to the Inbox: that is what it is for.
+- **Nothing is written to your notes.** This is purely how the board reads them, so it takes effect immediately for tasks you completed long ago, and unticking a card sends it straight back to the Inbox. It also means no automatic write that two devices could merge into a broken tag mid-sync.
+- **A quieter Inbox, a fuller done column.** The board reads every checkbox in your vault, so checked lines from ordinary notes now surface in the done column instead of the Inbox. They were always on the board — just in the wrong place. "Hide done" settles the view; *Folders to exclude* or "Tasks from #kanban notes" narrows what reaches the board at all.
 
 ### Nederlands
 
-Al het nieuwe zit in [1.16.0](https://github.com/Trietment/obsidian-kanban/releases/tag/1.16.0) — het telefoonbord met één kolom tegelijk, het ⋮-verplaatsmenu en de atomaire schrijfacties. Deze release ruimt daar alleen achter op.
+**Afgevinkte kaarten blijven niet meer in de Inbox hangen**
 
-- **Dode telefoon-styling verwijderd.** Het single-column-bord uit 1.16.0 maakte een handvol stijlregels onbereikbaar (de sticky kolomkop die nu verborgen wordt, en de banen-regels voor een layout die op telefoons niet meer rendert). Weggehaald — het gedrag op elk apparaat blijft gelijk.
-- **Een release laat geen mislukte build meer achter.** De release-workflow start op de versietag, maar de release wordt met de hand aangemaakt, dus struikelde de workflow altijd over "a release with the same tag name already exists". Hij werkt nu de assets bij in plaats van te falen.
+- **Buiten het bord afvinken verplaatst de taak nu naar de afgerond-kolom.** Een kaart afvinken op het bord zette altijd `#kanban/done` achter de regel. Diezelfde taak érgens anders afvinken — in de notitie zelf, in leesweergave, op je telefoon, vanuit een andere plugin — veranderde alleen het vinkje. Zonder `#kanban/`-tag op de regel viel de kaart terug op de Inbox, dus stapelde afgerond werk zich op in juist die ene kolom die voor sorteren bedoeld is. Een afgevinkte taak zonder eigen kolom-tag komt nu in de afgerond-kolom. Open taken zonder tag blijven in de Inbox: daar is hij voor.
+- **Er wordt niets naar je notities geschreven.** Dit is puur hoe het bord ze léést, dus het geldt meteen ook voor taken die je lang geleden afvinkte, en een kaart weer uitvinken stuurt hem direct terug naar de Inbox. Het betekent ook: geen automatische schrijfactie die twee apparaten tijdens een sync tot een kapotte tag kunnen samenvoegen.
+- **Een rustigere Inbox, een vollere afgerond-kolom.** Het bord leest élk vinkje in je vault, dus afgevinkte regels uit gewone notities komen nu in de afgerond-kolom terecht in plaats van in de Inbox. Ze stonden altijd al op het bord — alleen op de verkeerde plek. "Verberg klaar" maakt het rustig; *Mappen uitsluiten* of "Taken uit #kanban-notities" beperkt wat er überhaupt op het bord komt.
