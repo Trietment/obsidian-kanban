@@ -1212,3 +1212,74 @@ body.is-ios.is-phone .modal.tk-ios-modal {
 body.is-ios.is-phone .modal.tk-ios-modal .modal-content {
   padding-bottom: calc(16px + var(--safe-area-inset-bottom, 0px));
 }
+
+/* ---- Telefoon: verticale stack ------------------------------------------
+   Obsidian zet `.is-phone` alléén op telefoons; `.is-mobile` matcht ook
+   tablets en die houden bewust de desktop-layout. Elke regel hieronder is
+   daarom op body.is-phone gescoped — desktop en tablet blijven ongewijzigd. */
+
+/* Kolommen onder elkaar; het bord is de enige verticale scroller. De ruimte
+   onder het bord komt van de iOS-regels hierboven (--tk-bottom-inset): die
+   meet de werkelijke overlap en is nauwkeuriger dan env(safe-area-inset-*). */
+body.is-phone .tk-board {
+  flex-direction: column;
+  min-height: 0; /* anders blokkeert min-height:auto het verticale scrollen */
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-items: stretch;
+}
+body.is-phone .tk-column {
+  width: 100%;
+  min-width: 0;
+  max-height: none;
+}
+/* Kaartenlijsten scrollen niet zelf maar groeien mee, net als in swimlanes. */
+body.is-phone .tk-cards {
+  flex: none;
+  overflow-y: visible;
+}
+/* Kolomkop blijft in beeld zolang je binnen die kolom scrolt. De negatieve
+   marge overspant de kolom-padding zodat kaarten er niet naast uitsteken. */
+body.is-phone .tk-col-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--background-secondary);
+  margin: -10px -10px 8px;
+  padding: 10px 16px;
+  border-radius: 10px 10px 0 0;
+}
+
+/* Swimlane-modus: de banen-stapel scrolt al verticaal; de geneste borden
+   scrollen niet mee met de bord-regel hierboven maar blijven meegroeien.
+   De ruimte onderaan de stapel zelf komt weer van de iOS-regels hierboven. */
+body.is-phone .tk-lane .tk-board {
+  overflow: visible;
+  padding-bottom: 10px;
+}
+/* Geneste kolomkoppen niet sticky: .tk-lane clipt (overflow: hidden),
+   waardoor sticky daar toch nooit zichtbaar werkt. */
+body.is-phone .tk-lane .tk-col-head {
+  position: static;
+  margin: 0 0 8px;
+  padding: 0 6px;
+  border-radius: 0;
+}
+
+/* De header past niet op één telefoonregel: laten omslaan. */
+body.is-phone .tk-header {
+  flex-wrap: wrap;
+}
+body.is-phone .tk-filter {
+  max-width: none;
+  min-width: 140px;
+}
+
+/* Touch targets: minimaal 44px hoog voor alles wat je met een duim raakt. */
+body.is-phone .tk-btn,
+body.is-phone .tk-col-add,
+body.is-phone .tk-header .dropdown,
+body.is-phone .tk-bulk-bar .dropdown,
+body.is-phone .tk-bulk-bar .tk-btn {
+  min-height: 44px;
+}
