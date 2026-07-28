@@ -6,6 +6,12 @@ const { Plugin, ItemView, Modal, Setting, PluginSettingTab, TFile, Notice, Markd
 const VIEW_TYPE_KANBAN = 'trietment-kanban-view';
 const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
 
+// Sleutel voor de onthouden kolom per bord (telefoonweergave). Gaat via
+// app.loadLocalStorage/saveLocalStorage: per vault én per apparaat, dus de
+// telefoon landt niet op de kolom van de laptop en er wordt niets naar de
+// vault geschreven dat Obsidian Sync kan mergen.
+const ACTIVE_COLUMNS_KEY = 'trietment-kanban:active-columns';
+
 // -- Microsoft / Outlook (OAuth2 + Microsoft Graph) -------------------------
 // "common" = elke organisatie + persoonlijke Microsoft-accounts (multi-tenant).
 const MS_AUTHORITY = 'https://login.microsoftonline.com/common';
@@ -1961,7 +1967,10 @@ class KanbanView extends ItemView {
     this.selected = new Set();   // taskId's ("pad::regel")
     this.bulkTarget = null;      // laatst gekozen doelkolom in de balk
     // Telefoon: welke kolom staat er in beeld, per bord-id (zie renderPhoneBoard).
-    this.activeColumns = {};
+    this.activeColumns = this.loadActiveColumns();
+    // Welke kolom er daadwerkelijk in de DOM staat. Nodig omdat activeColumns
+    // ná de eerste render nog kan veranderen (setState); zie syncPhoneColumn.
+    this.renderedColumn = null;
   }
 
   getViewType() { return VIEW_TYPE_KANBAN; }
@@ -1971,9 +1980,22 @@ class KanbanView extends ItemView {
   async onOpen() { await this.render(); }
   async onClose() {}
 
-  // De actieve kolom hoort bij deze view, niet bij de plugin-settings: elke
-  // schrijfactie naar data.json of naar een notitie is een sync-risico. Via de
-  // view-state overleeft de keuze een re-render én het herstellen van de leaf.
+  // De actieve kolom hoort niet in de plugin-settings: elke schrijfactie naar
+  // data.json of naar een notitie is een sync-risico. localStorage is leidend
+  // (per apparaat, direct weggeschreven bij elke wissel); de view-state is de
+  // reserve waarmee de keuze een re-render en het herstellen van de leaf
+  // overleeft, ook als localStorage geleegd is.
+  loadActiveColumns() {
+    if (!this.app || !this.app.loadLocalStorage) return {};
+    const saved = this.app.loadLocalStorage(ACTIVE_COLUMNS_KEY);
+    return saved && typeof saved === 'object' ? { ...saved } : {};
+  }
+
+  saveActiveColumns() {
+    if (!this.app || !this.app.saveLocalStorage) return;
+    this.app.saveLocalStorage(ACTIVE_COLUMNS_KEY, { ...this.activeColumns });
+  }
+
   getState() {
     const state = super.getState() || {};
     state.activeColumns = { ...this.activeColumns };
@@ -1982,9 +2004,32 @@ class KanbanView extends ItemView {
 
   async setState(state, result) {
     if (state && state.activeColumns && typeof state.activeColumns === 'object') {
-      this.activeColumns = { ...state.activeColumns };
+      // Alleen aanvullen: de leaf-state kan ouder zijn dan localStorage (hij
+      // wordt pas bij een layout-save vastgelegd) en op een gesynchroniseerde
+      // workspace zelfs van een ánder apparaat komen.
+      for (const [id, col] of Object.entries(state.activeColumns)) {
+        if (this.activeColumns[id] == null) this.activeColumns[id] = col;
+      }
+      this.syncPhoneColumn();
     }
     return super.setState(state, result);
+  }
+
+  // Obsidian roept setState pas ná onOpen aan, dus het bord staat er al — met
+  // de eerste kolom in beeld — op het moment dat de onthouden kolom binnenkomt.
+  // Zonder deze hertekening blijft die eerste kolom staan terwijl de state al
+  // iets anders zegt, en dan doet de chip van de onthouden kolom niets: hij
+  // ziet zichzelf al als actief.
+  syncPhoneColumn() {
+    if (!this.isPhoneLayout() || !this.board) return;
+    const container = this.containerEl.children[1];
+    if (!container || !container.querySelector('.tk-col-switch')) return;
+    const active = this.activeColumns[this.board.id];
+    if (active === this.renderedColumn || !this.phoneColumns().includes(active)) return;
+    // Andere kolom = andere inhoud: bovenaan beginnen, net als bij de chips.
+    const scroll = this.captureScroll(container);
+    delete scroll['boardY:'];
+    this.renderBoard(container, scroll);
   }
 
   // Telefoons krijgen de gestapelde single-column-layout; tablets en desktop
@@ -1995,6 +2040,13 @@ class KanbanView extends ItemView {
   isPhoneLayout() {
     if (document.body.classList.contains('is-phone')) return true;
     return Platform.isPhone !== undefined ? !!Platform.isPhone : !!Platform.isMobile;
+  }
+
+  // De chips op de telefoon, in de volgorde waarin ze getekend worden.
+  phoneColumns() {
+    const columns = [...this.plugin.settings.columns];
+    if (this.showInboxColumn()) columns.unshift('inbox');
+    return columns;
   }
 
   async loadTasks() {
@@ -2213,8 +2265,7 @@ class KanbanView extends ItemView {
   // scrollbare chiprij erboven om te wisselen. Swimlanes worden hier bewust
   // genegeerd — twee niveaus van groepering is te veel voor dit scherm.
   renderPhoneBoard(container) {
-    const columns = [...this.plugin.settings.columns];
-    if (this.showInboxColumn()) columns.unshift('inbox');
+    const columns = this.phoneColumns();
     if (!columns.length) {
       container.createDiv({ cls: 'tk-board tk-board-single' });
       return;
@@ -2222,10 +2273,12 @@ class KanbanView extends ItemView {
 
     const boardId = this.board ? this.board.id : 'default';
     // De onthouden kolom kan hernoemd of verwijderd zijn, of (bij Inbox) net
-    // verborgen omdat hij leeg raakte: val dan terug op de eerste chip.
+    // verborgen omdat hij leeg raakte: val dan terug op de eerste chip. Die
+    // terugval blijft bewust buiten activeColumns — dat is de keuze van de
+    // gebruiker, niet wat er toevallig te tekenen viel.
     let active = this.activeColumns[boardId];
     if (!columns.includes(active)) active = columns[0];
-    this.activeColumns[boardId] = active;
+    this.renderedColumn = active;
 
     const strip = container.createDiv({ cls: 'tk-col-switch' });
     for (const col of columns) {
@@ -2238,8 +2291,12 @@ class KanbanView extends ItemView {
       chip.createSpan({ cls: 'tk-col-chip-count', text: String(this.tasksForColumn(col).length) });
       if (col === active) chip.addClass('tk-col-chip-active');
       chip.onclick = () => {
-        if (this.activeColumns[boardId] === col) return;
+        // Vergelijken met wat er getekend staat, niet met de onthouden keuze:
+        // die twee kunnen uiteenlopen en dan zou de chip niets doen terwijl de
+        // gebruiker een andere kolom ziet.
+        if (this.renderedColumn === col) return;
         this.activeColumns[boardId] = col;
+        this.saveActiveColumns();
         // Andere kolom = andere inhoud: bovenaan beginnen in plaats van de
         // scrollpositie van de vorige kolom overnemen. De chiprij zelf houdt
         // zijn horizontale positie wél vast.
