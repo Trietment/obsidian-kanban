@@ -1146,25 +1146,31 @@ module.exports = class KanbanPlugin extends Plugin {
     for (const filePath of Object.keys(byFile)) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
       if (!(file instanceof TFile)) continue;
-      const content = await this.app.vault.read(file);
-      const lines = content.split('\n');
-      let changed = false;
-      for (const t of byFile[filePath]) {
-        if (t.line >= lines.length) continue;
-        if (!parseTaskLine(lines[t.line], filePath, t.line)) continue; // regel is verschoven/geen taak meer
-        let line = lines[t.line];
-        if (/#kanban\/[\w-]+/.test(line)) {
-          line = line.replace(/#kanban\/[\w-]+/, `#kanban/${target}`);
-        } else {
-          line = line.trimEnd() + ` #kanban/${target}`;
+      let fileMoved = 0;
+      await this.app.vault.process(file, (data) => {
+        // process draait deze callback opnieuw als het bestand ondertussen
+        // wijzigde, dus begint elke poging met een schone telling.
+        fileMoved = 0;
+        const lines = data.split('\n');
+        let changed = false;
+        for (const t of byFile[filePath]) {
+          if (t.line >= lines.length) continue;
+          if (!parseTaskLine(lines[t.line], filePath, t.line)) continue; // regel is verschoven/geen taak meer
+          let line = lines[t.line];
+          if (/#kanban\/[\w-]+/.test(line)) {
+            line = line.replace(/#kanban\/[\w-]+/, `#kanban/${target}`);
+          } else {
+            line = line.trimEnd() + ` #kanban/${target}`;
+          }
+          if (line !== lines[t.line]) {
+            lines[t.line] = line;
+            changed = true;
+            fileMoved++;
+          }
         }
-        if (line !== lines[t.line]) {
-          lines[t.line] = line;
-          changed = true;
-          moved++;
-        }
-      }
-      if (changed) await this.app.vault.modify(file, lines.join('\n'));
+        return changed ? lines.join('\n') : data;
+      });
+      moved += fileMoved;
     }
     return moved;
   }
@@ -1319,89 +1325,101 @@ module.exports = class KanbanPlugin extends Plugin {
   async setRecurrence(task, newRule) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
-    const recRe = /🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/i;
-    const recReG = /\s*🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi;
-    if (recRe.test(line)) {
-      if (newRule) line = line.replace(recRe, `🔁 ${newRule}`);
-      else line = line.replace(recReG, '');
-    } else if (newRule) {
-      // Insert na de tekst, voor andere metadata
-      const firstMeta = line.search(/\s+(📅|#kanban|#project|🔺|⏫|🔼|🔽|⏬)/);
-      if (firstMeta > 0) {
-        line = line.slice(0, firstMeta) + ` 🔁 ${newRule}` + line.slice(firstMeta);
-      } else {
-        line = line.trimEnd() + ` 🔁 ${newRule}`;
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
+      const recRe = /🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/i;
+      const recReG = /\s*🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi;
+      if (recRe.test(line)) {
+        if (newRule) line = line.replace(recRe, `🔁 ${newRule}`);
+        else line = line.replace(recReG, '');
+      } else if (newRule) {
+        // Insert na de tekst, voor andere metadata
+        const firstMeta = line.search(/\s+(📅|#kanban|#project|🔺|⏫|🔼|🔽|⏬)/);
+        if (firstMeta > 0) {
+          line = line.slice(0, firstMeta) + ` 🔁 ${newRule}` + line.slice(firstMeta);
+        } else {
+          line = line.trimEnd() + ` 🔁 ${newRule}`;
+        }
       }
-    }
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
+      lines[task.line] = line;
+      return lines.join('\n');
+    });
   }
 
   async setProject(task, newProject) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
-    const projRe = /#project\/[\w-]+(?:\/[\w-]+)*/;
-    const projReG = /\s*#project\/[\w-]+(?:\/[\w-]+)*/g;
-    if (projRe.test(line)) {
-      if (newProject) line = line.replace(projRe, `#project/${newProject}`);
-      else line = line.replace(projReG, '');
-    } else if (newProject) {
-      line = line.trimEnd() + ` #project/${newProject}`;
-    }
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
-    if (newProject) await this.assignProjectColor(newProject);
+    // applied houdt bij of de regel er nog stond: net als voorheen slaan we de
+    // kleurtoewijzing over wanneer de schrijfactie niet doorging.
+    let applied = false;
+    await this.app.vault.process(file, (data) => {
+      applied = false;
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
+      const projRe = /#project\/[\w-]+(?:\/[\w-]+)*/;
+      const projReG = /\s*#project\/[\w-]+(?:\/[\w-]+)*/g;
+      if (projRe.test(line)) {
+        if (newProject) line = line.replace(projRe, `#project/${newProject}`);
+        else line = line.replace(projReG, '');
+      } else if (newProject) {
+        line = line.trimEnd() + ` #project/${newProject}`;
+      }
+      lines[task.line] = line;
+      applied = true;
+      return lines.join('\n');
+    });
+    if (applied && newProject) await this.assignProjectColor(newProject);
   }
 
   async setClient(task, newClient) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
-    const re = /#client\/[\w-]+(?:\/[\w-]+)*/;
-    const reG = /\s*#client\/[\w-]+(?:\/[\w-]+)*/g;
-    if (re.test(line)) {
-      if (newClient) line = line.replace(re, `#client/${newClient}`);
-      else line = line.replace(reG, '');
-    } else if (newClient) {
-      // Vóór de #project/#kanban-tag plaatsen (zoals formatTaskLine), anders achteraan.
-      const tagPos = line.search(/\s+#(?:project|kanban)\//);
-      if (tagPos >= 0) line = line.slice(0, tagPos) + ` #client/${newClient}` + line.slice(tagPos);
-      else line = line.trimEnd() + ` #client/${newClient}`;
-    }
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
-    if (newClient) await this.assignClientColor(newClient);
+    let applied = false;
+    await this.app.vault.process(file, (data) => {
+      applied = false;
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
+      const re = /#client\/[\w-]+(?:\/[\w-]+)*/;
+      const reG = /\s*#client\/[\w-]+(?:\/[\w-]+)*/g;
+      if (re.test(line)) {
+        if (newClient) line = line.replace(re, `#client/${newClient}`);
+        else line = line.replace(reG, '');
+      } else if (newClient) {
+        // Vóór de #project/#kanban-tag plaatsen (zoals formatTaskLine), anders achteraan.
+        const tagPos = line.search(/\s+#(?:project|kanban)\//);
+        if (tagPos >= 0) line = line.slice(0, tagPos) + ` #client/${newClient}` + line.slice(tagPos);
+        else line = line.trimEnd() + ` #client/${newClient}`;
+      }
+      lines[task.line] = line;
+      applied = true;
+      return lines.join('\n');
+    });
+    if (applied && newClient) await this.assignClientColor(newClient);
   }
 
   async setPriority(task, newPriority) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
-    // Bestaande prioriteit weghalen: zowel de emoji als #priority/<waarde>.
-    line = line.replace(/\s*(?:🔺|⏫|🔼|🔽|⏬)/g, '').replace(/\s*#priority\/[\w-]+/g, '');
-    if (newPriority) {
-      // Ingebouwde 5 → emoji (Tasks-compatibel); eigen prioriteiten → #priority/<waarde>.
-      const token = PRIORITY_ICONS[newPriority] || `#priority/${newPriority}`;
-      const tagPos = line.search(/\s+#(?:project|client|kanban)\//);
-      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
-      else line = line.trimEnd() + ` ${token}`;
-    }
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
+      // Bestaande prioriteit weghalen: zowel de emoji als #priority/<waarde>.
+      line = line.replace(/\s*(?:🔺|⏫|🔼|🔽|⏬)/g, '').replace(/\s*#priority\/[\w-]+/g, '');
+      if (newPriority) {
+        // Ingebouwde 5 → emoji (Tasks-compatibel); eigen prioriteiten → #priority/<waarde>.
+        const token = PRIORITY_ICONS[newPriority] || `#priority/${newPriority}`;
+        const tagPos = line.search(/\s+#(?:project|client|kanban)\//);
+        if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
+        else line = line.trimEnd() + ` ${token}`;
+      }
+      lines[task.line] = line;
+      return lines.join('\n');
+    });
   }
 
   // Hernoem alleen de zichtbare taaktekst; alle tokens (datum/tijd/tags/prioriteit/
@@ -1412,36 +1430,38 @@ module.exports = class KanbanPlugin extends Plugin {
     if (!newText) return;
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length || lines[task.line] !== task.raw) return;
-    const m = lines[task.line].match(/^(\s*- \[[ xX\-]\] )([\s\S]*)$/);
-    if (!m) return;
-    // Tekst loopt tot het eerste metadata-/cover-/wikilink-token; alles daarna blijft staan.
-    // [cover:: vóór [[ zodat een wikilink-cover bij het cover-token stopt, niet bij de inner [[.
-    const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|#client\/|\[cover::|\[\[)/);
-    const rest = idx < 0 ? '' : m[2].slice(idx);
-    lines[task.line] = m[1] + newText + rest;
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length || lines[task.line] !== task.raw) return data;
+      const m = lines[task.line].match(/^(\s*- \[[ xX\-]\] )([\s\S]*)$/);
+      if (!m) return data;
+      // Tekst loopt tot het eerste metadata-/cover-/wikilink-token; alles daarna blijft staan.
+      // [cover:: vóór [[ zodat een wikilink-cover bij het cover-token stopt, niet bij de inner [[.
+      const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|#client\/|\[cover::|\[\[)/);
+      const rest = idx < 0 ? '' : m[2].slice(idx);
+      lines[task.line] = m[1] + newText + rest;
+      return lines.join('\n');
+    });
   }
 
   async setCover(task, newCover) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
-    // Bestaande cover-token weghalen (beide vormen: wikilink en platte tekst/URL).
-    line = line.replace(/\s*\[cover::\s*!?\[\[[^\]]+\]\]\s*\]/i, '').replace(/\s*\[cover::\s*[^\[\]]+?\s*\]/i, '');
-    if (newCover) {
-      const token = `[cover:: ${newCover}]`;
-      const tagPos = line.search(/\s+#(?:project|kanban)\//);
-      if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
-      else line = line.trimEnd() + ` ${token}`;
-    }
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
+      // Bestaande cover-token weghalen (beide vormen: wikilink en platte tekst/URL).
+      line = line.replace(/\s*\[cover::\s*!?\[\[[^\]]+\]\]\s*\]/i, '').replace(/\s*\[cover::\s*[^\[\]]+?\s*\]/i, '');
+      if (newCover) {
+        const token = `[cover:: ${newCover}]`;
+        const tagPos = line.search(/\s+#(?:project|kanban)\//);
+        if (tagPos >= 0) line = line.slice(0, tagPos) + ` ${token}` + line.slice(tagPos);
+        else line = line.trimEnd() + ` ${token}`;
+      }
+      lines[task.line] = line;
+      return lines.join('\n');
+    });
   }
 
   // Sla een geüploade afbeelding op via Obsidians bijlage-instelling (respecteert
@@ -1517,9 +1537,10 @@ module.exports = class KanbanPlugin extends Plugin {
     const formatted = this.formatTaskLine(task);
     const file = await this.ensureFile(path, `# Kanban Inbox\n\n`);
     if (file instanceof TFile) {
-      const content = await this.app.vault.read(file);
-      const sep = content.length === 0 || content.endsWith('\n') ? '' : '\n';
-      await this.app.vault.modify(file, content + sep + formatted + '\n');
+      await this.app.vault.process(file, (data) => {
+        const sep = data.length === 0 || data.endsWith('\n') ? '' : '\n';
+        return data + sep + formatted + '\n';
+      });
       new Notice(this.t('task_added_to', { path }));
     }
   }
@@ -1547,38 +1568,45 @@ module.exports = class KanbanPlugin extends Plugin {
     for (const filePath of Object.keys(byFile)) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
       if (!(file instanceof TFile)) continue;
-      const content = await this.app.vault.read(file);
-      const lines = content.split('\n');
-      const touched = [];
-      let changed = false;
-      for (const lineNum of byFile[filePath]) {
-        if (lineNum < 0 || lineNum >= lines.length) continue;
-        let line = lines[lineNum];
-        const parsed = parseTaskLine(line, filePath, lineNum);
-        if (!parsed) continue; // regel is verschoven of geen taak meer
+      let touched = [];
+      let fileMoved = 0;
+      await this.app.vault.process(file, (data) => {
+        // process draait deze callback opnieuw als het bestand ondertussen
+        // wijzigde, dus begint elke poging met een schone telling en lijst.
+        touched = [];
+        fileMoved = 0;
+        const lines = data.split('\n');
+        let changed = false;
+        for (const lineNum of byFile[filePath]) {
+          if (lineNum < 0 || lineNum >= lines.length) continue;
+          let line = lines[lineNum];
+          const parsed = parseTaskLine(line, filePath, lineNum);
+          if (!parsed) continue; // regel is verschoven of geen taak meer
 
-        if (newColumn === 'inbox') {
-          line = line.replace(/\s*#kanban\/[\w-]+/g, '');
-        } else if (/#kanban\/[\w-]+/.test(line)) {
-          line = line.replace(/#kanban\/[\w-]+/, `#kanban/${newColumn}`);
-        } else {
-          line = line.trimEnd() + ` #kanban/${newColumn}`;
-        }
+          if (newColumn === 'inbox') {
+            line = line.replace(/\s*#kanban\/[\w-]+/g, '');
+          } else if (/#kanban\/[\w-]+/.test(line)) {
+            line = line.replace(/#kanban\/[\w-]+/, `#kanban/${newColumn}`);
+          } else {
+            line = line.trimEnd() + ` #kanban/${newColumn}`;
+          }
 
-        if (newColumn === this.settings.doneColumn) {
-          line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
-        } else {
-          line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
-        }
+          if (newColumn === this.settings.doneColumn) {
+            line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
+          } else {
+            line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
+          }
 
-        if (line !== lines[lineNum]) {
-          lines[lineNum] = line;
-          changed = true;
-          moved++;
+          if (line !== lines[lineNum]) {
+            lines[lineNum] = line;
+            changed = true;
+            fileMoved++;
+          }
+          touched.push(parsed);
         }
-        touched.push(parsed);
-      }
-      if (changed) await this.app.vault.modify(file, lines.join('\n'));
+        return changed ? lines.join('\n') : data;
+      });
+      moved += fileMoved;
 
       // Notities mee-archiveren bij afronden (en terughalen bij heropenen).
       for (const parsed of touched) {
@@ -1591,15 +1619,16 @@ module.exports = class KanbanPlugin extends Plugin {
   async deleteTask(task) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length || lines[task.line] !== task.raw) return;
-    let end = task.line;
-    if (task.subtasks && task.subtasks.length) {
-      end = Math.max(task.line, ...task.subtasks.map((s) => s.line));
-    }
-    lines.splice(task.line, end - task.line + 1);
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length || lines[task.line] !== task.raw) return data;
+      let end = task.line;
+      if (task.subtasks && task.subtasks.length) {
+        end = Math.max(task.line, ...task.subtasks.map((s) => s.line));
+      }
+      lines.splice(task.line, end - task.line + 1);
+      return lines.join('\n');
+    });
   }
 
   // -- Subtaken -------------------------------------------------------------
@@ -1607,14 +1636,15 @@ module.exports = class KanbanPlugin extends Plugin {
   async toggleSubtask(sub) {
     const file = this.app.vault.getAbstractFileByPath(sub.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (sub.line >= lines.length || lines[sub.line] !== sub.raw) return;
-    let line = lines[sub.line];
-    if (sub.done) line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
-    else line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
-    lines[sub.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (sub.line >= lines.length || lines[sub.line] !== sub.raw) return data;
+      let line = lines[sub.line];
+      if (sub.done) line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
+      else line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
+      lines[sub.line] = line;
+      return lines.join('\n');
+    });
   }
 
   async addSubtask(task, text) {
@@ -1622,27 +1652,29 @@ module.exports = class KanbanPlugin extends Plugin {
     if (!text) return;
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length || lines[task.line] !== task.raw) return;
-    let insertAt = task.line + 1;
-    if (task.subtasks && task.subtasks.length) {
-      insertAt = Math.max(...task.subtasks.map((s) => s.line)) + 1;
-    }
-    const indent = task.indent || '';
-    const childIndent = indent.includes('\t') ? indent + '\t' : indent + '    ';
-    lines.splice(insertAt, 0, `${childIndent}- [ ] ${text}`);
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length || lines[task.line] !== task.raw) return data;
+      let insertAt = task.line + 1;
+      if (task.subtasks && task.subtasks.length) {
+        insertAt = Math.max(...task.subtasks.map((s) => s.line)) + 1;
+      }
+      const indent = task.indent || '';
+      const childIndent = indent.includes('\t') ? indent + '\t' : indent + '    ';
+      lines.splice(insertAt, 0, `${childIndent}- [ ] ${text}`);
+      return lines.join('\n');
+    });
   }
 
   async deleteSubtask(sub) {
     const file = this.app.vault.getAbstractFileByPath(sub.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (sub.line >= lines.length || lines[sub.line] !== sub.raw) return;
-    lines.splice(sub.line, 1);
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (sub.line >= lines.length || lines[sub.line] !== sub.raw) return data;
+      lines.splice(sub.line, 1);
+      return lines.join('\n');
+    });
   }
 
   // Lees de actuele subtaken van een taak opnieuw in (na een wijziging in de modal).
@@ -1705,17 +1737,18 @@ module.exports = class KanbanPlugin extends Plugin {
   async addNoteLinkToTask(task, linkTarget) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length || lines[task.line] !== task.raw) return;
-    let line = lines[task.line];
-    if (/\[\[[^\]]+\]\]/.test(line)) return;
-    const link = `[[${linkTarget}]]`;
-    const firstMeta = line.search(/\s+(📅|🔁|#kanban|#project|🔺|⏫|🔼|🔽|⏬)/);
-    if (firstMeta > 0) line = line.slice(0, firstMeta) + ` ${link}` + line.slice(firstMeta);
-    else line = line.trimEnd() + ` ${link}`;
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length || lines[task.line] !== task.raw) return data;
+      let line = lines[task.line];
+      if (/\[\[[^\]]+\]\]/.test(line)) return data;
+      const link = `[[${linkTarget}]]`;
+      const firstMeta = line.search(/\s+(📅|🔁|#kanban|#project|🔺|⏫|🔼|🔽|⏬)/);
+      if (firstMeta > 0) line = line.slice(0, firstMeta) + ` ${link}` + line.slice(firstMeta);
+      else line = line.trimEnd() + ` ${link}`;
+      lines[task.line] = line;
+      return lines.join('\n');
+    });
   }
 
   async openOrCreateLinkedNote(task) {
@@ -1805,99 +1838,107 @@ module.exports = class KanbanPlugin extends Plugin {
   async toggleDone(task) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
     const wasDone = task.done;
+    // Net als voorheen: staat de regel er niet meer, dan blijft ook het
+    // archiveren van de gekoppelde notitie achterwege.
+    let applied = false;
+    await this.app.vault.process(file, (data) => {
+      applied = false;
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
 
-    if (task.done) {
-      line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
-      lines[task.line] = line;
-    } else {
-      line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
-      if (/#kanban\/[\w-]+/.test(line)) {
-        line = line.replace(/#kanban\/[\w-]+/, `#kanban/${this.settings.doneColumn}`);
+      if (task.done) {
+        line = line.replace(/^(\s*)- \[[xX\-]\]/, '$1- [ ]');
+        lines[task.line] = line;
       } else {
-        line = line.trimEnd() + ` #kanban/${this.settings.doneColumn}`;
-      }
-      lines[task.line] = line;
+        line = line.replace(/^(\s*)- \[ \]/, '$1- [x]');
+        if (/#kanban\/[\w-]+/.test(line)) {
+          line = line.replace(/#kanban\/[\w-]+/, `#kanban/${this.settings.doneColumn}`);
+        } else {
+          line = line.trimEnd() + ` #kanban/${this.settings.doneColumn}`;
+        }
+        lines[task.line] = line;
 
-      // Recurring? Voeg de volgende instance erboven in.
-      const rec = parseRecurrence(task.recurrence);
-      if (rec) {
-        const nextDue = nextDate(task.dueDate, rec);
-        // Een volgende herhaling start altijd opnieuw in de standaardkolom (Te doen).
-        // Staat de nieuwe due date toch op vandaag (bv. dagelijkse taak), dan schuift
-        // de auto-move 'm later vanzelf weer naar Bezig.
-        const targetCol = this.settings.defaultColumn;
-        const nextTask = {
-          text: task.text,
-          dueDate: nextDue,
-          time: task.time,
-          priority: task.priority,
-          project: task.project,
-          client: task.client,
-          cover: task.cover,
-          recurrence: task.recurrence,
-          column: targetCol,
-        };
-        const nextLine = (task.indent || '') + this.formatTaskLine(nextTask);
-        lines.splice(task.line, 0, nextLine);
+        // Recurring? Voeg de volgende instance erboven in.
+        const rec = parseRecurrence(task.recurrence);
+        if (rec) {
+          const nextDue = nextDate(task.dueDate, rec);
+          // Een volgende herhaling start altijd opnieuw in de standaardkolom (Te doen).
+          // Staat de nieuwe due date toch op vandaag (bv. dagelijkse taak), dan schuift
+          // de auto-move 'm later vanzelf weer naar Bezig.
+          const targetCol = this.settings.defaultColumn;
+          const nextTask = {
+            text: task.text,
+            dueDate: nextDue,
+            time: task.time,
+            priority: task.priority,
+            project: task.project,
+            client: task.client,
+            cover: task.cover,
+            recurrence: task.recurrence,
+            column: targetCol,
+          };
+          const nextLine = (task.indent || '') + this.formatTaskLine(nextTask);
+          lines.splice(task.line, 0, nextLine);
+        }
       }
-    }
 
-    await this.app.vault.modify(file, lines.join('\n'));
+      applied = true;
+      return lines.join('\n');
+    });
 
     // Notitie mee-archiveren bij afronden (en terughalen bij heropenen).
-    await this.syncNoteArchive(task, !wasDone);
+    if (applied) await this.syncNoteArchive(task, !wasDone);
   }
 
   async setDueDate(task, newDate) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
-    if (/📅\s*\d{4}-\d{2}-\d{2}/.test(line)) {
-      if (newDate) {
-        line = line.replace(/📅\s*\d{4}-\d{2}-\d{2}/, `📅 ${newDate}`);
-      } else {
-        line = line.replace(/\s*📅\s*\d{4}-\d{2}-\d{2}/, '');
-        // Een tijd hoort bij een datum: laat 'm niet als wees achter.
-        line = line.replace(/\s*⏰\s*\d{1,2}:\d{2}/, '');
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
+      if (/📅\s*\d{4}-\d{2}-\d{2}/.test(line)) {
+        if (newDate) {
+          line = line.replace(/📅\s*\d{4}-\d{2}-\d{2}/, `📅 ${newDate}`);
+        } else {
+          line = line.replace(/\s*📅\s*\d{4}-\d{2}-\d{2}/, '');
+          // Een tijd hoort bij een datum: laat 'm niet als wees achter.
+          line = line.replace(/\s*⏰\s*\d{1,2}:\d{2}/, '');
+        }
+      } else if (newDate) {
+        line = line.trimEnd() + ` 📅 ${newDate}`;
       }
-    } else if (newDate) {
-      line = line.trimEnd() + ` 📅 ${newDate}`;
-    }
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
+      lines[task.line] = line;
+      return lines.join('\n');
+    });
   }
 
   async setTime(task, newTime) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
-    const content = await this.app.vault.read(file);
-    const lines = content.split('\n');
-    if (task.line >= lines.length) return;
-    let line = lines[task.line];
-    if (/⏰\s*\d{1,2}:\d{2}/.test(line)) {
-      if (newTime) {
-        line = line.replace(/⏰\s*\d{1,2}:\d{2}/, `⏰ ${newTime}`);
-      } else {
-        line = line.replace(/\s*⏰\s*\d{1,2}:\d{2}/, '');
+    await this.app.vault.process(file, (data) => {
+      const lines = data.split('\n');
+      if (task.line >= lines.length) return data;
+      let line = lines[task.line];
+      if (/⏰\s*\d{1,2}:\d{2}/.test(line)) {
+        if (newTime) {
+          line = line.replace(/⏰\s*\d{1,2}:\d{2}/, `⏰ ${newTime}`);
+        } else {
+          line = line.replace(/\s*⏰\s*\d{1,2}:\d{2}/, '');
+        }
+      } else if (newTime) {
+        // Tijd direct na de datum plaatsen als die er is, anders achteraan.
+        if (/📅\s*\d{4}-\d{2}-\d{2}/.test(line)) {
+          line = line.replace(/(📅\s*\d{4}-\d{2}-\d{2})/, `$1 ⏰ ${newTime}`);
+        } else {
+          line = line.trimEnd() + ` ⏰ ${newTime}`;
+        }
       }
-    } else if (newTime) {
-      // Tijd direct na de datum plaatsen als die er is, anders achteraan.
-      if (/📅\s*\d{4}-\d{2}-\d{2}/.test(line)) {
-        line = line.replace(/(📅\s*\d{4}-\d{2}-\d{2})/, `$1 ⏰ ${newTime}`);
-      } else {
-        line = line.trimEnd() + ` ⏰ ${newTime}`;
-      }
-    }
-    lines[task.line] = line;
-    await this.app.vault.modify(file, lines.join('\n'));
+      lines[task.line] = line;
+      return lines.join('\n');
+    });
   }
 };
 
