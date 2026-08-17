@@ -2370,7 +2370,7 @@ class KanbanView extends ItemView {
       }
     }
     this.restoreScroll(container, state);
-    this.applyIosBottomInset(container);
+    this.applyPhoneBottomInset(container);
   }
 
   // Telefoon: vijf kolommen naast elkaar passen niet en onder elkaar scrol je
@@ -2423,12 +2423,16 @@ class KanbanView extends ItemView {
     this.renderColumn(board, active);
   }
 
-  // iOS: de navigatiebalk van Obsidian en/of de home-indicator zweven daar
-  // over de onderkant van het bord heen, waardoor de "+ Taak toevoegen"-knop
-  // onder in een kolom onbereikbaar wordt. Meet de werkelijke overlap en
-  // reserveer die ruimte onderaan via --tk-bottom-inset (zie styles.css).
-  applyIosBottomInset(container) {
-    if (!Platform.isIosApp || !container) return;
+  // Mobiel: de navigatiebalk van Obsidian en/of de home-indicator zweven over
+  // de onderkant van het bord heen, waardoor de "+ Taak toevoegen"-knop onder
+  // in een kolom onbereikbaar wordt — met weinig kaarten valt hij precies in
+  // die bedekte strook en is er niets te scrollen om hem terug te halen. Dit
+  // gold eerst alleen voor iOS, maar sinds Obsidian op Android edge-to-edge
+  // rendert net zo goed daar. Meet daarom op álle mobiele apparaten de
+  // werkelijke overlap en reserveer die ruimte onderaan via --tk-bottom-inset
+  // (zie styles.css); zonder overlap blijft de meting een no-op.
+  applyPhoneBottomInset(container) {
+    if (!container || (!Platform.isMobile && !Platform.isPhone)) return;
     requestAnimationFrame(() => {
       if (!container.isConnected) return;
       const rect = container.getBoundingClientRect();
@@ -2447,7 +2451,7 @@ class KanbanView extends ItemView {
 
   onResize() {
     const container = this.containerEl.children[1];
-    this.applyIosBottomInset(container);
+    this.applyPhoneBottomInset(container);
   }
 
   // Swimlanes: één horizontale baan per groepswaarde; binnen elke baan het

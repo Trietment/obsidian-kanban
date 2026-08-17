@@ -1184,16 +1184,20 @@
   }
 }
 
-/* -- iOS ------------------------------------------------------------------
-   Twee iPhone-eigenaardigheden (Android heeft ze niet):
-   1. De navigatiebalk/home-indicator zweeft over de onderkant van het bord.
-      De view meet op iOS de werkelijke overlap en zet die als
-      --tk-bottom-inset op de container; elders blijft de variabele 0px.
-   2. Het toetsenbord verkleint de webview niet; Obsidian verkleint alleen de
-      .app-container (via --keyboard-height), maar modals hangen op
-      body-niveau. installIosKeyboardFix() meet daarom zelf de hoogte
-      (--tk-kb) en hieronder schuift de modal als bottom-sheet mee omhoog,
-      zodat titel, subtaken en knoppen nooit achter het toetsenbord zitten. */
+/* -- Mobiel: onderrand en toetsenbord --------------------------------------
+   1. De navigatiebalk/home-indicator zweeft over de onderkant van het bord —
+      op iOS altijd al, op Android sinds Obsidian daar edge-to-edge rendert.
+      De view meet op mobiel de werkelijke overlap (applyPhoneBottomInset) en
+      zet die als --tk-bottom-inset op de container; elders blijft de
+      variabele 0px. Zonder die ruimte valt de "+ Taak toevoegen"-knop bij een
+      korte kolom precies in de bedekte strook, zonder dat er iets te
+      scrollen valt.
+   2. iPhone-eigenaardigheid: het toetsenbord verkleint de webview niet;
+      Obsidian verkleint alleen de .app-container (via --keyboard-height),
+      maar modals hangen op body-niveau. installIosKeyboardFix() meet daarom
+      zelf de hoogte (--tk-kb) en hieronder schuift de modal als bottom-sheet
+      mee omhoog, zodat titel, subtaken en knoppen nooit achter het
+      toetsenbord zitten. */
 .trietment-kanban-container > .tk-board {
   padding-bottom: calc(12px + var(--tk-bottom-inset, 0px));
 }
@@ -1233,7 +1237,7 @@ body.is-ios.is-phone .modal.tk-ios-modal .modal-content {
    renderen op de telefoon niet, dus .tk-lane komt hier nooit voor. */
 
 /* Het bord is de enige verticale scroller en strekt zijn ene kolom volledig.
-   De ruimte onder het bord komt van de iOS-regels hierboven
+   De ruimte onder het bord komt van de mobiele regels hierboven
    (--tk-bottom-inset): die meet de werkelijke overlap en is nauwkeuriger dan
    env(safe-area-inset-*). */
 body.is-phone .tk-board {
