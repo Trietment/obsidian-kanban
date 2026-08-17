@@ -192,7 +192,6 @@ const TRANSLATIONS = {
     td_sync_done: 'Microsoft To Do gesynchroniseerd.',
     td_sync_off: 'Zet eerst "Microsoft To Do-taken importeren" aan in de instellingen.',
     td_badge_tip: 'Gekoppeld aan Microsoft To Do',
-    td_list_client_ph: 'client (optioneel)',
     td_client_hint: 'Client geldt voor nieuw geïmporteerde taken uit die lijst: ze krijgen een #client/-tag (met kleur). Bestaande kaarten blijven ongemoeid.',
     cmd_add_inbox: 'Voeg Kanban-taak toe (inbox)',
     cmd_add_current: 'Voeg Kanban-taak toe aan huidige note',
@@ -483,7 +482,6 @@ const TRANSLATIONS = {
     td_sync_done: 'Microsoft To Do synced.',
     td_sync_off: 'Enable "Import Microsoft To Do tasks" in settings first.',
     td_badge_tip: 'Linked to Microsoft To Do',
-    td_list_client_ph: 'client (optional)',
     td_client_hint: 'The client applies to newly imported tasks from that list: they get a #client/ tag (with a color). Existing cards are left untouched.',
     cmd_add_inbox: 'Add Kanban task (inbox)',
     cmd_add_current: 'Add Kanban task to current note',
@@ -5463,16 +5461,24 @@ class KanbanSettingTab extends PluginSettingTab {
             for (const l of acc.todoLists) {
               const ls = new Setting(group).setName(l.name).setClass('tk-setting-child');
               // Lijst→client: nieuw geïmporteerde taken uit deze lijst krijgen
-              // deze client als #client/-tag mee (zie td_client_hint).
-              ls.addText((tx) => tx
-                .setPlaceholder(t('td_list_client_ph'))
-                .setValue((acc.todoClients || {})[l.id] || '')
-                .onChange(async (v) => {
+              // deze client als #client/-tag mee (zie td_client_hint). Een
+              // keuzelijst van bestaande clients — geen vrij typwerk, dus ook
+              // geen tikfout-tags. Nieuwe clients ontstaan via de taak-modals.
+              ls.addDropdown((dd) => {
+                const known = this.plugin.getClients();
+                dd.addOption('', t('none_paren'));
+                for (const c of known) dd.addOption(c, c);
+                // Een bewaarde waarde die (nog) niet tussen de bekende clients
+                // staat toch tonen, anders lijkt de koppeling verdwenen.
+                const cur = (acc.todoClients || {})[l.id] || '';
+                if (cur && !known.includes(cur)) dd.addOption(cur, cur);
+                dd.setValue(cur);
+                dd.onChange(async (v) => {
                   acc.todoClients = acc.todoClients || {};
-                  const val = v.trim();
-                  if (val) acc.todoClients[l.id] = val; else delete acc.todoClients[l.id];
+                  if (v) acc.todoClients[l.id] = v; else delete acc.todoClients[l.id];
                   await this.plugin.saveSettings();
-                }));
+                });
+              });
               ls.addToggle((tg) => tg
                 .setValue((acc.todoSelected || []).includes(l.id))
                 .onChange(async (v) => {
