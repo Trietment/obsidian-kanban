@@ -15,9 +15,18 @@ const ACTIVE_COLUMNS_KEY = 'trietment-kanban:active-columns';
 // -- Microsoft / Outlook (OAuth2 + Microsoft Graph) -------------------------
 // "common" = elke organisatie + persoonlijke Microsoft-accounts (multi-tenant).
 const MS_AUTHORITY = 'https://login.microsoftonline.com/common';
-const MS_SCOPES = 'openid profile offline_access User.Read Calendars.Read Calendars.Read.Shared';
+const MS_SCOPES = 'openid profile offline_access User.Read Calendars.Read Calendars.Read.Shared Tasks.ReadWrite';
 const MS_AUTH_PROTOCOL = 'trietment-kanban-auth';
 const MS_REDIRECT = `obsidian://${MS_AUTH_PROTOCOL}`;
+// Marker die een geïmporteerde Microsoft To Do-taak aan zijn bron koppelt:
+// %%td:<lijstId>:<taakId>%% — een Obsidian-comment, dus onzichtbaar in de
+// leesweergave. De marker is de sleutel van de reconciliatie en blijft op de
+// regel staan; de zichtbare kaarttekst blijft schoon (parseTaskLine stript hem).
+const TD_MARKER_RE = /%%td:([^\s:%]+):([^\s%]+)%%/;
+const TD_MARKER_RE_G = /%%td:[^\s:%]+:[^\s%]+%%/g;
+// Bord-trigger van de To Do-sync: hooguit eens per 5 minuten (zie eventCache
+// voor hetzelfde idee bij agenda-events, daar met een kortere horizon).
+const TD_SYNC_MIN_MS = 5 * 60 * 1000;
 // Application (client) ID van de geregistreerde Azure-app, zodat de koppeling
 // voor álle gebruikers werkt zonder eigen registratie. Het Client ID is publiek
 // (geen geheim). Gebruikers kunnen dit desgewenst overschrijven in de instellingen.
@@ -58,6 +67,10 @@ const DEFAULT_SETTINGS = {
   microsoftClientId: '',        // eigen Azure app (leeg = ingebouwde standaard, indien meegeleverd)
   outlookAccounts: [],          // [{ id, label, email, color, calendars, selected, needsReauth }] — kleur is alleen nog fallback voor accounts zonder agenda-keuze; tokens staan device-lokaal (localStorage), niet hier
   outlookShowEvents: true,      // snelle aan/uit in de kalenderkop
+
+  // Microsoft To Do
+  todoImportEnabled: false,     // To Do-taken importeren als kaarten (sync draait alleen op desktop)
+  todoTargetNote: 'MS To Do.md',// doelnote waar nieuw geïmporteerde taken landen (zonder kolom-tag → Inbox)
 };
 
 // Engelse standaard-kolomlabels (alleen bij een verse installatie in het Engels).
@@ -127,7 +140,7 @@ const TRANSLATIONS = {
     ol_section: 'Outlook-agenda',
     ol_help: 'Koppel je Microsoft/Outlook-agenda en toon de afspraken naast je taken in de kalenderweergave (alleen-lezen).',
     ol_client_id: 'Microsoft Client ID',
-    ol_client_id_desc: 'Application (client) ID van een Azure app-registratie. Registreer een app in het Microsoft Entra-portaal, voeg onder "Mobiele en desktop-applicaties" de redirect-URI obsidian://trietment-kanban-auth toe, sta publieke client-flows toe en geef de gedelegeerde rechten Calendars.Read + offline_access.',
+    ol_client_id_desc: 'Application (client) ID van een Azure app-registratie. Registreer een app in het Microsoft Entra-portaal, voeg onder "Mobiele en desktop-applicaties" de redirect-URI obsidian://trietment-kanban-auth toe, sta publieke client-flows toe en geef de gedelegeerde rechten Calendars.Read + Tasks.ReadWrite + offline_access.',
     ol_client_id_ph: 'Application (client) ID',
     ol_client_id_ph_builtin: 'Leeg = ingebouwde Client ID gebruiken',
     ol_client_id_builtin: '✓ Ingebouwde Client ID is actief — je hoeft hier niets in te vullen. Vul alleen een eigen ID in om die te overschrijven.',
@@ -156,6 +169,23 @@ const TRANSLATIONS = {
     ol_loading_calendars: 'Agenda’s laden…',
     ol_no_calendars: 'Geen agenda’s gevonden. Klik op vernieuwen of koppel opnieuw.',
     ol_shared_note: 'Gedeelde agenda’s vereisen het recht Calendars.Read.Shared in je Azure-app. Voeg het toe en koppel het account opnieuw als gedeelde agenda’s ontbreken. Een gedeelde agenda verschijnt pas nadat je hem in Outlook hebt toegevoegd.',
+    // Microsoft To Do
+    td_section: 'Microsoft To Do',
+    td_help: 'Importeer open taken uit Microsoft To Do als kaarten (incl. gevlagde e-mails uit de standaardlijst). Nieuwe kaarten landen in de Inbox-kolom; afvinken synchroniseert in beide richtingen. Er wordt nooit iets verwijderd — aan geen van beide kanten.',
+    td_import: 'Microsoft To Do-taken importeren',
+    td_import_desc: 'Haal open taken uit de gekozen lijst(en) op en zet ze als taakregel in de doelnote. Vereist het recht Tasks.ReadWrite — koppel een bestaand account zo nodig opnieuw.',
+    td_target_note: 'Doelnote voor nieuwe taken',
+    td_target_note_desc: 'In deze note landen nieuw geïmporteerde To Do-taken (zonder kolom-tag, dus in de Inbox-kolom).',
+    td_lists: 'To Do-lijsten',
+    td_loading_lists: 'To Do-lijsten laden…',
+    td_no_lists: 'Geen To Do-lijsten gevonden. Vernieuw, of koppel het account opnieuw (Tasks.ReadWrite vereist).',
+    td_lists_default_hint: 'Geen lijst aangevinkt = de standaardlijst "Taken" (daar komen ook gevlagde e-mails in).',
+    td_refresh_lists: 'To Do-lijsten vernieuwen',
+    td_mobile_note: 'De To Do-synchronisatie draait alleen op de desktop; dit apparaat toont het resultaat via Obsidian Sync en schrijft zelf niets.',
+    td_sync_now: 'Synchroniseer Microsoft To Do nu',
+    td_sync_done: 'Microsoft To Do gesynchroniseerd.',
+    td_sync_off: 'Zet eerst "Microsoft To Do-taken importeren" aan in de instellingen.',
+    td_badge_tip: 'Gekoppeld aan Microsoft To Do',
     cmd_add_inbox: 'Voeg Kanban-taak toe (inbox)',
     cmd_add_current: 'Voeg Kanban-taak toe aan huidige note',
     open_note_first: 'Open eerst een note.',
@@ -391,7 +421,7 @@ const TRANSLATIONS = {
     ol_section: 'Outlook calendar',
     ol_help: 'Connect your Microsoft/Outlook calendar and show its appointments alongside your tasks in the calendar view (read-only).',
     ol_client_id: 'Microsoft Client ID',
-    ol_client_id_desc: 'Application (client) ID of an Azure app registration. Register an app in the Microsoft Entra portal, add the redirect URI obsidian://trietment-kanban-auth under "Mobile and desktop applications", allow public client flows, and grant the delegated permissions Calendars.Read + offline_access.',
+    ol_client_id_desc: 'Application (client) ID of an Azure app registration. Register an app in the Microsoft Entra portal, add the redirect URI obsidian://trietment-kanban-auth under "Mobile and desktop applications", allow public client flows, and grant the delegated permissions Calendars.Read + Tasks.ReadWrite + offline_access.',
     ol_client_id_ph: 'Application (client) ID',
     ol_client_id_ph_builtin: 'Empty = use built-in Client ID',
     ol_client_id_builtin: '✓ Built-in Client ID is active — you do not need to fill this in. Only enter your own ID to override it.',
@@ -420,6 +450,23 @@ const TRANSLATIONS = {
     ol_loading_calendars: 'Loading calendars…',
     ol_no_calendars: 'No calendars found. Click refresh or reconnect.',
     ol_shared_note: 'Shared calendars require the Calendars.Read.Shared permission in your Azure app. Add it and reconnect the account if shared calendars are missing. A shared calendar only appears after you add it in Outlook.',
+    // Microsoft To Do
+    td_section: 'Microsoft To Do',
+    td_help: 'Import open tasks from Microsoft To Do as cards (incl. flagged e-mails from the default list). New cards land in the Inbox column; completing syncs both ways. Nothing is ever deleted — on either side.',
+    td_import: 'Import Microsoft To Do tasks',
+    td_import_desc: 'Fetch open tasks from the chosen list(s) and add them as task lines to the target note. Requires the Tasks.ReadWrite permission — reconnect an existing account if needed.',
+    td_target_note: 'Target note for new tasks',
+    td_target_note_desc: 'Newly imported To Do tasks land in this note (without a column tag, so in the Inbox column).',
+    td_lists: 'To Do lists',
+    td_loading_lists: 'Loading To Do lists…',
+    td_no_lists: 'No To Do lists found. Refresh, or reconnect the account (Tasks.ReadWrite required).',
+    td_lists_default_hint: 'No list checked = the default list "Tasks" (flagged e-mails end up there too).',
+    td_refresh_lists: 'Refresh To Do lists',
+    td_mobile_note: 'The To Do sync only runs on desktop; this device shows the result via Obsidian Sync and never writes anything itself.',
+    td_sync_now: 'Sync Microsoft To Do now',
+    td_sync_done: 'Microsoft To Do synced.',
+    td_sync_off: 'Enable "Import Microsoft To Do tasks" in settings first.',
+    td_badge_tip: 'Linked to Microsoft To Do',
     cmd_add_inbox: 'Add Kanban task (inbox)',
     cmd_add_current: 'Add Kanban task to current note',
     open_note_first: 'Open a note first.',
@@ -796,6 +843,11 @@ function parseTaskLine(line, filePath, lineNum) {
          + String(Math.min(59, parseInt(timeMatch[2], 10))).padStart(2, '0');
   }
 
+  // Microsoft To Do-koppeling (zie TD_MARKER_RE bovenin).
+  let todoList = null, todoId = null;
+  const tdMatch = rest.match(TD_MARKER_RE);
+  if (tdMatch) { todoList = tdMatch[1]; todoId = tdMatch[2]; }
+
   let column = null;
   const colMatch = rest.match(/#kanban\/([\w-]+)/);
   if (colMatch) column = colMatch[1];
@@ -837,6 +889,7 @@ function parseTaskLine(line, filePath, lineNum) {
   if (linkMatch) noteLink = linkMatch[1].split('|')[0].split('#')[0].trim();
 
   const text = restNoCover
+    .replace(TD_MARKER_RE_G, '')
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
     .replace(/⏰\s*\d{1,2}:\d{2}/g, '')
     .replace(/🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi, '')
@@ -851,6 +904,7 @@ function parseTaskLine(line, filePath, lineNum) {
 
   return {
     text, dueDate, time, column, project, client, priority, recurrence, done, noteLink, cover,
+    todoList, todoId,
     file: filePath, line: lineNum, indent,
     raw: line, subtasks: [],
   };
@@ -944,6 +998,24 @@ module.exports = class KanbanPlugin extends Plugin {
         this.refreshViews();
       },
     });
+
+    // De To Do-sync draait uitsluitend op desktop (zie OutlookManager); op
+    // mobiel bestaat het commando daarom niet eens.
+    if (Platform.isDesktop && !Platform.isMobile) {
+      this.addCommand({
+        id: 'sync-mstodo',
+        name: this.t('td_sync_now'),
+        callback: async () => {
+          if (!this.outlook.todoEnabled()) { new Notice(this.t('td_sync_off')); return; }
+          // Zelfde ontsnapping als het handmatige auto-move-commando: alleen
+          // waarschuwen als de sync mogelijk nog bezig is; de reconciliatie
+          // slaat markdown-writes dan zelf over.
+          if (!this.vaultSettled()) new Notice(this.t('sync_busy'));
+          await this.outlook.syncTodoTasks();
+          new Notice(this.t('td_sync_done'));
+        },
+      });
+    }
 
     this.settingTab = new KanbanSettingTab(this.app, this);
     this.addSettingTab(this.settingTab);
@@ -1070,6 +1142,24 @@ module.exports = class KanbanPlugin extends Plugin {
       }
     }
     return tasks;
+  }
+
+  // Alle %%td:...%%-markers die al ergens in de vault staan — óók op regels die
+  // niet (meer) als taak parsen, als subtaak zijn ingesprongen of in een
+  // uitgesloten map staan. Dit is de bestaanscheck van de To Do-import: een
+  // taak waarvan de marker al ergens staat wordt nooit opnieuw geïmporteerd.
+  async scanTodoMarkers() {
+    const keys = new Set();
+    const re = new RegExp(TD_MARKER_RE.source, 'g');
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      let content;
+      try { content = await this.app.vault.cachedRead(file); } catch (_) { continue; }
+      if (!content.includes('%%td:')) continue;
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(content))) keys.add(`${m[1]}:${m[2]}`);
+    }
+    return keys;
   }
 
   // Markdown-bestanden binnen de ingestelde scan-map(pen) (leeg = hele vault).
@@ -1261,6 +1351,8 @@ module.exports = class KanbanPlugin extends Plugin {
     if (task.client) line += ` #client/${task.client}`;
     if (task.project) line += ` #project/${task.project}`;
     if (task.column) line += ` #kanban/${task.column}`;
+    // De To Do-marker altijd achteraan, zodat de koppeling een rewrite overleeft.
+    if (task.todoList && task.todoId) line += ` %%td:${task.todoList}:${task.todoId}%%`;
     return line;
   }
 
@@ -1446,7 +1538,8 @@ module.exports = class KanbanPlugin extends Plugin {
       if (!m) return data;
       // Tekst loopt tot het eerste metadata-/cover-/wikilink-token; alles daarna blijft staan.
       // [cover:: vóór [[ zodat een wikilink-cover bij het cover-token stopt, niet bij de inner [[.
-      const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|#client\/|\[cover::|\[\[)/);
+      // %%td: hoort er ook bij: de To Do-marker mag een titelwijziging nooit kwijtraken.
+      const idx = m[2].search(/\s*(📅|⏰|🔁|🔺|⏫|🔼|🔽|⏬|#kanban\/|#project\/|#client\/|\[cover::|\[\[|%%td:)/);
       const rest = idx < 0 ? '' : m[2].slice(idx);
       lines[task.line] = m[1] + newText + rest;
       return lines.join('\n');
@@ -1536,21 +1629,22 @@ module.exports = class KanbanPlugin extends Plugin {
     return file;
   }
 
-  async createTaskInFile(task, targetPath) {
+  async createTaskInFile(task, targetPath, opts = {}) {
     const path = targetPath && targetPath.trim() ? targetPath.trim() : this.settings.inboxNote;
     if (!path) {
-      new Notice(this.t('no_target_file'));
+      if (!opts.quiet) new Notice(this.t('no_target_file'));
       return;
     }
     if (task.project) await this.assignProjectColor(task.project);
     const formatted = this.formatTaskLine(task);
-    const file = await this.ensureFile(path, `# Kanban Inbox\n\n`);
+    const initial = opts.initialContent != null ? opts.initialContent : `# Kanban Inbox\n\n`;
+    const file = await this.ensureFile(path, initial);
     if (file instanceof TFile) {
       await this.app.vault.process(file, (data) => {
         const sep = data.length === 0 || data.endsWith('\n') ? '' : '\n';
         return data + sep + formatted + '\n';
       });
-      new Notice(this.t('task_added_to', { path }));
+      if (!opts.quiet) new Notice(this.t('task_added_to', { path }));
     }
   }
 
@@ -1620,6 +1714,14 @@ module.exports = class KanbanPlugin extends Plugin {
       // Notities mee-archiveren bij afronden (en terughalen bij heropenen).
       for (const parsed of touched) {
         await this.syncNoteArchive(parsed, newColumn === this.settings.doneColumn);
+      }
+
+      // Verplaatsen naar de done-kolom vinkt af → afvinken meteen naar
+      // Microsoft To Do doorzetten (alleen open→klaar; terug nooit).
+      if (newColumn === this.settings.doneColumn) {
+        for (const parsed of touched) {
+          if (!parsed.done && parsed.todoId) this.outlook.pushTodoDone(parsed).catch(() => {});
+        }
       }
     }
     return moved;
@@ -1844,7 +1946,7 @@ module.exports = class KanbanPlugin extends Plugin {
     } catch (_) { /* verplaatsen mislukt → laat de notitie staan */ }
   }
 
-  async toggleDone(task) {
+  async toggleDone(task, opts = {}) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
     const wasDone = task.done;
@@ -1899,6 +2001,12 @@ module.exports = class KanbanPlugin extends Plugin {
 
     // Notitie mee-archiveren bij afronden (en terughalen bij heropenen).
     if (applied) await this.syncNoteArchive(task, !wasDone);
+
+    // Afvinken meteen naar Microsoft To Do doorzetten (alleen open→klaar; de
+    // reconciliatie zet 'm bij het afvinken vanuit To Do zelf op skipTodoPush).
+    if (applied && !wasDone && task.todoId && !opts.skipTodoPush) {
+      this.outlook.pushTodoDone(task).catch(() => {});
+    }
   }
 
   async setDueDate(task, newDate) {
@@ -2071,6 +2179,11 @@ class KanbanView extends ItemView {
         this.plugin.queueAutoMove();
       }
     }
+
+    // Microsoft To Do-reconciliatie lift mee op het renderen van het bord —
+    // gethrottled (max. eens per 5 min) en fire-and-forget, zodat het bord
+    // nooit op het netwerk wacht. Draait alleen op desktop.
+    this.plugin.outlook.maybeSyncTodoTasks();
 
     const container = this.containerEl.children[1];
     // Scrollposities vasthouden vóór het leegmaken, zodat het bord na de
@@ -2811,6 +2924,12 @@ class KanbanView extends ItemView {
       rec.dataset.value = task.recurrence;
       rec.setAttr('title', this.plugin.t('repeats', { r: task.recurrence }));
     }
+    // Subtiel kenteken voor kaarten die uit Microsoft To Do komen.
+    if (task.todoId) {
+      const td = meta.createSpan({ cls: 'tk-td-badge', text: 'To Do' });
+      td.dataset.field = 'mstodo';
+      td.setAttr('title', this.plugin.t('td_badge_tip'));
+    }
 
     // Source link
     const src = card.createDiv({ cls: 'tk-card-source' });
@@ -3207,6 +3326,11 @@ class OutlookManager {
     this.plugin = plugin;
     this.pending = null;                 // { verifier, state } tijdens een login
     this.eventCache = new Map();         // key -> { at, events } (korte cache)
+    // -- Microsoft To Do --
+    this.todoListOwner = new Map();      // lijstId -> accountId (gevuld door de sync)
+    this.todoDefaultLists = new Map();   // accountId -> id van de standaardlijst (sessie-cache)
+    this.lastTodoSyncAt = 0;             // throttle voor de bord-trigger
+    this.todoSyncBusy = false;           // re-entrancy-slot voor de reconciliatie
   }
 
   t(key, vars) { return this.plugin.t(key, vars); }
@@ -3510,6 +3634,247 @@ class OutlookManager {
       allDay: !!ev.isAllDay,
       color,
     };
+  }
+
+  // ---- Microsoft To Do -----------------------------------------------------
+  // Importeert To Do-taken als kaarten en synct de afgevinkt-status in beide
+  // richtingen. Bewust niet meer dan dat: titel/due/prioriteit/subtaken worden
+  // niet gesynct, kolommen zijn puur Obsidian-lokaal en er wordt nooit iets
+  // verwijderd — aan geen van beide kanten.
+
+  todoEnabled() {
+    return !!this.plugin.settings.todoImportEnabled && this.isConfigured() && this.accounts().length > 0;
+  }
+
+  // Synct dít apparaat? Eén schrijver: alleen desktop doet Graph- en
+  // markdown-writes; telefoons krijgen het resultaat via Obsidian Sync. De
+  // extra isMobile-check vangt ook app.emulateMobile(true) bij testen op desktop.
+  todoSyncsHere() {
+    return Platform.isDesktop && !Platform.isMobile;
+  }
+
+  // Beschikbare To Do-lijsten van een account (voor de lijstenkiezer in de
+  // instellingen). Spiegel van fetchCalendars; onthoudt en passant de id van de
+  // standaardlijst (wellknownListName eq 'defaultList').
+  async fetchTodoLists(acc) {
+    try {
+      const token = await this.validToken(acc);
+      if (!token) { acc.todoLists = acc.todoLists || []; return acc.todoLists; }
+      const res = await obsidian.requestUrl({
+        url: 'https://graph.microsoft.com/v1.0/me/todo/lists?$select=id,displayName,wellknownListName&$top=100',
+        headers: { Authorization: `Bearer ${token}` },
+        throw: false,
+      });
+      // 401/403 = token zonder Tasks.ReadWrite (scope kwam later bij) →
+      // herkoppel-hint in de instellingen, net als bij agenda's.
+      if (res.status === 401 || res.status === 403) await this.markReauth(acc);
+      if (res.status >= 400) { acc.todoLists = acc.todoLists || []; await this.plugin.saveSettings(); return acc.todoLists; }
+      const items = (res.json && res.json.value) || [];
+      acc.todoLists = items.map((l) => ({
+        id: l.id,
+        name: l.displayName || '',
+        wellknown: l.wellknownListName || null,
+      }));
+      const def = acc.todoLists.find((l) => l.wellknown === 'defaultList');
+      if (def) this.todoDefaultLists.set(acc.id, def.id);
+      const ids = new Set(acc.todoLists.map((l) => l.id));
+      if (Array.isArray(acc.todoSelected)) acc.todoSelected = acc.todoSelected.filter((id) => ids.has(id));
+      await this.plugin.saveSettings();
+      return acc.todoLists;
+    } catch (_) {
+      acc.todoLists = acc.todoLists || [];
+      return acc.todoLists;
+    }
+  }
+
+  // De lijsten die de sync voor dit account leest: de gekozen lijsten, of anders
+  // de standaardlijst — altijd met de échte lijst-id (nooit een alias), zodat de
+  // %%td:...%%-markers stabiel blijven.
+  async todoTargetLists(acc) {
+    const sel = Array.isArray(acc.todoSelected) ? acc.todoSelected.filter(Boolean) : [];
+    if (sel.length) return sel;
+    if (!this.todoDefaultLists.has(acc.id)) await this.fetchTodoLists(acc);
+    const def = this.todoDefaultLists.get(acc.id);
+    return def ? [def] : [];
+  }
+
+  // Alle taken van één lijst, gepagineerd via @odata.nextLink. null = lijst nu
+  // niet leesbaar (offline/404/…): die lijst telt deze draai niet mee en er
+  // wordt dus ook niets uit geconcludeerd (er verdwijnt nooit iets).
+  async fetchTodoListTasks(acc, listId) {
+    const token = await this.validToken(acc);
+    if (!token) return null;
+    const out = [];
+    let url = `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks`
+      + '?$select=id,title,status,dueDateTime&$top=250';
+    let guard = 0;
+    while (url && guard++ < 40) {
+      let res;
+      try {
+        res = await obsidian.requestUrl({ url, headers: { Authorization: `Bearer ${token}` }, throw: false });
+      } catch (_) { return null; }
+      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return null; }
+      if (res.status >= 400) return null;
+      const j = res.json || {};
+      out.push(...(j.value || []));
+      url = j['@odata.nextLink'] || null;
+    }
+    return out;
+  }
+
+  async patchTodoCompleted(acc, listId, taskId) {
+    const token = await this.validToken(acc);
+    if (!token) return false;
+    try {
+      const res = await obsidian.requestUrl({
+        url: `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`,
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+        throw: false,
+      });
+      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return false; }
+      // 404 = taak in To Do verwijderd → stil laten; de markdown-regel blijft.
+      return res.status < 400;
+    } catch (_) { return false; }
+  }
+
+  todoAccountForList(listId) {
+    const accId = this.todoListOwner.get(listId);
+    if (accId) {
+      const acc = this.accounts().find((a) => a.id === accId);
+      if (acc) return acc;
+    }
+    return this.accounts().find((a) => Array.isArray(a.todoSelected) && a.todoSelected.includes(listId)) || null;
+  }
+
+  // Afvinken op het bord: alleen de PATCH voor deze ene taak, zodat het snel in
+  // To Do doorkomt. Alleen open→afgevinkt; heropenen wordt nooit teruggezet.
+  // Fouten vallen stil — de eerstvolgende reconciliatie herstelt.
+  async pushTodoDone(task) {
+    if (!this.todoSyncsHere() || !this.todoEnabled()) return;
+    if (!task || !task.todoList || !task.todoId) return;
+    const known = this.todoAccountForList(task.todoList);
+    // Eigenaar nog onbekend (nog geen sync gedraaid deze sessie): probeer de
+    // accounts; een 404 bij het verkeerde account is onschadelijk.
+    const tryAccs = known ? [known] : this.accounts();
+    for (const acc of tryAccs) {
+      if (acc.needsReauth) continue;
+      if (await this.patchTodoCompleted(acc, task.todoList, task.todoId)) {
+        this.todoListOwner.set(task.todoList, acc.id);
+        return;
+      }
+    }
+  }
+
+  // Bord-trigger: gethrottled en fire-and-forget, zodat het bord nooit wacht.
+  maybeSyncTodoTasks() {
+    if (!this.todoSyncsHere() || !this.todoEnabled()) return;
+    if (Date.now() - this.lastTodoSyncAt < TD_SYNC_MIN_MS) return;
+    this.syncTodoTasks().catch(() => {});
+  }
+
+  // Eén reconciliatie-draai; geen event-gedreven wachtrijen. Idempotent: twee
+  // keer draaien = de tweede keer niets doen.
+  async syncTodoTasks() {
+    if (!this.todoSyncsHere() || !this.todoEnabled()) return null;
+    if (this.todoSyncBusy) return null;
+    this.todoSyncBusy = true;
+    this.lastTodoSyncAt = Date.now();
+    try {
+      return await this.reconcileTodo();
+    } catch (_) {
+      return null; // stil falen, net als fetchEvents — de volgende draai herstelt
+    } finally {
+      this.todoSyncBusy = false;
+    }
+  }
+
+  async reconcileTodo() {
+    const plugin = this.plugin;
+
+    // a. Remote: alle taken van de geselecteerde (of standaard-)lijsten.
+    const remote = new Map(); // `${lijstId}:${taakId}` -> { acc, listId, id, title, status, due }
+    for (const acc of this.accounts()) {
+      if (acc.needsReauth) continue;
+      const listIds = await this.todoTargetLists(acc);
+      for (const listId of listIds) {
+        const items = await this.fetchTodoListTasks(acc, listId);
+        if (!items) continue;
+        this.todoListOwner.set(listId, acc.id);
+        for (const it of items) {
+          if (!it || !it.id) continue;
+          const rawDue = it.dueDateTime && typeof it.dueDateTime.dateTime === 'string'
+            ? it.dueDateTime.dateTime.slice(0, 10) : null;
+          remote.set(`${listId}:${it.id}`, {
+            acc, listId, id: it.id,
+            // %% kan niet in de titel blijven staan: dat zou de marker-parse breken.
+            title: String(it.title || '').replace(/[\r\n]+/g, ' ').replace(/%%/g, '').replace(/\s+/g, ' ').trim(),
+            status: it.status || 'notStarted',
+            due: rawDue && /^\d{4}-\d{2}-\d{2}$/.test(rawDue) ? rawDue : null,
+          });
+        }
+      }
+    }
+    if (!remote.size) return { imported: 0, patched: 0, checked: 0 };
+
+    // b. Lokaal: kaarten met marker (voor de status) én alle markers waar dan
+    // ook in de vault (voor de bestaanscheck — ook subtaken en kapotte regels).
+    const tasks = await plugin.scanTasks();
+    const local = new Map();
+    for (const t of tasks) {
+      if (t.todoList && t.todoId) local.set(`${t.todoList}:${t.todoId}`, t);
+    }
+    const existing = await plugin.scanTodoMarkers();
+
+    // c–e. Verschillen bepalen.
+    const toCreate = []; // in To Do open, nog nergens in de vault → importeren
+    const toPatch = [];  // markdown afgevinkt, To Do nog open → PATCH completed
+    const toCheck = [];  // To Do completed, markdown open → regel afvinken
+    for (const [key, rt] of remote) {
+      const lt = local.get(key);
+      if (!lt) {
+        if (rt.status !== 'completed' && !existing.has(key)) toCreate.push(rt);
+        continue;
+      }
+      const remoteDone = rt.status === 'completed';
+      if (lt.done && !remoteDone) toPatch.push(rt);
+      else if (!lt.done && remoteDone) toCheck.push(lt);
+    }
+
+    // d. Graph-PATCHes (geen markdown-write, dus niet aan vaultSettled gebonden).
+    let patched = 0;
+    for (const rt of toPatch) {
+      if (await this.patchTodoCompleted(rt.acc, rt.listId, rt.id)) patched++;
+    }
+
+    // c + e. Markdown-writes alleen als de vault in rust is; anders slaat deze
+    // draai ze over — de volgende draai herstelt vanzelf (het is reconciliatie).
+    let imported = 0, checked = 0;
+    if ((toCreate.length || toCheck.length) && plugin.vaultSettled()) {
+      const targetNote = (plugin.settings.todoTargetNote || '').trim() || 'MS To Do.md';
+      const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
+      for (const rt of toCreate) {
+        // Zonder #kanban-tag: nieuwe taken landen bewust in de Inbox (intake).
+        await plugin.createTaskInFile(
+          { text: rt.title, dueDate: rt.due, todoList: rt.listId, todoId: rt.id },
+          targetNote,
+          { quiet: true, initialContent: header },
+        );
+        imported++;
+      }
+      // Afvinken van hoog naar laag regelnummer per bestand: een herhaal-taak
+      // voegt bij het afvinken een regel boven zichzelf in en zou anders de
+      // posities van de nog af te vinken regels eronder laten verschuiven.
+      toCheck.sort((a, b) => (a.file === b.file ? b.line - a.line : (a.file < b.file ? -1 : 1)));
+      for (const lt of toCheck) {
+        await plugin.toggleDone(lt, { skipTodoPush: true });
+        checked++;
+      }
+    }
+
+    if (imported || checked) plugin.scheduleRefresh();
+    return { imported, patched, checked };
   }
 
   async removeAccount(id) {
@@ -4753,6 +5118,37 @@ class KanbanSettingTab extends PluginSettingTab {
           this.plugin.refreshViews();
         }));
 
+    // -- Microsoft To Do -----------------------------------------------
+    new Setting(containerEl).setName(t('td_section')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('td_help') });
+    // Op mobiel draait de sync niet; dit apparaat toont alleen wat Obsidian
+    // Sync aanlevert (de instellingen zelf syncen wél mee naar de desktop).
+    if (!Platform.isDesktop || Platform.isMobile) {
+      containerEl.createEl('p', { cls: 'tk-help-line', text: t('td_mobile_note') });
+    }
+
+    new Setting(containerEl)
+      .setName(t('td_import'))
+      .setDesc(t('td_import_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(!!this.plugin.settings.todoImportEnabled)
+        .onChange(async (v) => {
+          this.plugin.settings.todoImportEnabled = v;
+          await this.plugin.saveSettings();
+          this.display(); // lijstenkiezers per account tonen/verbergen
+        }));
+
+    new Setting(containerEl)
+      .setName(t('td_target_note'))
+      .setDesc(t('td_target_note_desc'))
+      .addText((text) => text
+        .setPlaceholder('MS To Do.md')
+        .setValue(this.plugin.settings.todoTargetNote || '')
+        .onChange(async (v) => {
+          this.plugin.settings.todoTargetNote = v.trim();
+          await this.plugin.saveSettings();
+        }));
+
     // Gekoppelde accounts
     new Setting(containerEl).setName(t('ol_accounts')).setHeading();
     const accounts = this.plugin.outlook.accounts();
@@ -4777,6 +5173,15 @@ class KanbanSettingTab extends PluginSettingTab {
             this.plugin.refreshViews();
             this.display();
           }));
+        if (this.plugin.settings.todoImportEnabled) {
+          row.addExtraButton((b) => b
+            .setIcon('list-checks')
+            .setTooltip(t('td_refresh_lists'))
+            .onClick(async () => {
+              await this.plugin.outlook.fetchTodoLists(acc);
+              this.display();
+            }));
+        }
         row.addExtraButton((b) => b
           .setIcon('trash')
           .setTooltip(t('ol_remove'))
@@ -4808,6 +5213,32 @@ class KanbanSettingTab extends PluginSettingTab {
                 this.plugin.outlook.clearCache();
                 this.plugin.refreshViews();
               }));
+          }
+        }
+
+        // To Do-lijstenkiezer, spiegel van de agenda-kiezer hierboven. Keuze
+        // staat in acc.todoSelected; niets aangevinkt = de standaardlijst.
+        if (this.plugin.settings.todoImportEnabled) {
+          group.createEl('p', { cls: 'tk-help-line', text: t('td_lists') });
+          if (!Array.isArray(acc.todoLists)) {
+            group.createEl('p', { cls: 'tk-help-line', text: t('td_loading_lists') });
+            // Eenmalig laden; daarna opnieuw tekenen (zet altijd een array, geen loop).
+            this.plugin.outlook.fetchTodoLists(acc).then(() => this.display());
+          } else if (!acc.todoLists.length) {
+            group.createEl('p', { cls: 'tk-help-line', text: t('td_no_lists') });
+          } else {
+            for (const l of acc.todoLists) {
+              const ls = new Setting(group).setName(l.name).setClass('tk-setting-child');
+              ls.addToggle((tg) => tg
+                .setValue((acc.todoSelected || []).includes(l.id))
+                .onChange(async (v) => {
+                  const sel = new Set(acc.todoSelected || []);
+                  if (v) sel.add(l.id); else sel.delete(l.id);
+                  acc.todoSelected = [...sel];
+                  await this.plugin.saveSettings();
+                }));
+            }
+            group.createEl('p', { cls: 'tk-help-line', text: t('td_lists_default_hint') });
           }
         }
       }

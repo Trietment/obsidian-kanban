@@ -464,6 +464,18 @@
   padding-left: 20px;
 }
 
+/* Subtiel kenteken voor kaarten die uit Microsoft To Do komen — alleen
+   bestaande themavariabelen, geen eigen kleuren. */
+.tk-card-meta .tk-td-badge {
+  font-size: 0.85em;
+  color: var(--text-faint);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 0 4px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
 .tk-card-source {
   font-size: 0.72em;
   color: var(--text-faint);
