@@ -3454,6 +3454,11 @@ class OutlookManager {
       // Beschikbare agenda's ophalen (default-agenda wordt automatisch geselecteerd).
       await this.fetchCalendars(acc);
 
+      // Ook de To Do-lijsten meteen verversen: een herkoppeling gebeurt juist
+      // vaak óm de Tasks-scope, en de kiezer moet dan niet op de oude (lege)
+      // cache van vóór de herkoppeling blijven hangen.
+      if (this.plugin.settings.todoImportEnabled) await this.fetchTodoLists(acc);
+
       new Notice(this.t('ol_connected', { name: label }));
       this.plugin.refreshViews();
       try { if (this.plugin.settingTab) this.plugin.settingTab.display(); } catch (_) {}
