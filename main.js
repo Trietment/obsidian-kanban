@@ -74,6 +74,7 @@ const DEFAULT_SETTINGS = {
   todoImportEnabled: false,     // To Do-taken importeren als kaarten (sync draait alleen op desktop)
   todoTargetNote: 'MS To Do.md',// doelnote waar nieuw geïmporteerde taken landen
   todoTargetColumn: '',         // kolom voor nieuwe imports: '' = standaardkolom, 'inbox' = zonder tag, anders kolom-id
+  todoExportEnabled: false,     // Obsidian-taken met gekoppelde client naar hun To Do-lijst sturen
 };
 
 // Engelse standaard-kolomlabels (alleen bij een verse installatie in het Engels).
@@ -182,6 +183,8 @@ const TRANSLATIONS = {
     td_target_column: 'Kolom voor nieuwe taken',
     td_target_column_desc: 'Waar nieuw geïmporteerde taken op het bord landen. In de standaardkolom doen ze mee met automatisch verplaatsen: due vandaag → Bezig. Inbox = zonder kolom-tag (intake om zelf te sorteren).',
     td_target_column_default: 'Standaardkolom',
+    td_export: 'Obsidian-taken naar Microsoft To Do sturen',
+    td_export_desc: 'Open taken met een client die aan precies één aangevinkte lijst is gekoppeld, worden in die lijst aangemaakt en krijgen de koppelmarker op de regel — afvinken synchroniseert daarna in beide richtingen, en via Exchange verschijnen ze ook in Apple Reminders. Titel en due date reizen alleen bij het aanmaken mee; er wordt nooit iets verwijderd.',
     td_lists: 'To Do-lijsten',
     td_loading_lists: 'To Do-lijsten laden…',
     td_no_lists: 'Geen To Do-lijsten gevonden. Vernieuw, of koppel het account opnieuw (Tasks.ReadWrite vereist).',
@@ -472,6 +475,8 @@ const TRANSLATIONS = {
     td_target_column: 'Column for new tasks',
     td_target_column_desc: 'Where newly imported tasks land on the board. In the default column they join auto-move: due today → In progress. Inbox = no column tag (intake to sort yourself).',
     td_target_column_default: 'Default column',
+    td_export: 'Send Obsidian tasks to Microsoft To Do',
+    td_export_desc: 'Open tasks with a client that is mapped to exactly one checked list are created in that list and get the link marker on their line — completing then syncs both ways, and via Exchange they appear in Apple Reminders too. Title and due date only travel at creation; nothing is ever deleted.',
     td_lists: 'To Do lists',
     td_loading_lists: 'Loading To Do lists…',
     td_no_lists: 'No To Do lists found. Refresh, or reconnect the account (Tasks.ReadWrite required).',
@@ -3925,6 +3930,50 @@ class OutlookManager {
     return this.accounts().find((a) => Array.isArray(a.todoSelected) && a.todoSelected.includes(listId)) || null;
   }
 
+  // Maak een taak aan in een To Do-lijst (export-pad). Geeft de nieuwe taak-id
+  // terug, of null bij falen (stil, net als de rest).
+  async createTodoTask(acc, listId, task) {
+    const token = await this.validToken(acc);
+    if (!token) return null;
+    const body = { title: task.text || '' };
+    if (task.dueDate) {
+      const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
+      body.dueDateTime = { dateTime: `${task.dueDate}T00:00:00.0000000`, timeZone: tz };
+    }
+    try {
+      const res = await obsidian.requestUrl({
+        url: `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        throw: false,
+      });
+      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return null; }
+      if (res.status >= 400) return null;
+      return (res.json && res.json.id) || null;
+    } catch (_) { return null; }
+  }
+
+  // Zet de marker op de zojuist geëxporteerde regel. Raw-match in plaats van
+  // alleen het regelnummer: de regel kan verschoven zijn sinds de scan. Lukt
+  // het niet (regel bewerkt/weg), dan importeert de volgende draai de taak
+  // gewoon als nieuwe kaart — er raakt niets kwijt.
+  async markExportedLine(t, listId, id) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(t.file);
+    if (!(file instanceof TFile)) return false;
+    let ok = false;
+    await this.plugin.app.vault.process(file, (data) => {
+      ok = false;
+      const lines = data.split('\n');
+      const idx = (t.line < lines.length && lines[t.line] === t.raw) ? t.line : lines.indexOf(t.raw);
+      if (idx < 0) return data;
+      lines[idx] = lines[idx].trimEnd() + ` %%td:${listId}:${id}%%`;
+      ok = true;
+      return lines.join('\n');
+    });
+    return ok;
+  }
+
   // Client-tag voor een lijst (instelling per account, acc.todoClients),
   // tag-veilig gemaakt: spaties → streepjes, alleen tekens die
   // #client/[\w/-] aankan. Wordt alleen bij het importeren toegepast.
@@ -3981,6 +4030,7 @@ class OutlookManager {
 
     // a. Remote: alle taken van de geselecteerde (of standaard-)lijsten.
     const remote = new Map(); // `${lijstId}:${taakId}` -> { acc, listId, id, title, status, due }
+    const readLists = new Set(); // lijsten die deze draai echt gelezen zijn
     for (const acc of this.accounts()) {
       if (acc.needsReauth) continue;
       const listIds = await this.todoTargetLists(acc);
@@ -3988,6 +4038,7 @@ class OutlookManager {
         const items = await this.fetchTodoListTasks(acc, listId);
         if (!items) continue;
         this.todoListOwner.set(listId, acc.id);
+        readLists.add(listId);
         for (const it of items) {
           if (!it || !it.id) continue;
           const rawDue = it.dueDateTime && typeof it.dueDateTime.dateTime === 'string'
@@ -4003,7 +4054,9 @@ class OutlookManager {
         }
       }
     }
-    if (!remote.size) return { imported: 0, patched: 0, checked: 0 };
+    // Geen enkele lijst leesbaar → niets doen. (Een gelezen maar lége lijst
+    // telt wél: daar kan de export nog steeds naartoe.)
+    if (!readLists.size) return { imported: 0, patched: 0, checked: 0, exported: 0 };
 
     // b. Lokaal: kaarten met marker (voor de status) én alle markers waar dan
     // ook in de vault (voor de bestaanscheck — ook subtaken en kapotte regels).
@@ -4037,8 +4090,9 @@ class OutlookManager {
 
     // c + e. Markdown-writes alleen als de vault in rust is; anders slaat deze
     // draai ze over — de volgende draai herstelt vanzelf (het is reconciliatie).
+    const settled = plugin.vaultSettled();
     let imported = 0, checked = 0;
-    if ((toCreate.length || toCheck.length) && plugin.vaultSettled()) {
+    if ((toCreate.length || toCheck.length) && settled) {
       const targetNote = (plugin.settings.todoTargetNote || '').trim() || 'MS To Do.md';
       const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
       // Doelkolom: standaard de standaardkolom (doet mee met auto-verplaatsen:
@@ -4068,8 +4122,36 @@ class OutlookManager {
       }
     }
 
-    if (imported || checked) plugin.scheduleRefresh();
-    return { imported, patched, checked };
+    // x. Export (opt-in): open Obsidian-taken met een client die aan precies
+    // één aangevinkte (= deze draai gelezen) lijst hangt → aanmaken in die
+    // lijst en de marker op de regel zetten. Vanaf dan is het een gewone
+    // gekoppelde kaart: afvinken synchroniseert in beide richtingen. Ook dit
+    // is een markdown-write, dus achter dezelfde rust-poort.
+    let exported = 0;
+    if (plugin.settings.todoExportEnabled && settled) {
+      const byClient = new Map(); // client -> { acc, listId }, of null bij dubbelzinnig
+      for (const acc of this.accounts()) {
+        if (acc.needsReauth || !acc.todoClients) continue;
+        for (const listId of Object.keys(acc.todoClients)) {
+          if (!readLists.has(listId)) continue;
+          const client = this.todoClientForList(acc, listId);
+          if (!client) continue;
+          // Zelfde client op meerdere lijsten = dubbelzinnig doel → overslaan.
+          byClient.set(client, byClient.has(client) ? null : { acc, listId });
+        }
+      }
+      for (const t of tasks) {
+        if (t.done || t.todoId || !t.client) continue;
+        const target = byClient.get(t.client);
+        if (!target) continue;
+        const id = await this.createTodoTask(target.acc, target.listId, t);
+        if (!id) continue;
+        if (await this.markExportedLine(t, target.listId, id)) exported++;
+      }
+    }
+
+    if (imported || checked || exported) plugin.scheduleRefresh();
+    return { imported, patched, checked, exported };
   }
 
   async removeAccount(id) {
@@ -5379,6 +5461,16 @@ class KanbanSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    new Setting(containerEl)
+      .setName(t('td_export'))
+      .setDesc(t('td_export_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(!!this.plugin.settings.todoExportEnabled)
+        .onChange(async (v) => {
+          this.plugin.settings.todoExportEnabled = v;
+          await this.plugin.saveSettings();
+        }));
 
     // Gekoppelde accounts
     new Setting(containerEl).setName(t('ol_accounts')).setHeading();
