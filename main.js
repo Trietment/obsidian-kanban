@@ -72,7 +72,8 @@ const DEFAULT_SETTINGS = {
 
   // Microsoft To Do
   todoImportEnabled: false,     // To Do-taken importeren als kaarten (sync draait alleen op desktop)
-  todoTargetNote: 'MS To Do.md',// doelnote waar nieuw geïmporteerde taken landen (zonder kolom-tag → Inbox)
+  todoTargetNote: 'MS To Do.md',// doelnote waar nieuw geïmporteerde taken landen
+  todoTargetColumn: '',         // kolom voor nieuwe imports: '' = standaardkolom, 'inbox' = zonder tag, anders kolom-id
 };
 
 // Engelse standaard-kolomlabels (alleen bij een verse installatie in het Engels).
@@ -173,11 +174,14 @@ const TRANSLATIONS = {
     ol_shared_note: 'Gedeelde agenda’s vereisen het recht Calendars.Read.Shared in je Azure-app. Voeg het toe en koppel het account opnieuw als gedeelde agenda’s ontbreken. Een gedeelde agenda verschijnt pas nadat je hem in Outlook hebt toegevoegd.',
     // Microsoft To Do
     td_section: 'Microsoft To Do',
-    td_help: 'Importeer open taken uit Microsoft To Do als kaarten (incl. gevlagde e-mails uit de standaardlijst). Nieuwe kaarten landen in de Inbox-kolom; afvinken synchroniseert in beide richtingen. Er wordt nooit iets verwijderd — aan geen van beide kanten.',
+    td_help: 'Importeer open taken uit Microsoft To Do als kaarten (incl. gevlagde e-mails uit de standaardlijst). Nieuwe kaarten landen in de gekozen kolom; afvinken synchroniseert in beide richtingen. Er wordt nooit iets verwijderd — aan geen van beide kanten.',
     td_import: 'Microsoft To Do-taken importeren',
     td_import_desc: 'Haal open taken uit de gekozen lijst(en) op en zet ze als taakregel in de doelnote. Vereist het recht Tasks.ReadWrite — koppel een bestaand account zo nodig opnieuw.',
     td_target_note: 'Doelnote voor nieuwe taken',
-    td_target_note_desc: 'In deze note landen nieuw geïmporteerde To Do-taken (zonder kolom-tag, dus in de Inbox-kolom).',
+    td_target_note_desc: 'In deze note landen nieuw geïmporteerde To Do-taken.',
+    td_target_column: 'Kolom voor nieuwe taken',
+    td_target_column_desc: 'Waar nieuw geïmporteerde taken op het bord landen. In de standaardkolom doen ze mee met automatisch verplaatsen: due vandaag → Bezig. Inbox = zonder kolom-tag (intake om zelf te sorteren).',
+    td_target_column_default: 'Standaardkolom',
     td_lists: 'To Do-lijsten',
     td_loading_lists: 'To Do-lijsten laden…',
     td_no_lists: 'Geen To Do-lijsten gevonden. Vernieuw, of koppel het account opnieuw (Tasks.ReadWrite vereist).',
@@ -461,11 +465,14 @@ const TRANSLATIONS = {
     ol_shared_note: 'Shared calendars require the Calendars.Read.Shared permission in your Azure app. Add it and reconnect the account if shared calendars are missing. A shared calendar only appears after you add it in Outlook.',
     // Microsoft To Do
     td_section: 'Microsoft To Do',
-    td_help: 'Import open tasks from Microsoft To Do as cards (incl. flagged e-mails from the default list). New cards land in the Inbox column; completing syncs both ways. Nothing is ever deleted — on either side.',
+    td_help: 'Import open tasks from Microsoft To Do as cards (incl. flagged e-mails from the default list). New cards land in the column of your choosing; completing syncs both ways. Nothing is ever deleted — on either side.',
     td_import: 'Import Microsoft To Do tasks',
     td_import_desc: 'Fetch open tasks from the chosen list(s) and add them as task lines to the target note. Requires the Tasks.ReadWrite permission — reconnect an existing account if needed.',
     td_target_note: 'Target note for new tasks',
-    td_target_note_desc: 'Newly imported To Do tasks land in this note (without a column tag, so in the Inbox column).',
+    td_target_note_desc: 'Newly imported To Do tasks land in this note.',
+    td_target_column: 'Column for new tasks',
+    td_target_column_desc: 'Where newly imported tasks land on the board. In the default column they join auto-move: due today → In progress. Inbox = no column tag (intake to sort yourself).',
+    td_target_column_default: 'Default column',
     td_lists: 'To Do lists',
     td_loading_lists: 'Loading To Do lists…',
     td_no_lists: 'No To Do lists found. Refresh, or reconnect the account (Tasks.ReadWrite required).',
@@ -4036,13 +4043,18 @@ class OutlookManager {
     if ((toCreate.length || toCheck.length) && plugin.vaultSettled()) {
       const targetNote = (plugin.settings.todoTargetNote || '').trim() || 'MS To Do.md';
       const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
+      // Doelkolom: standaard de standaardkolom (doet mee met auto-verplaatsen:
+      // due vandaag → Bezig); 'inbox' = bewust zonder tag. Een kolom-id dat
+      // niet (meer) bestaat valt terug op de standaardkolom.
+      const rawCol = plugin.settings.todoTargetColumn || '';
+      const targetColumn = rawCol === 'inbox' ? null
+        : (plugin.settings.columns.includes(rawCol) ? rawCol : plugin.settings.defaultColumn);
       for (const rt of toCreate) {
-        // Zonder #kanban-tag: nieuwe taken landen bewust in de Inbox (intake).
         // Met een lijst→client-koppeling krijgt de regel meteen de #client-tag
         // (en de client een kleur, net als bij handmatig toewijzen).
         if (rt.client) await plugin.assignClientColor(rt.client);
         await plugin.createTaskInFile(
-          { text: rt.title, dueDate: rt.due, client: rt.client, todoList: rt.listId, todoId: rt.id },
+          { text: rt.title, dueDate: rt.due, client: rt.client, column: targetColumn, todoList: rt.listId, todoId: rt.id },
           targetNote,
           { quiet: true, initialContent: header },
         );
@@ -5351,6 +5363,24 @@ class KanbanSettingTab extends PluginSettingTab {
           this.plugin.settings.todoTargetNote = v.trim();
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName(t('td_target_column'))
+      .setDesc(t('td_target_column_desc'))
+      .addDropdown((dd) => {
+        dd.addOption('', t('td_target_column_default'));
+        dd.addOption('inbox', t('inbox'));
+        for (const col of this.plugin.settings.columns) {
+          // De done-kolom uitsluiten: een import hoort nooit afgevinkt te landen.
+          if (col === this.plugin.settings.doneColumn) continue;
+          dd.addOption(col, this.plugin.settings.columnLabels[col] || col);
+        }
+        dd.setValue(this.plugin.settings.todoTargetColumn || '');
+        dd.onChange(async (v) => {
+          this.plugin.settings.todoTargetColumn = v;
+          await this.plugin.saveSettings();
+        });
+      });
 
     // Gekoppelde accounts
     new Setting(containerEl).setName(t('ol_accounts')).setHeading();
