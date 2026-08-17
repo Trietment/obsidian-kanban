@@ -188,6 +188,8 @@ const TRANSLATIONS = {
     td_sync_done: 'Microsoft To Do gesynchroniseerd.',
     td_sync_off: 'Zet eerst "Microsoft To Do-taken importeren" aan in de instellingen.',
     td_badge_tip: 'Gekoppeld aan Microsoft To Do',
+    td_list_client_ph: 'client (optioneel)',
+    td_client_hint: 'Client geldt voor nieuw geïmporteerde taken uit die lijst: ze krijgen een #client/-tag (met kleur). Bestaande kaarten blijven ongemoeid.',
     cmd_add_inbox: 'Voeg Kanban-taak toe (inbox)',
     cmd_add_current: 'Voeg Kanban-taak toe aan huidige note',
     open_note_first: 'Open eerst een note.',
@@ -474,6 +476,8 @@ const TRANSLATIONS = {
     td_sync_done: 'Microsoft To Do synced.',
     td_sync_off: 'Enable "Import Microsoft To Do tasks" in settings first.',
     td_badge_tip: 'Linked to Microsoft To Do',
+    td_list_client_ph: 'client (optional)',
+    td_client_hint: 'The client applies to newly imported tasks from that list: they get a #client/ tag (with a color). Existing cards are left untouched.',
     cmd_add_inbox: 'Add Kanban task (inbox)',
     cmd_add_current: 'Add Kanban task to current note',
     open_note_first: 'Open a note first.',
@@ -3909,6 +3913,15 @@ class OutlookManager {
     return this.accounts().find((a) => Array.isArray(a.todoSelected) && a.todoSelected.includes(listId)) || null;
   }
 
+  // Client-tag voor een lijst (instelling per account, acc.todoClients),
+  // tag-veilig gemaakt: spaties → streepjes, alleen tekens die
+  // #client/[\w/-] aankan. Wordt alleen bij het importeren toegepast.
+  todoClientForList(acc, listId) {
+    const raw = acc && acc.todoClients ? String(acc.todoClients[listId] || '') : '';
+    const tag = raw.trim().replace(/\s+/g, '-').replace(/[^\w/-]/g, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+    return tag || null;
+  }
+
   // Afvinken op het bord: alleen de PATCH voor deze ene taak, zodat het snel in
   // To Do doorkomt. Alleen open→afgevinkt; heropenen wordt nooit teruggezet.
   // Fouten vallen stil — de eerstvolgende reconciliatie herstelt.
@@ -3973,6 +3986,7 @@ class OutlookManager {
             title: String(it.title || '').replace(/[\r\n]+/g, ' ').replace(/%%/g, '').replace(/\s+/g, ' ').trim(),
             status: it.status || 'notStarted',
             due: rawDue && /^\d{4}-\d{2}-\d{2}$/.test(rawDue) ? rawDue : null,
+            client: this.todoClientForList(acc, listId),
           });
         }
       }
@@ -4017,8 +4031,11 @@ class OutlookManager {
       const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
       for (const rt of toCreate) {
         // Zonder #kanban-tag: nieuwe taken landen bewust in de Inbox (intake).
+        // Met een lijst→client-koppeling krijgt de regel meteen de #client-tag
+        // (en de client een kleur, net als bij handmatig toewijzen).
+        if (rt.client) await plugin.assignClientColor(rt.client);
         await plugin.createTaskInFile(
-          { text: rt.title, dueDate: rt.due, todoList: rt.listId, todoId: rt.id },
+          { text: rt.title, dueDate: rt.due, client: rt.client, todoList: rt.listId, todoId: rt.id },
           targetNote,
           { quiet: true, initialContent: header },
         );
@@ -5408,6 +5425,17 @@ class KanbanSettingTab extends PluginSettingTab {
           } else {
             for (const l of acc.todoLists) {
               const ls = new Setting(group).setName(l.name).setClass('tk-setting-child');
+              // Lijst→client: nieuw geïmporteerde taken uit deze lijst krijgen
+              // deze client als #client/-tag mee (zie td_client_hint).
+              ls.addText((tx) => tx
+                .setPlaceholder(t('td_list_client_ph'))
+                .setValue((acc.todoClients || {})[l.id] || '')
+                .onChange(async (v) => {
+                  acc.todoClients = acc.todoClients || {};
+                  const val = v.trim();
+                  if (val) acc.todoClients[l.id] = val; else delete acc.todoClients[l.id];
+                  await this.plugin.saveSettings();
+                }));
               ls.addToggle((tg) => tg
                 .setValue((acc.todoSelected || []).includes(l.id))
                 .onChange(async (v) => {
@@ -5418,6 +5446,7 @@ class KanbanSettingTab extends PluginSettingTab {
                 }));
             }
             group.createEl('p', { cls: 'tk-help-line', text: t('td_lists_default_hint') });
+            group.createEl('p', { cls: 'tk-help-line', text: t('td_client_hint') });
           }
         }
       }
