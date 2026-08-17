@@ -3841,6 +3841,13 @@ class OutlookManager {
       if (def) this.todoDefaultLists.set(acc.id, def.id);
       const ids = new Set(acc.todoLists.map((l) => l.id));
       if (Array.isArray(acc.todoSelected)) acc.todoSelected = acc.todoSelected.filter((id) => ids.has(id));
+      // Ook client-koppelingen van verdwenen lijsten opruimen (spook-id's uit
+      // een lijst die serverside is verwijderd terwijl de cache hem nog had).
+      if (acc.todoClients) {
+        for (const id of Object.keys(acc.todoClients)) {
+          if (!ids.has(id)) delete acc.todoClients[id];
+        }
+      }
       await this.plugin.saveSettings();
       return acc.todoLists;
     } catch (_) {
