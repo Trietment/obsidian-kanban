@@ -11,6 +11,8 @@ const VIEW_TYPE_CALENDAR = 'trietment-calendar-view';
 // telefoon landt niet op de kolom van de laptop en er wordt niets naar de
 // vault geschreven dat Obsidian Sync kan mergen.
 const ACTIVE_COLUMNS_KEY = 'trietment-kanban:active-columns';
+// Schrijfrol voor auto-verplaatsen ('auto' | 'on' | 'off') — device-lokaal.
+const AUTO_WRITE_KEY = 'trietment-kanban:auto-move-write';
 
 // -- Microsoft / Outlook (OAuth2 + Microsoft Graph) -------------------------
 // "common" = elke organisatie + persoonlijke Microsoft-accounts (multi-tenant).
@@ -315,6 +317,11 @@ const TRANSLATIONS = {
     none_paren: '(geen)',
     automove_overdue: 'Ook achterstallige taken',
     automove_overdue_desc: 'Verplaats ook taken waarvan de due date al verstreken is (niet alleen exact vandaag).',
+    automove_writer: 'Dit apparaat schrijft verplaatsingen',
+    automove_writer_desc: 'Automatisch = alleen desktop schrijft de tag-wijziging in de notitie; telefoons tonen due taken wél in de Bezig-kolom maar schrijven niets. Eén schrijver voorkomt kapotgemergde tags bij synchronisatie. Deze instelling geldt per apparaat.',
+    automove_writer_auto: 'Automatisch (alleen desktop)',
+    automove_writer_on: 'Aan',
+    automove_writer_off: 'Uit',
     sec_projects: 'Projecten en kleuren',
     projects_help: 'Geef per project een kleur. Gebruik #project/<naam> in je taken om ze hieraan te koppelen.',
     scan_folders: 'Scan-map(pen) voor projecten',
@@ -573,6 +580,11 @@ const TRANSLATIONS = {
     none_paren: '(none)',
     automove_overdue: 'Also overdue tasks',
     automove_overdue_desc: 'Also move tasks whose due date has already passed (not only exactly today).',
+    automove_writer: 'This device writes moves',
+    automove_writer_desc: 'Automatic = only desktop writes the tag change to the note; phones still show due tasks in the In-progress column without writing. A single writer prevents sync-mangled tags. This setting is per device.',
+    automove_writer_auto: 'Automatic (desktop only)',
+    automove_writer_on: 'On',
+    automove_writer_off: 'Off',
     sec_projects: 'Projects and colors',
     projects_help: 'Give each project a color. Use #project/<name> in your tasks to link them.',
     scan_folders: 'Scan folder(s) for projects',
@@ -642,6 +654,30 @@ function resolveLang(setting) {
 }
 
 // -- Helpers ----------------------------------------------------------------
+
+// Bewerkingsafstand ≤ 1: hooguit één teken vervangen, toegevoegd of weggelaten.
+// Gebruikt om kapotgemergde kolom-tags aan een geldige kolom te koppelen.
+function withinEditDistance1(a, b) {
+  if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  if (longer.length - shorter.length > 1) return false;
+  if (a.length === b.length) {
+    let diff = 0;
+    for (let i = 0; i < a.length; i++) { if (a[i] !== b[i] && ++diff > 1) return false; }
+    return true;
+  }
+  let i = 0;
+  let j = 0;
+  let skipped = false;
+  while (i < shorter.length) {
+    if (shorter[i] === longer[j]) { i++; j++; continue; }
+    if (skipped) return false;
+    skipped = true;
+    j++;
+  }
+  return true;
+}
 
 function todayISO() {
   const d = new Date();
@@ -936,10 +972,12 @@ module.exports = class KanbanPlugin extends Plugin {
       id: 'auto-move-due-today',
       name: this.t('cmd_auto_move'),
       callback: async () => {
-        // Handmatig commando blijft altijd werken; alleen waarschuwen als de
-        // sync mogelijk nog bezig is.
+        // Handmatig commando blijft altijd werken — óók op een apparaat zonder
+        // schrijfrol (bewuste ontsnapping); alleen waarschuwen als de sync
+        // mogelijk nog bezig is.
         if (!this.vaultSettled()) new Notice(this.t('sync_busy'));
-        const moved = await this.autoMoveDueTasks();
+        const tasks = await this.scanTasks();
+        const moved = (await this.autoMoveDueTasks(tasks)) + (await this.healChimeraTags(tasks));
         new Notice(moved > 0 ? this.t('moved_n', { n: moved }) : this.t('nothing_to_move'));
         this.refreshViews();
       },
@@ -1104,10 +1142,71 @@ module.exports = class KanbanPlugin extends Plugin {
     return quiet >= AUTO_QUIET_MS;
   }
 
+  // ---- Schrijfrol: welk apparaat schrijft auto-verplaatsingen? -------------
+  // Standaard ('auto') schrijft alleen desktop de tag-wijziging; telefoons
+  // tonen hetzelfde bord via effectiveColumn() zonder te schrijven. Eén
+  // schrijver per vault voorkomt dat twee apparaten rond hetzelfde moment
+  // dezelfde regels herschrijven en Obsidian Sync de tags kapot merget —
+  // vaultSettled() kán die gelijktijdigheid niet uitsluiten (het is een lokale
+  // heuristiek, geen slot tussen apparaten). De rol staat device-lokaal in
+  // localStorage: wie de pluginmap wél synct moet hem per apparaat kunnen
+  // laten verschillen.
+  autoMoveWriteMode() {
+    const v = this.app.loadLocalStorage ? this.app.loadLocalStorage(AUTO_WRITE_KEY) : null;
+    return v === 'on' || v === 'off' ? v : 'auto';
+  }
+
+  setAutoMoveWriteMode(mode) {
+    if (this.app.saveLocalStorage) this.app.saveLocalStorage(AUTO_WRITE_KEY, mode === 'auto' ? null : mode);
+  }
+
+  autoMoveWritesHere() {
+    const mode = this.autoMoveWriteMode();
+    if (mode === 'on') return true;
+    if (mode === 'off') return false;
+    return !Platform.isMobile;
+  }
+
+  // Eén bron van waarheid voor auto-verplaatsen: due (vandaag, of ook overdue
+  // afhankelijk van de instelling) én nog niet gestart (geen kolom,
+  // startkolom, of onbekende/kapotgemergde kolom-id).
+  autoMoveEligible(t, today) {
+    if (!this.settings.autoMoveToday) return false;
+    const target = this.settings.inProgressColumn;
+    if (!target || !this.settings.columns.includes(target)) return false;
+    if (t.done || !t.dueDate) return false;
+    const isDue = this.settings.autoMoveOverdue ? t.dueDate <= today : t.dueDate === today;
+    if (!isDue) return false;
+    return !t.column || t.column === this.settings.defaultColumn || !this.settings.columns.includes(t.column);
+  }
+
+  // De kolom zoals het bord hem hoort te tonen. Elk apparaat leidt dit zelf af
+  // uit de gesyncte markdown (due date + tag); alleen het schrijf-apparaat legt
+  // het ook in de tag vast. Zo klopt het bord overal en altijd — ook als de
+  // schrijver lang uit staat — zonder dat elk apparaat hoeft te schrijven.
+  effectiveColumn(t, today) {
+    if (this.autoMoveEligible(t, today || todayISO())) return this.settings.inProgressColumn;
+    if (t.column && !this.settings.columns.includes(t.column)) {
+      const fix = this.chimeraFix(t.column);
+      if (fix) return fix;
+    }
+    return t.column;
+  }
+
+  // Unieke herstel-kandidaat voor een kapotgemergde kolom-id, of null.
+  // Bewust streng (afstand ≤ 1 én precies één match): "toto" → "todo" wel,
+  // "ingdoing" niet — bij twijfel niet gokken, dan vangt de Inbox hem op en
+  // herschrijft autoMoveDueTasks hem uiterlijk op de due date.
+  chimeraFix(colId) {
+    const cands = this.settings.columns.filter((c) => withinEditDistance1(colId, c));
+    return cands.length === 1 ? cands[0] : null;
+  }
+
   // Draai auto-move zodra de vault in rust is; zo niet, blijf het proberen.
   // Blokkeert dus bewust zolang de sync niet klaar of het apparaat offline is.
   queueAutoMove() {
     if (!this.settings.autoMoveToday) return;
+    if (!this.autoMoveWritesHere()) return; // dit apparaat toont alleen (effectiveColumn)
     if (this.autoMoveTimer || this.autoMoveBusy) return;
     const attempt = async () => {
       this.autoMoveTimer = null;
@@ -1118,7 +1217,8 @@ module.exports = class KanbanPlugin extends Plugin {
       }
       this.autoMoveBusy = true;
       try {
-        const moved = await this.autoMoveDueTasks();
+        const tasks = await this.scanTasks();
+        const moved = (await this.autoMoveDueTasks(tasks)) + (await this.healChimeraTags(tasks));
         if (moved > 0) this.refreshViews();
       } finally {
         this.autoMoveBusy = false;
@@ -1135,19 +1235,14 @@ module.exports = class KanbanPlugin extends Plugin {
 
     if (!tasks) tasks = await this.scanTasks();
     const today = todayISO();
-    const startCols = new Set([this.settings.defaultColumn]); // inbox = geen kolom, valt hieronder ook
-    const knownCols = this.settings.columns;
 
-    // Groepeer per bestand om reads/writes te beperken.
+    // Groepeer per bestand om reads/writes te beperken. Het criterium
+    // (autoMoveEligible) is gedeeld met effectiveColumn(), zodat schrijven en
+    // tonen nooit uiteenlopen; een onbekende kolom-id (bv. een kapotgemergde
+    // tag) telt als niet-gestart en de herschrijving herstelt de tag meteen.
     const byFile = {};
     for (const t of tasks) {
-      if (t.done || !t.dueDate) continue;
-      const isDue = this.settings.autoMoveOverdue ? t.dueDate <= today : t.dueDate === today;
-      if (!isDue) continue;
-      // Een onbekende kolom-id (bv. een kapotgemergde tag) telt als Inbox,
-      // net als bij het renderen — de herschrijving herstelt de tag meteen.
-      const notStarted = !t.column || startCols.has(t.column) || !knownCols.includes(t.column);
-      if (!notStarted) continue;
+      if (!this.autoMoveEligible(t, today)) continue;
       (byFile[t.file] = byFile[t.file] || []).push(t);
     }
 
@@ -1182,6 +1277,45 @@ module.exports = class KanbanPlugin extends Plugin {
       moved += fileMoved;
     }
     return moved;
+  }
+
+  // Herstel kapotgemergde kolom-tags met een eenduidige herstel-kandidaat
+  // (#kanban/toto → #kanban/todo, zie chimeraFix). Draait in dezelfde gepoorte
+  // schrijfronde als autoMoveDueTasks en dus alleen op het schrijf-apparaat;
+  // de overige apparaten tonen de kandidaat al virtueel via effectiveColumn().
+  async healChimeraTags(tasks) {
+    if (!tasks) tasks = await this.scanTasks();
+    const byFile = {};
+    for (const t of tasks) {
+      if (!t.column || this.settings.columns.includes(t.column)) continue;
+      const fix = this.chimeraFix(t.column);
+      if (fix) (byFile[t.file] = byFile[t.file] || []).push({ line: t.line, from: t.column, to: fix });
+    }
+
+    let healed = 0;
+    for (const filePath of Object.keys(byFile)) {
+      const file = this.app.vault.getAbstractFileByPath(filePath);
+      if (!(file instanceof TFile)) continue;
+      let fileHealed = 0;
+      await this.app.vault.process(file, (data) => {
+        fileHealed = 0;
+        const lines = data.split('\n');
+        let changed = false;
+        for (const fx of byFile[filePath]) {
+          if (fx.line >= lines.length) continue;
+          if (!parseTaskLine(lines[fx.line], filePath, fx.line)) continue;
+          // Alleen vervangen als de kapotte tag er nog exact staat.
+          const broken = new RegExp(`#kanban/${fx.from}(?![\\w-])`);
+          if (!broken.test(lines[fx.line])) continue;
+          lines[fx.line] = lines[fx.line].replace(broken, `#kanban/${fx.to}`);
+          changed = true;
+          fileHealed++;
+        }
+        return changed ? lines.join('\n') : data;
+      });
+      healed += fileHealed;
+    }
+    return healed;
   }
 
   async activateView() {
@@ -1729,7 +1863,8 @@ module.exports = class KanbanPlugin extends Plugin {
     }
     const now = new Date();
     const time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-    const colLabel = task.column ? (this.settings.columnLabels[task.column] || task.column) : '';
+    const noteCol = this.effectiveColumn(task);
+    const colLabel = noteCol ? (this.settings.columnLabels[noteCol] || noteCol) : '';
     const map = {
       title: task.text || noteName,
       date: isoFromDate(now),
@@ -2060,12 +2195,14 @@ class KanbanView extends ItemView {
     this.groupBy = this.board.groupBy || 'none';
 
     // Taken die vandaag due zijn automatisch naar Bezig schuiven, daarna opnieuw
-    // inlezen — maar alleen als de vault in rust is. Zo niet, dan neemt
-    // queueAutoMove het over zodra de sync klaar is (voorkomt dat twee apparaten
-    // dezelfde regels herschrijven en Obsidian Sync de tags kapot merget).
-    if (this.plugin.settings.autoMoveToday) {
+    // inlezen — alleen op het apparaat met de schrijfrol én als de vault in
+    // rust is (voorkomt dat twee apparaten dezelfde regels herschrijven en
+    // Obsidian Sync de tags kapot merget). Apparaten zonder schrijfrol tonen
+    // hetzelfde resultaat virtueel via effectiveColumn().
+    if (this.plugin.settings.autoMoveToday && this.plugin.autoMoveWritesHere()) {
       if (this.plugin.vaultSettled()) {
-        const moved = await this.plugin.autoMoveDueTasks(this.tasks);
+        const moved = (await this.plugin.autoMoveDueTasks(this.tasks))
+          + (await this.plugin.healChimeraTags(this.tasks));
         if (moved > 0) await this.loadTasks();
       } else {
         this.plugin.queueAutoMove();
@@ -2425,12 +2562,16 @@ class KanbanView extends ItemView {
   }
 
   tasksForColumn(columnId, sourceTasks) {
+    const today = todayISO();
     return (sourceTasks || this.tasks).filter((t) => {
       if (!this.filterTask(t)) return false;
-      // De Inbox toont ook taken met een onbekende kolom-id (bv. een kapot-
-      // gemergde tag): liever zichtbaar dan stilletjes van het bord verdwenen.
-      if (columnId === 'inbox') return !t.column || !this.plugin.settings.columns.includes(t.column);
-      return t.column === columnId;
+      // Effectieve kolom: due-kaarten tellen als Bezig en herstelbare kapotte
+      // tags als hun kandidaat, ook zolang de tag (nog) niet is herschreven.
+      // De Inbox toont de overige onbekende kolom-id's: liever zichtbaar dan
+      // stilletjes van het bord verdwenen.
+      const col = this.plugin.effectiveColumn(t, today);
+      if (columnId === 'inbox') return !col || !this.plugin.settings.columns.includes(col);
+      return col === columnId;
     }).sort((a, b) => {
       // overdue first, then by due date
       if (a.dueDate && b.dueDate) return a.dueDate.localeCompare(b.dueDate);
@@ -2594,7 +2735,7 @@ class KanbanView extends ItemView {
     }
 
     // Data-attributen zodat gebruikers metadata-waarden met eigen CSS kunnen targeten.
-    card.dataset.column = task.column || 'inbox';
+    card.dataset.column = this.plugin.effectiveColumn(task) || 'inbox';
     if (task.priority) card.dataset.priority = task.priority;
     if (task.project) card.dataset.project = task.project;
     if (task.client) card.dataset.client = task.client;
@@ -2708,7 +2849,8 @@ class KanbanView extends ItemView {
         e.preventDefault();
         e.stopPropagation();
         const menu = new Menu();
-        const current = (task.column && this.plugin.settings.columns.includes(task.column)) ? task.column : 'inbox';
+        const effCol = this.plugin.effectiveColumn(task);
+        const current = (effCol && this.plugin.settings.columns.includes(effCol)) ? effCol : 'inbox';
         const targets = [...this.plugin.settings.columns];
         if (this.plugin.settings.showInbox) targets.unshift('inbox');
         for (const col of targets) {
@@ -3830,10 +3972,13 @@ class EditTaskModal extends Modal {
     this.newText = task.text || '';
     this.newCover = task.cover || '';
     this.newPriority = task.priority || '';
-    // Een onbekende kolom-id behandelen we als Inbox (daar staat de kaart ook op
-    // het bord); opslaan normaliseert de kapotte tag dan vanzelf.
-    this.newColumn = task.column && plugin.settings.columns.includes(task.column)
-      ? task.column : 'inbox';
+    // Kolom zoals het bord hem toont (effectiveColumn): een due kaart staat
+    // (virtueel) in Bezig, een herstelbare kapotte tag bij zijn kandidaat, en
+    // een overige onbekende kolom-id telt als Inbox. Opslaan legt dat meteen
+    // in de tag vast.
+    const effCol = plugin.effectiveColumn(task);
+    this.baseColumn = effCol && plugin.settings.columns.includes(effCol) ? effCol : 'inbox';
+    this.newColumn = this.baseColumn;
   }
 
   onOpen() {
@@ -4064,15 +4209,15 @@ class EditTaskModal extends Modal {
         if (this.newPriority !== (this.task.priority || '')) {
           await this.plugin.setPriority(this.task, this.newPriority || null);
         }
-        // Auto-verplaats: stond de kaart in de Bezig-kolom en is de due date naar
-        // de toekomst geschoven (en heeft de gebruiker de kolom niet zelf gewijzigd),
-        // dan terug naar de standaardkolom — anders blijft een uitgestelde taak ten
-        // onrechte 'Bezig' staan.
+        // Auto-verplaats: stond de kaart (echt of virtueel) in de Bezig-kolom en
+        // is de due date naar de toekomst geschoven (en heeft de gebruiker de
+        // kolom niet zelf gewijzigd), dan terug naar de standaardkolom — anders
+        // blijft een uitgestelde taak ten onrechte 'Bezig' staan.
         const inProg = this.plugin.settings.inProgressColumn;
-        const userKeptColumn = this.newColumn === (this.task.column || 'inbox');
+        const userKeptColumn = this.newColumn === this.baseColumn;
         if (
           inProg && userKeptColumn &&
-          this.task.column === inProg &&
+          this.baseColumn === inProg &&
           this.newDate && this.newDate > todayISO()
         ) {
           this.newColumn = this.plugin.settings.defaultColumn;
@@ -4712,6 +4857,21 @@ class KanbanSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshViews();
         }));
+
+    new Setting(containerEl)
+      .setName(t('automove_writer'))
+      .setDesc(t('automove_writer_desc'))
+      .addDropdown((dd) => {
+        dd.addOption('auto', t('automove_writer_auto'));
+        dd.addOption('on', t('automove_writer_on'));
+        dd.addOption('off', t('automove_writer_off'));
+        dd.setValue(this.plugin.autoMoveWriteMode());
+        dd.onChange((v) => {
+          this.plugin.setAutoMoveWriteMode(v);
+          // De rol kan nu 'schrijven' zijn geworden: meteen een gepoorte ronde.
+          this.plugin.queueAutoMove();
+        });
+      });
 
     // -- Outlook -------------------------------------------------------
     new Setting(containerEl).setName(t('ol_section')).setHeading();
