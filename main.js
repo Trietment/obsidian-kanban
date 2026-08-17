@@ -3665,16 +3665,23 @@ class OutlookManager {
     try {
       const token = await this.validToken(acc);
       if (!token) { acc.todoLists = acc.todoLists || []; return acc.todoLists; }
-      const res = await obsidian.requestUrl({
-        url: 'https://graph.microsoft.com/v1.0/me/todo/lists?$select=id,displayName,wellknownListName&$top=100',
-        headers: { Authorization: `Bearer ${token}` },
-        throw: false,
-      });
-      // 401/403 = token zonder Tasks.ReadWrite (scope kwam later bij) →
-      // herkoppel-hint in de instellingen, net als bij agenda's.
-      if (res.status === 401 || res.status === 403) await this.markReauth(acc);
-      if (res.status >= 400) { acc.todoLists = acc.todoLists || []; await this.plugin.saveSettings(); return acc.todoLists; }
-      const items = (res.json && res.json.value) || [];
+      // Bewust zónder $select/$top: sommige Exchange-omgevingen weigeren
+      // OData-parameters op dit endpoint terwijl het kale verzoek gewoon werkt,
+      // en het kale antwoord bevat alle velden die we nodig hebben toch al.
+      // Paginering via @odata.nextLink, voor wie veel lijsten heeft.
+      const items = [];
+      let url = 'https://graph.microsoft.com/v1.0/me/todo/lists';
+      let guard = 0;
+      while (url && guard++ < 20) {
+        const res = await obsidian.requestUrl({ url, headers: { Authorization: `Bearer ${token}` }, throw: false });
+        // 401/403 = token zonder Tasks.ReadWrite (scope kwam later bij) →
+        // herkoppel-hint in de instellingen, net als bij agenda's.
+        if (res.status === 401 || res.status === 403) await this.markReauth(acc);
+        if (res.status >= 400) { acc.todoLists = acc.todoLists || []; await this.plugin.saveSettings(); return acc.todoLists; }
+        const j = res.json || {};
+        items.push(...(j.value || []));
+        url = j['@odata.nextLink'] || null;
+      }
       acc.todoLists = items.map((l) => ({
         id: l.id,
         name: l.displayName || '',
@@ -3710,14 +3717,17 @@ class OutlookManager {
     const token = await this.validToken(acc);
     if (!token) return null;
     const out = [];
-    let url = `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks`
-      + '?$select=id,title,status,dueDateTime&$top=250';
+    const base = `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks`;
+    let url = base + '?$select=id,title,status,dueDateTime&$top=250';
     let guard = 0;
     while (url && guard++ < 40) {
       let res;
       try {
         res = await obsidian.requestUrl({ url, headers: { Authorization: `Bearer ${token}` }, throw: false });
       } catch (_) { return null; }
+      // Zelfde eigenaardigheid als bij de lijsten: weigert de omgeving de
+      // OData-parameters (400), probeer het dan één keer kaal opnieuw.
+      if (res.status === 400 && url.includes('$select')) { url = base; continue; }
       if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return null; }
       if (res.status >= 400) return null;
       const j = res.json || {};
