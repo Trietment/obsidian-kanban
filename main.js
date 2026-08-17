@@ -26,6 +26,10 @@ const MS_REDIRECT = `obsidian://${MS_AUTH_PROTOCOL}`;
 // regel staan; de zichtbare kaarttekst blijft schoon (parseTaskLine stript hem).
 const TD_MARKER_RE = /%%td:([^\s:%]+):([^\s%]+)%%/;
 const TD_MARKER_RE_G = /%%td:[^\s:%]+:[^\s%]+%%/g;
+// Stap-marker op subtaakregels: %%tds:<checklistItemId>%% — koppelt een
+// subtaak aan een stap (checklistItem) van de bovenliggende To Do-taak.
+const TDS_MARKER_RE = /%%tds:([^\s:%]+)%%/;
+const TDS_MARKER_RE_G = /%%tds:[^\s:%]+%%/g;
 // Bord-trigger van de To Do-sync: hooguit eens per 5 minuten (zie eventCache
 // voor hetzelfde idee bij agenda-events, daar met een kortere horizon).
 const TD_SYNC_MIN_MS = 5 * 60 * 1000;
@@ -897,6 +901,9 @@ function parseTaskLine(line, filePath, lineNum) {
   let todoList = null, todoId = null;
   const tdMatch = rest.match(TD_MARKER_RE);
   if (tdMatch) { todoList = tdMatch[1]; todoId = tdMatch[2]; }
+  let todoStepId = null;
+  const tdsMatch = rest.match(TDS_MARKER_RE);
+  if (tdsMatch) todoStepId = tdsMatch[1];
 
   let column = null;
   const colMatch = rest.match(/#kanban\/([\w-]+)/);
@@ -940,6 +947,7 @@ function parseTaskLine(line, filePath, lineNum) {
 
   const text = restNoCover
     .replace(TD_MARKER_RE_G, '')
+    .replace(TDS_MARKER_RE_G, '')
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
     .replace(/⏰\s*\d{1,2}:\d{2}/g, '')
     .replace(/🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi, '')
@@ -954,7 +962,7 @@ function parseTaskLine(line, filePath, lineNum) {
 
   return {
     text, dueDate, time, column, project, client, priority, recurrence, done, noteLink, cover,
-    todoList, todoId,
+    todoList, todoId, todoStepId,
     file: filePath, line: lineNum, indent,
     raw: line, subtasks: [],
   };
@@ -1173,6 +1181,7 @@ module.exports = class KanbanPlugin extends Plugin {
         if (current && w > currentWidth) {
           current.subtasks.push({
             text: parsed.text, done: parsed.done,
+            stepId: parsed.todoStepId,
             file: file.path, line: i, raw: lines[i],
           });
         } else {
@@ -1790,7 +1799,10 @@ module.exports = class KanbanPlugin extends Plugin {
     if (file instanceof TFile) {
       await this.app.vault.process(file, (data) => {
         const sep = data.length === 0 || data.endsWith('\n') ? '' : '\n';
-        return data + sep + formatted + '\n';
+        // extraLines: kant-en-klare regels direct onder de taak (bv. subtaken
+        // bij een To Do-import) — in dezelfde schrijfactie, dus altijd samen.
+        const block = [formatted, ...(opts.extraLines || [])].join('\n');
+        return data + sep + block + '\n';
       });
       if (!opts.quiet) new Notice(this.t('task_added_to', { path }));
     }
@@ -3930,6 +3942,60 @@ class OutlookManager {
     return this.accounts().find((a) => Array.isArray(a.todoSelected) && a.todoSelected.includes(listId)) || null;
   }
 
+  // ---- Stappen (checklistItems) van een To Do-taak -------------------------
+  // Subtaken reizen mee bij het koppelen (import én export) en de afvinkstatus
+  // van gekoppelde stappen synct in beide richtingen. Later toegevoegde
+  // stappen/subtaken reizen bewust niet: dat zou regels midden in bestanden
+  // invoegen — precies het schrijfoppervlak dat deze plugin vermijdt.
+
+  async fetchChecklistItems(acc, listId, taskId) {
+    const token = await this.validToken(acc);
+    if (!token) return null;
+    try {
+      const res = await obsidian.requestUrl({
+        url: `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}/checklistItems`,
+        headers: { Authorization: `Bearer ${token}` },
+        throw: false,
+      });
+      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return null; }
+      if (res.status >= 400) return null;
+      return (res.json && res.json.value) || [];
+    } catch (_) { return null; }
+  }
+
+  async createChecklistItem(acc, listId, taskId, title, checked) {
+    const token = await this.validToken(acc);
+    if (!token) return null;
+    try {
+      const res = await obsidian.requestUrl({
+        url: `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}/checklistItems`,
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName: title, isChecked: !!checked }),
+        throw: false,
+      });
+      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return null; }
+      if (res.status >= 400) return null;
+      return (res.json && res.json.id) || null;
+    } catch (_) { return null; }
+  }
+
+  async patchChecklistItemChecked(acc, listId, taskId, itemId) {
+    const token = await this.validToken(acc);
+    if (!token) return false;
+    try {
+      const res = await obsidian.requestUrl({
+        url: `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}/checklistItems/${encodeURIComponent(itemId)}`,
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isChecked: true }),
+        throw: false,
+      });
+      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return false; }
+      return res.status < 400;
+    } catch (_) { return false; }
+  }
+
   // Maak een taak aan in een To Do-lijst (export-pad). Geeft de nieuwe taak-id
   // terug, of null bij falen (stil, net als de rest).
   async createTodoTask(acc, listId, task) {
@@ -3958,7 +4024,7 @@ class OutlookManager {
   // alleen het regelnummer: de regel kan verschoven zijn sinds de scan. Lukt
   // het niet (regel bewerkt/weg), dan importeert de volgende draai de taak
   // gewoon als nieuwe kaart — er raakt niets kwijt.
-  async markExportedLine(t, listId, id) {
+  async markExportedLine(t, listId, id, stepMarks = []) {
     const file = this.plugin.app.vault.getAbstractFileByPath(t.file);
     if (!(file instanceof TFile)) return false;
     let ok = false;
@@ -3968,6 +4034,13 @@ class OutlookManager {
       const idx = (t.line < lines.length && lines[t.line] === t.raw) ? t.line : lines.indexOf(t.raw);
       if (idx < 0) return data;
       lines[idx] = lines[idx].trimEnd() + ` %%td:${listId}:${id}%%`;
+      // Stap-markers op de subtaakregels, in dezelfde schrijfactie (raw-match;
+      // een gemiste regel blijft simpelweg ongekoppeld — de stap bestaat dan
+      // wel in To Do, meer niet).
+      for (const sm of stepMarks) {
+        const si = lines.indexOf(sm.raw);
+        if (si >= 0) lines[si] = lines[si].trimEnd() + ` %%tds:${sm.id}%%`;
+      }
       ok = true;
       return lines.join('\n');
     });
@@ -4105,10 +4178,17 @@ class OutlookManager {
         // Met een lijst→client-koppeling krijgt de regel meteen de #client-tag
         // (en de client een kleur, net als bij handmatig toewijzen).
         if (rt.client) await plugin.assignClientColor(rt.client);
+        // Stappen van de bron-taak reizen eenmalig mee als subtaken (met
+        // stap-marker), in dezelfde schrijfactie als de taakregel zelf.
+        const steps = await this.fetchChecklistItems(rt.acc, rt.listId, rt.id);
+        const extraLines = (steps || []).map((s) => {
+          const title = String(s.displayName || '').replace(/[\r\n]+/g, ' ').replace(/%%/g, '').replace(/\s+/g, ' ').trim();
+          return `    - [${s.isChecked ? 'x' : ' '}] ${title} %%tds:${s.id}%%`;
+        });
         await plugin.createTaskInFile(
           { text: rt.title, dueDate: rt.due, client: rt.client, column: targetColumn, todoList: rt.listId, todoId: rt.id },
           targetNote,
-          { quiet: true, initialContent: header },
+          { quiet: true, initialContent: header, extraLines },
         );
         imported++;
       }
@@ -4146,12 +4226,46 @@ class OutlookManager {
         if (!target) continue;
         const id = await this.createTodoTask(target.acc, target.listId, t);
         if (!id) continue;
-        if (await this.markExportedLine(t, target.listId, id)) exported++;
+        // Subtaken mee als stappen; de stap-markers gaan in dezelfde
+        // schrijfactie als de taak-marker op de regels.
+        const stepMarks = [];
+        for (const sub of t.subtasks || []) {
+          if (sub.stepId || !(sub.text || '').trim()) continue;
+          const sid = await this.createChecklistItem(target.acc, target.listId, id, sub.text, sub.done);
+          if (sid) stepMarks.push({ raw: sub.raw, id: sid });
+        }
+        if (await this.markExportedLine(t, target.listId, id, stepMarks)) exported++;
       }
     }
 
-    if (imported || checked || exported) plugin.scheduleRefresh();
-    return { imported, patched, checked, exported };
+    // d2. Stappen: afvinkstatus van gekoppelde subtaken, beide richtingen
+    // (alleen open→afgevinkt, net als bij de taken zelf). Alleen kaarten mét
+    // gekoppelde stappen kosten een extra Graph-call.
+    let stepsPatched = 0, stepsChecked = 0;
+    for (const [key, lt] of local) {
+      const marked = (lt.subtasks || []).filter((s) => s.stepId);
+      if (!marked.length) continue;
+      const rt = remote.get(key);
+      if (!rt) continue; // taak nu niet (leesbaar) remote → alles met rust laten
+      const items = await this.fetchChecklistItems(rt.acc, rt.listId, rt.id);
+      if (!items) continue;
+      const byId = new Map(items.map((s) => [s.id, s]));
+      for (const sub of marked) {
+        const step = byId.get(sub.stepId);
+        if (!step) continue; // stap in To Do verwijderd → regel blijft staan
+        if (sub.done && !step.isChecked) {
+          if (await this.patchChecklistItemChecked(rt.acc, rt.listId, rt.id, sub.stepId)) stepsPatched++;
+        } else if (!sub.done && step.isChecked && settled) {
+          // Bestaand subtaak-pad: raw-guarded, in-place — een verschoven regel
+          // wordt stil overgeslagen en de volgende draai herstelt.
+          await plugin.toggleSubtask(sub);
+          stepsChecked++;
+        }
+      }
+    }
+
+    if (imported || checked || exported || stepsChecked) plugin.scheduleRefresh();
+    return { imported, patched, checked, exported, stepsPatched, stepsChecked };
   }
 
   async removeAccount(id) {
