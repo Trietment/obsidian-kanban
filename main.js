@@ -1093,6 +1093,11 @@ module.exports = class KanbanPlugin extends Plugin {
       this.queueAutoMove();
     });
     this.registerInterval(window.setInterval(() => this.queueAutoMove(), 10 * 60 * 1000));
+    // Hartslag voor de To Do-sync: afvinken in Reminders/To Do raakt de vault
+    // niet aan, dus zonder timer merkte een stilstaand Obsidian dat pas bij de
+    // eerstvolgende bord-render. De throttle en alle poorten zitten in
+    // maybeSyncTodoTasks zelf (desktop-only, max. eens per 5 min, rust-poort).
+    this.registerInterval(window.setInterval(() => this.outlook.maybeSyncTodoTasks(), 5 * 60 * 1000));
   }
 
   onunload() {
