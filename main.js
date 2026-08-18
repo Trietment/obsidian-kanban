@@ -2181,7 +2181,7 @@ module.exports = class KanbanPlugin extends Plugin {
     }
   }
 
-  async setDueDate(task, newDate) {
+  async setDueDate(task, newDate, opts = {}) {
     const file = this.app.vault.getAbstractFileByPath(task.file);
     if (!(file instanceof TFile)) return;
     await this.app.vault.process(file, (data) => {
@@ -2202,6 +2202,13 @@ module.exports = class KanbanPlugin extends Plugin {
       lines[task.line] = line;
       return lines.join('\n');
     });
+
+    // Datum-wijziging op het bord direct naar Microsoft To Do doorzetten —
+    // een gebruikersactie heeft een ondubbelzinnige richting, net als afvinken.
+    // De reconciliatie zet skipTodoPush als zíj het bord bijtrekt vanuit MS.
+    if (task.todoId && !opts.skipTodoPush && (newDate || null) !== (task.dueDate || null)) {
+      this.outlook.pushTodoDue(task, newDate || null).catch(() => {});
+    }
   }
 
   async setTime(task, newTime) {
@@ -3927,6 +3934,40 @@ class OutlookManager {
     return out;
   }
 
+  async patchTodoDue(acc, listId, taskId, dueISO) {
+    const token = await this.validToken(acc);
+    if (!token) return false;
+    const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
+    try {
+      const res = await obsidian.requestUrl({
+        url: `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks/${encodeURIComponent(taskId)}`,
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dueDateTime: dueISO ? { dateTime: `${dueISO}T00:00:00.0000000`, timeZone: tz } : null }),
+        throw: false,
+      });
+      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return false; }
+      return res.status < 400;
+    } catch (_) { return false; }
+  }
+
+  // Datum-wijziging op het bord naar de gekoppelde To Do-taak duwen (zie
+  // setDueDate). Fouten vallen stil; de reconciliatie merkt het verschil dan
+  // later gewoon weer op.
+  async pushTodoDue(task, dueISO) {
+    if (!this.todoSyncsHere() || !this.todoEnabled()) return;
+    if (!task || !task.todoList || !task.todoId) return;
+    const known = this.todoAccountForList(task.todoList);
+    const tryAccs = known ? [known] : this.accounts();
+    for (const acc of tryAccs) {
+      if (acc.needsReauth) continue;
+      if (await this.patchTodoDue(acc, task.todoList, task.todoId, dueISO)) {
+        this.todoListOwner.set(task.todoList, acc.id);
+        return;
+      }
+    }
+  }
+
   async patchTodoCompleted(acc, listId, taskId) {
     const token = await this.validToken(acc);
     if (!token) return false;
@@ -4181,12 +4222,13 @@ class OutlookManager {
         else toPatch.push(rt);
       }
       else if (!lt.done && remoteDone) toCheck.push(lt);
-      // Herhalende taak elders afgerond (bv. op de telefoon): Microsoft schuift
-      // de taak dan direct door naar de volgende occurrence en 'completed' is
-      // nooit zichtbaar. De open kaart trekt zijn due date bij zodat het bord
-      // de actuele occurrence toont. Alleen voor herhalende taken — bij gewone
-      // taken zou dit een handmatige datum-wijziging op het bord overschrijven.
-      else if (!lt.done && !remoteDone && rt.recurring && rt.due && lt.dueDate && rt.due > lt.dueDate) {
+      // Datumverschil op een open gekoppelde kaart → het bord volgt Microsoft.
+      // Dit dekt zowel doorgeschoven herhalingen (elders afgerond → zelfde
+      // taak, latere due) als handmatige datum-wijzigingen in Reminders/To Do.
+      // Veilig omdat bord-wijzigingen zelf direct gepusht worden (setDueDate →
+      // pushTodoDue): een verschil hier betekent dus dat MS is gewijzigd. Rest-
+      // risico: een offline mislukte bord-push kan door MS worden teruggezet.
+      else if (!lt.done && !remoteDone && rt.due !== (lt.dueDate || null)) {
         toRedate.push({ lt, due: rt.due });
       }
     }
@@ -4241,10 +4283,11 @@ class OutlookManager {
       for (const lt of toRotate) {
         if (await this.rotateMarker(lt)) rotated++;
       }
-      // Open kaarten die hun doorgeschoven occurrence volgen: alleen de 📅
-      // wordt herschreven, via het bestaande setDueDate-pad.
+      // Open kaarten die Microsoft volgen: alleen de 📅 wordt herschreven, via
+      // het bestaande setDueDate-pad — mét skipTodoPush, anders zou het bord
+      // de datum die net uit MS kwam meteen weer terugduwen.
       for (const { lt, due } of toRedate) {
-        await plugin.setDueDate(lt, due);
+        await plugin.setDueDate(lt, due, { skipTodoPush: true });
         redated++;
       }
     }
