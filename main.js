@@ -3900,7 +3900,7 @@ class OutlookManager {
     if (!token) return null;
     const out = [];
     const base = `https://graph.microsoft.com/v1.0/me/todo/lists/${encodeURIComponent(listId)}/tasks`;
-    let url = base + '?$select=id,title,status,dueDateTime&$top=250';
+    let url = base + '?$select=id,title,status,dueDateTime,recurrence&$top=250';
     let guard = 0;
     while (url && guard++ < 40) {
       let res;
@@ -4125,6 +4125,7 @@ class OutlookManager {
             title: String(it.title || '').replace(/[\r\n]+/g, ' ').replace(/%%/g, '').replace(/\s+/g, ' ').trim(),
             status: it.status || 'notStarted',
             due: rawDue && /^\d{4}-\d{2}-\d{2}$/.test(rawDue) ? rawDue : null,
+            recurring: !!it.recurrence, // herhalende To Do-taak: Microsoft is de motor
             client: this.todoClientForList(acc, listId),
           });
         }
@@ -4148,6 +4149,7 @@ class OutlookManager {
     const toPatch = [];  // markdown afgevinkt, To Do nog open → PATCH completed
     const toCheck = [];  // To Do completed, markdown open → regel afvinken
     const toRotate = []; // herhalende taak doorgeschoven → oude regel loskoppelen
+    const toRedate = []; // occurrence elders afgerond → open kaart volgt de nieuwe due date
     for (const [key, rt] of remote) {
       const lt = local.get(key);
       if (!lt) {
@@ -4167,6 +4169,14 @@ class OutlookManager {
         else toPatch.push(rt);
       }
       else if (!lt.done && remoteDone) toCheck.push(lt);
+      // Herhalende taak elders afgerond (bv. op de telefoon): Microsoft schuift
+      // de taak dan direct door naar de volgende occurrence en 'completed' is
+      // nooit zichtbaar. De open kaart trekt zijn due date bij zodat het bord
+      // de actuele occurrence toont. Alleen voor herhalende taken — bij gewone
+      // taken zou dit een handmatige datum-wijziging op het bord overschrijven.
+      else if (!lt.done && !remoteDone && rt.recurring && rt.due && lt.dueDate && rt.due > lt.dueDate) {
+        toRedate.push({ lt, due: rt.due });
+      }
     }
 
     // d. Graph-PATCHes (geen markdown-write, dus niet aan vaultSettled gebonden).
@@ -4178,8 +4188,8 @@ class OutlookManager {
     // c + e. Markdown-writes alleen als de vault in rust is; anders slaat deze
     // draai ze over — de volgende draai herstelt vanzelf (het is reconciliatie).
     const settled = plugin.vaultSettled();
-    let imported = 0, checked = 0, rotated = 0;
-    if ((toCreate.length || toCheck.length || toRotate.length) && settled) {
+    let imported = 0, checked = 0, rotated = 0, redated = 0;
+    if ((toCreate.length || toCheck.length || toRotate.length || toRedate.length) && settled) {
       const targetNote = (plugin.settings.todoTargetNote || '').trim() || 'MS To Do.md';
       const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
       // Doelkolom: standaard de standaardkolom (doet mee met auto-verplaatsen:
@@ -4218,6 +4228,12 @@ class OutlookManager {
       // occurrence importeert bij de volgende draai als verse kaart.
       for (const lt of toRotate) {
         if (await this.rotateMarker(lt)) rotated++;
+      }
+      // Open kaarten die hun doorgeschoven occurrence volgen: alleen de 📅
+      // wordt herschreven, via het bestaande setDueDate-pad.
+      for (const { lt, due } of toRedate) {
+        await plugin.setDueDate(lt, due);
+        redated++;
       }
     }
 
@@ -4283,8 +4299,8 @@ class OutlookManager {
       }
     }
 
-    if (imported || checked || exported || stepsChecked || rotated) plugin.scheduleRefresh();
-    return { imported, patched, checked, rotated, exported, stepsPatched, stepsChecked };
+    if (imported || checked || exported || stepsChecked || rotated || redated) plugin.scheduleRefresh();
+    return { imported, patched, checked, rotated, redated, exported, stepsPatched, stepsChecked };
   }
 
   // Koppel een afgeronde occurrence van een herhalende taak los: %%td: wordt
