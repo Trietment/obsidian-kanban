@@ -4098,7 +4098,11 @@ class OutlookManager {
     this.todoSyncBusy = true;
     this.lastTodoSyncAt = Date.now();
     try {
-      return await this.reconcileTodo();
+      const res = await this.reconcileTodo();
+      // Bleef er schrijfwerk liggen door de rust-poort, wacht dan geen vol
+      // throttle-venster: de eerstvolgende trigger na ±30 s mag opnieuw.
+      if (res && res.skippedWrites) this.lastTodoSyncAt = Date.now() - TD_SYNC_MIN_MS + 30 * 1000;
+      return res;
     } catch (_) {
       return null; // stil falen, net als fetchEvents — de volgende draai herstelt
     } finally {
@@ -4305,7 +4309,14 @@ class OutlookManager {
     }
 
     if (imported || checked || exported || stepsChecked || rotated || redated) plugin.scheduleRefresh();
-    return { imported, patched, checked, rotated, redated, exported, stepsPatched, stepsChecked };
+    // Schrijfwerk blijven liggen door de rust-poort (bv. vlak na een herstart,
+    // terwijl Obsidian Sync nog verbindt)? Meld het, zodat syncTodoTasks de
+    // throttle terugdraait en de volgende trigger snel opnieuw probeert.
+    const skippedWrites = !settled && (
+      toCreate.length > 0 || toCheck.length > 0 || toRotate.length > 0 || toRedate.length > 0 ||
+      (plugin.settings.todoExportEnabled && tasks.some((t) => !t.done && !t.todoId && t.client))
+    );
+    return { imported, patched, checked, rotated, redated, exported, stepsPatched, stepsChecked, skippedWrites };
   }
 
   // Koppel een afgeronde occurrence van een herhalende taak los: %%td: wordt
