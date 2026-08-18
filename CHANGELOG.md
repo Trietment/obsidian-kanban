@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.18.0
+
+**Microsoft To Do, now in both directions: send tasks out, map lists to clients, subtasks as steps**
+
+- **Send your Obsidian tasks to Microsoft To Do.** New switch (off by default): open tasks whose client is mapped to a checked list are created in that list — title and due date travel along — and get the link marker on their line. From then on completing syncs both ways, and via Exchange they appear in Apple Reminders too. It works retroactively: the first run picks up every existing open task with that client, wherever it lives in your vault. As always, nothing is ever deleted on either side.
+- **Map each To Do list to a client.** Pick a client per list from a dropdown of your existing clients — no typing, no typo tags. Tasks imported from that list get the `#client/` tag and its color; the export uses the same single mapping in the other direction, so one choice drives both. A client mapped to two lists is deliberately skipped (ambiguous destination), and mappings of lists that no longer exist on the server are cleaned up when the lists refresh.
+- **Subtasks travel as steps.** Importing a task brings its To Do steps along as indented subtasks, checked state included; exporting a task brings your subtasks along as steps. Afterwards, completing a linked step syncs both ways — same rule as tasks, only open→done. Steps or subtasks added *after* linking deliberately stay where they are: bringing them over would mean inserting lines mid-file, exactly the write surface this plugin avoids. Note that Apple Reminders cannot show steps on Exchange accounts — use the To Do app for those.
+- **Imported tasks now land in your default column** instead of the Inbox, so a task due today joins auto-move straight to In progress. A new setting "Column for new tasks" lets you keep the Inbox as intake, or pick any other column (except done — an import never lands completed).
+- **The board stays the quiet party.** All of the above follows the existing rules: only the desktop talks to Microsoft, markers are written in single raw-matched edits behind the sync-rest gate, and a list that cannot be read this round contributes nothing — so nothing is ever concluded from a missing list.
+
+---
+
+### Nederlands
+
+**Microsoft To Do, nu in twee richtingen: taken versturen, lijsten aan clients koppelen, subtaken als stappen**
+
+- **Stuur je Obsidian-taken naar Microsoft To Do.** Nieuwe schakelaar (standaard uit): open taken waarvan de client aan een aangevinkte lijst is gekoppeld, worden in die lijst aangemaakt — titel en due date reizen mee — en krijgen de koppelmarker op de regel. Vanaf dat moment synchroniseert afvinken in beide richtingen, en via Exchange verschijnen ze ook in Apple Reminders. Het werkt met terugwerkende kracht: de eerste draai pakt élke bestaande open taak met die client op, waar die ook in je vault staat. Zoals altijd wordt er aan geen van beide kanten ooit iets verwijderd.
+- **Koppel elke To Do-lijst aan een client.** Kies per lijst een client uit een keuzelijst van je bestaande clients — geen typwerk, geen tikfout-tags. Taken die uit die lijst geïmporteerd worden krijgen de `#client/`-tag en de bijbehorende kleur; de export gebruikt dezelfde ene koppeling in de andere richting, dus één keuze stuurt beide kanten. Een client die aan twee lijsten hangt wordt bewust overgeslagen (dubbelzinnige bestemming), en koppelingen van lijsten die op de server niet meer bestaan worden bij het vernieuwen opgeruimd.
+- **Subtaken reizen mee als stappen.** Bij het importeren komen de stappen van een To Do-taak als ingesprongen subtaken mee, afvinkstatus incluis; bij het exporteren gaan je subtaken als stappen mee. Daarna synchroniseert het afvinken van een gekoppelde stap in beide richtingen — zelfde regel als bij taken, alleen open→afgevinkt. Stappen of subtaken die je *ná* het koppelen toevoegt blijven bewust waar ze zijn: die overbrengen zou regels midden in bestanden invoegen, precies het schrijfoppervlak dat deze plugin vermijdt. Let op: Apple Reminders kan op Exchange-accounts geen stappen tonen — gebruik daarvoor de To Do-app.
+- **Geïmporteerde taken landen nu in je standaardkolom** in plaats van de Inbox, zodat een taak die vandaag due is direct met automatisch verplaatsen mee naar Bezig gaat. Een nieuwe instelling "Kolom voor nieuwe taken" laat je de Inbox als intake behouden, of een andere kolom kiezen (behalve afgerond — een import landt nooit afgevinkt).
+- **Het bord blijft de rustige partij.** Alles hierboven volgt de bestaande regels: alleen de desktop praat met Microsoft, markers worden in enkele raw-gematchte bewerkingen achter de sync-rust-poort geschreven, en een lijst die deze draai niet leesbaar is telt niet mee — er wordt dus nooit iets geconcludeerd uit een ontbrekende lijst.
+
 ## 1.17.0
 
 **New: Microsoft To Do on your board — and automatic moves that sync can no longer mangle**
