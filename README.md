@@ -15,13 +15,13 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
 <!-- LATEST-EN:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
-### New in 1.18.1
+### New in 1.18.2
 
-**Recurring tasks and the To Do sync now understand each other**
+**Phone completions now land on the board by themselves — reliably within five minutes**
 
-- **Completing a recurring To Do task no longer eats occurrences.** Microsoft regenerates a completed recurring task as the *same* task with the next due date. The reconciliation saw "card checked, task open" and would complete it again — one occurrence per run, silently skipping ahead. It now recognizes the regeneration (same task, later due date), detaches the checked card as history, and imports the new occurrence as a fresh card on the next run.
-- **The board follows occurrences you complete on your phone.** Completing a recurring task in Reminders or the To Do app regenerates it instantly, so the board never sees a completed state — the open card just sat there with the old date. For recurring tasks, an open linked card now moves its due date along to the current occurrence (only the 📅 is rewritten, via the existing due-date path). Deliberately limited to recurring tasks: for one-shot tasks this would overwrite manual date changes on the board. Was the desktop off for weeks? The card jumps straight to the current occurrence — no pile of stale duplicates.
-- **One recurrence engine per task, by design.** A task repeats on the side where it was born: an Obsidian 🔁 task exports each spawned instance as its own To Do task, and a recurring To Do/Reminders task flows occurrence by occurrence onto the board. The pattern itself never crosses over — two engines on one task would spawn duplicates. Practical rule: should the repetition keep running while your desktop is off, create the task in To Do/Reminders with its repetition there; otherwise Obsidian's 🔁 is fine.
+- **The sync got its own heartbeat.** Completing tasks in Reminders or the To Do app never touches your vault, so an idle Obsidian had no reason to look — changes only arrived once you interacted with the board. A timer now checks every minute whether a sync is due, while the existing limit of at most one real sync per five minutes stays in place. (An interval of exactly five minutes would find "299.9 seconds elapsed", get refused by that same limit, and double the effective pace to ten minutes — hence the one-minute check.)
+- **Right after a restart, pending changes no longer wait a full window.** The first reconciliation runs while Obsidian Sync is still connecting, so the rest gate skips its writes — and the throttle then delayed the retry by up to ten minutes. A run that had to skip writes now rolls the throttle back, so the next attempt follows within about thirty seconds, repeating until the vault settles.
+- **Net result:** complete something on your phone and it is ticked on the board within about five minutes — Obsidian open or idle, no interaction needed. The "Sync Microsoft To Do now" command remains the instant button.
 <!-- LATEST-EN:END -->
 
 ## Features
@@ -164,13 +164,13 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
 <!-- LATEST-NL:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
-### Nieuw in 1.18.1
+### Nieuw in 1.18.2
 
-**Herhalende taken en de To Do-sync begrijpen elkaar nu**
+**Telefoon-afvinkingen landen nu vanzelf op het bord — betrouwbaar binnen vijf minuten**
 
-- **Een herhalende To Do-taak afronden vreet geen occurrences meer op.** Microsoft regenereert een afgeronde herhalende taak als *dezelfde* taak met de volgende due date. De reconciliatie zag "kaart afgevinkt, taak open" en zou hem opnieuw afronden — één occurrence per draai, stilletjes vooruit. Hij herkent het doorschuiven nu (zelfde taak, latere due date), koppelt de afgevinkte kaart los als historie, en importeert de nieuwe occurrence bij de volgende draai als verse kaart.
-- **Het bord volgt occurrences die je op je telefoon afrondt.** Een herhalende taak afvinken in Reminders of de To Do-app regenereert hem direct, dus het bord ziet nooit een afgeronde status — de open kaart bleef gewoon op de oude datum staan. Bij herhalende taken schuift een open gekoppelde kaart nu zijn due date mee naar de actuele occurrence (alleen de 📅 wordt herschreven, via het bestaande datum-pad). Bewust beperkt tot herhalende taken: bij eenmalige taken zou dit handmatige datum-wijzigingen op het bord overschrijven. Stond de desktop weken uit? Dan springt de kaart in één keer naar de actuele occurrence — geen stapel verouderde duplicaten.
-- **Eén herhaal-motor per taak, bewust.** Een taak herhaalt aan de kant waar hij geboren is: een Obsidian-🔁-taak exporteert elke gespawnde instantie als eigen To Do-taak, en een herhalende To Do/Reminders-taak stroomt occurrence voor occurrence het bord op. Het patroon zelf steekt nooit over — twee motoren op één taak zouden dubbelingen spawnen. Praktische regel: moet de herhaling doorlopen terwijl je desktop uit staat, maak de taak dan in To Do/Reminders aan met de herhaling dáár; anders is Obsidians 🔁 prima.
+- **De sync heeft een eigen hartslag gekregen.** Taken afvinken in Reminders of de To Do-app raakt je vault niet aan, dus een stilstaand Obsidian had geen aanleiding om te kijken — wijzigingen kwamen pas binnen zodra je het bord aanraakte. Een timer kijkt nu elke minuut of er een sync mag draaien, terwijl de bestaande grens van hooguit één echte sync per vijf minuten blijft staan. (Een interval van precies vijf minuten vond telkens "299,9 seconden verstreken", werd door diezelfde grens geweigerd, en verdubbelde de effectieve cadans naar tien minuten — vandaar de minuut-check.)
+- **Direct na een herstart wacht liggend werk geen vol venster meer.** De eerste reconciliatie draait terwijl Obsidian Sync nog aan het verbinden is, dus de rust-poort slaat de schrijfacties over — en de throttle schoof de nieuwe poging daarna tot tien minuten op. Een draai die schrijfwerk moest overslaan draait de throttle nu terug, zodat de volgende poging binnen ongeveer dertig seconden volgt, net zolang tot de vault in rust is.
+- **Netto resultaat:** vink iets af op je telefoon en het staat binnen ongeveer vijf minuten afgevinkt op het bord — Obsidian open of stilstaand, zonder er iets voor te doen. Het commando "Synchroniseer Microsoft To Do nu" blijft de knop voor direct.
 <!-- LATEST-NL:END -->
 
 ## Functies
@@ -301,6 +301,24 @@ Aanmeld-tokens worden per apparaat bewaard (in lokale opslag, niet in `data.json
 All changes per version, in English and Dutch — this is what you see on the plugin page in Obsidian. / Alle wijzigingen per versie, in het Engels en Nederlands — dit is wat je op de pluginpagina in Obsidian ziet.
 
 <!-- CHANGELOG:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
+## 1.18.2
+
+**Phone completions now land on the board by themselves — reliably within five minutes**
+
+- **The sync got its own heartbeat.** Completing tasks in Reminders or the To Do app never touches your vault, so an idle Obsidian had no reason to look — changes only arrived once you interacted with the board. A timer now checks every minute whether a sync is due, while the existing limit of at most one real sync per five minutes stays in place. (An interval of exactly five minutes would find "299.9 seconds elapsed", get refused by that same limit, and double the effective pace to ten minutes — hence the one-minute check.)
+- **Right after a restart, pending changes no longer wait a full window.** The first reconciliation runs while Obsidian Sync is still connecting, so the rest gate skips its writes — and the throttle then delayed the retry by up to ten minutes. A run that had to skip writes now rolls the throttle back, so the next attempt follows within about thirty seconds, repeating until the vault settles.
+- **Net result:** complete something on your phone and it is ticked on the board within about five minutes — Obsidian open or idle, no interaction needed. The "Sync Microsoft To Do now" command remains the instant button.
+
+---
+
+### Nederlands
+
+**Telefoon-afvinkingen landen nu vanzelf op het bord — betrouwbaar binnen vijf minuten**
+
+- **De sync heeft een eigen hartslag gekregen.** Taken afvinken in Reminders of de To Do-app raakt je vault niet aan, dus een stilstaand Obsidian had geen aanleiding om te kijken — wijzigingen kwamen pas binnen zodra je het bord aanraakte. Een timer kijkt nu elke minuut of er een sync mag draaien, terwijl de bestaande grens van hooguit één echte sync per vijf minuten blijft staan. (Een interval van precies vijf minuten vond telkens "299,9 seconden verstreken", werd door diezelfde grens geweigerd, en verdubbelde de effectieve cadans naar tien minuten — vandaar de minuut-check.)
+- **Direct na een herstart wacht liggend werk geen vol venster meer.** De eerste reconciliatie draait terwijl Obsidian Sync nog aan het verbinden is, dus de rust-poort slaat de schrijfacties over — en de throttle schoof de nieuwe poging daarna tot tien minuten op. Een draai die schrijfwerk moest overslaan draait de throttle nu terug, zodat de volgende poging binnen ongeveer dertig seconden volgt, net zolang tot de vault in rust is.
+- **Netto resultaat:** vink iets af op je telefoon en het staat binnen ongeveer vijf minuten afgevinkt op het bord — Obsidian open of stilstaand, zonder er iets voor te doen. Het commando "Synchroniseer Microsoft To Do nu" blijft de knop voor direct.
+
 ## 1.18.1
 
 **Recurring tasks and the To Do sync now understand each other**
