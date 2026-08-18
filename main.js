@@ -1097,7 +1097,10 @@ module.exports = class KanbanPlugin extends Plugin {
     // niet aan, dus zonder timer merkte een stilstaand Obsidian dat pas bij de
     // eerstvolgende bord-render. De throttle en alle poorten zitten in
     // maybeSyncTodoTasks zelf (desktop-only, max. eens per 5 min, rust-poort).
-    this.registerInterval(window.setInterval(() => this.outlook.maybeSyncTodoTasks(), 5 * 60 * 1000));
+    // Elke minuut kijken (een klokvergelijking, meer niet): met een interval
+    // gelijk aan de throttle wees de klok net té vaak "299,9s verstreken" en
+    // verdubbelde de effectieve cadans naar ~10 minuten.
+    this.registerInterval(window.setInterval(() => this.outlook.maybeSyncTodoTasks(), 60 * 1000));
   }
 
   onunload() {
