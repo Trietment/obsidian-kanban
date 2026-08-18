@@ -25,7 +25,10 @@ const MS_REDIRECT = `obsidian://${MS_AUTH_PROTOCOL}`;
 // leesweergave. De marker is de sleutel van de reconciliatie en blijft op de
 // regel staan; de zichtbare kaarttekst blijft schoon (parseTaskLine stript hem).
 const TD_MARKER_RE = /%%td:([^\s:%]+):([^\s%]+)%%/;
-const TD_MARKER_RE_G = /%%td:[^\s:%]+:[^\s%]+%%/g;
+// De strip-variant dekt ook %%tds:...%% en het inerte %%td-done:...%% (een
+// losgekoppelde occurrence van een herhalende taak): geen ervan hoort ooit
+// zichtbaar te zijn in de kaarttekst.
+const TD_MARKER_RE_G = /%%td[\w-]*:[^%]*%%/g;
 // Stap-marker op subtaakregels: %%tds:<checklistItemId>%% — koppelt een
 // subtaak aan een stap (checklistItem) van de bovenliggende To Do-taak.
 const TDS_MARKER_RE = /%%tds:([^\s:%]+)%%/;
@@ -4144,6 +4147,7 @@ class OutlookManager {
     const toCreate = []; // in To Do open, nog nergens in de vault → importeren
     const toPatch = [];  // markdown afgevinkt, To Do nog open → PATCH completed
     const toCheck = [];  // To Do completed, markdown open → regel afvinken
+    const toRotate = []; // herhalende taak doorgeschoven → oude regel loskoppelen
     for (const [key, rt] of remote) {
       const lt = local.get(key);
       if (!lt) {
@@ -4151,7 +4155,17 @@ class OutlookManager {
         continue;
       }
       const remoteDone = rt.status === 'completed';
-      if (lt.done && !remoteDone) toPatch.push(rt);
+      if (lt.done && !remoteDone) {
+        // Herhalende taak in To Do: afronden schuift dezelfde taak-id door
+        // naar de volgende occurrence (open, latere due date). Dat is geen
+        // "nog niet afgevinkt" — opnieuw PATCHen zou occurrence na occurrence
+        // opvreten. Herkenning: de remote due ligt ná de due op de afgevinkte
+        // regel. De oude regel wordt dan losgekoppeld (marker → %%td-done%%,
+        // kaart blijft afgevinkt als historie) zodat de nieuwe occurrence bij
+        // de volgende stap als verse kaart importeert.
+        if (rt.due && lt.dueDate && rt.due > lt.dueDate) toRotate.push(lt);
+        else toPatch.push(rt);
+      }
       else if (!lt.done && remoteDone) toCheck.push(lt);
     }
 
@@ -4164,8 +4178,8 @@ class OutlookManager {
     // c + e. Markdown-writes alleen als de vault in rust is; anders slaat deze
     // draai ze over — de volgende draai herstelt vanzelf (het is reconciliatie).
     const settled = plugin.vaultSettled();
-    let imported = 0, checked = 0;
-    if ((toCreate.length || toCheck.length) && settled) {
+    let imported = 0, checked = 0, rotated = 0;
+    if ((toCreate.length || toCheck.length || toRotate.length) && settled) {
       const targetNote = (plugin.settings.todoTargetNote || '').trim() || 'MS To Do.md';
       const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
       // Doelkolom: standaard de standaardkolom (doet mee met auto-verplaatsen:
@@ -4199,6 +4213,11 @@ class OutlookManager {
       for (const lt of toCheck) {
         await plugin.toggleDone(lt, { skipTodoPush: true });
         checked++;
+      }
+      // Doorgeschoven herhalingen: oude regel loskoppelen; de nieuwe
+      // occurrence importeert bij de volgende draai als verse kaart.
+      for (const lt of toRotate) {
+        if (await this.rotateMarker(lt)) rotated++;
       }
     }
 
@@ -4264,8 +4283,28 @@ class OutlookManager {
       }
     }
 
-    if (imported || checked || exported || stepsChecked) plugin.scheduleRefresh();
-    return { imported, patched, checked, exported, stepsPatched, stepsChecked };
+    if (imported || checked || exported || stepsChecked || rotated) plugin.scheduleRefresh();
+    return { imported, patched, checked, rotated, exported, stepsPatched, stepsChecked };
+  }
+
+  // Koppel een afgeronde occurrence van een herhalende taak los: %%td: wordt
+  // %%td-done: op precies die regel (raw-match). De regel blijft verder
+  // onaangeroerd als historie; de bestaanscheck ziet het inerte merkteken niet
+  // meer, dus de doorgeschoven taak importeert opnieuw als verse kaart.
+  async rotateMarker(t) {
+    const file = this.plugin.app.vault.getAbstractFileByPath(t.file);
+    if (!(file instanceof TFile)) return false;
+    let ok = false;
+    await this.plugin.app.vault.process(file, (data) => {
+      ok = false;
+      const lines = data.split('\n');
+      const idx = (t.line < lines.length && lines[t.line] === t.raw) ? t.line : lines.indexOf(t.raw);
+      if (idx < 0) return data;
+      lines[idx] = lines[idx].replace('%%td:', '%%td-done:');
+      ok = true;
+      return lines.join('\n');
+    });
+    return ok;
   }
 
   async removeAccount(id) {
