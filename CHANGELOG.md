@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.18.2
+
+**Phone completions now land on the board by themselves — reliably within five minutes**
+
+- **The sync got its own heartbeat.** Completing tasks in Reminders or the To Do app never touches your vault, so an idle Obsidian had no reason to look — changes only arrived once you interacted with the board. A timer now checks every minute whether a sync is due, while the existing limit of at most one real sync per five minutes stays in place. (An interval of exactly five minutes would find "299.9 seconds elapsed", get refused by that same limit, and double the effective pace to ten minutes — hence the one-minute check.)
+- **Right after a restart, pending changes no longer wait a full window.** The first reconciliation runs while Obsidian Sync is still connecting, so the rest gate skips its writes — and the throttle then delayed the retry by up to ten minutes. A run that had to skip writes now rolls the throttle back, so the next attempt follows within about thirty seconds, repeating until the vault settles.
+- **Net result:** complete something on your phone and it is ticked on the board within about five minutes — Obsidian open or idle, no interaction needed. The "Sync Microsoft To Do now" command remains the instant button.
+
+---
+
+### Nederlands
+
+**Telefoon-afvinkingen landen nu vanzelf op het bord — betrouwbaar binnen vijf minuten**
+
+- **De sync heeft een eigen hartslag gekregen.** Taken afvinken in Reminders of de To Do-app raakt je vault niet aan, dus een stilstaand Obsidian had geen aanleiding om te kijken — wijzigingen kwamen pas binnen zodra je het bord aanraakte. Een timer kijkt nu elke minuut of er een sync mag draaien, terwijl de bestaande grens van hooguit één echte sync per vijf minuten blijft staan. (Een interval van precies vijf minuten vond telkens "299,9 seconden verstreken", werd door diezelfde grens geweigerd, en verdubbelde de effectieve cadans naar tien minuten — vandaar de minuut-check.)
+- **Direct na een herstart wacht liggend werk geen vol venster meer.** De eerste reconciliatie draait terwijl Obsidian Sync nog aan het verbinden is, dus de rust-poort slaat de schrijfacties over — en de throttle schoof de nieuwe poging daarna tot tien minuten op. Een draai die schrijfwerk moest overslaan draait de throttle nu terug, zodat de volgende poging binnen ongeveer dertig seconden volgt, net zolang tot de vault in rust is.
+- **Netto resultaat:** vink iets af op je telefoon en het staat binnen ongeveer vijf minuten afgevinkt op het bord — Obsidian open of stilstaand, zonder er iets voor te doen. Het commando "Synchroniseer Microsoft To Do nu" blijft de knop voor direct.
+
 ## 1.18.1
 
 **Recurring tasks and the To Do sync now understand each other**
