@@ -3994,6 +3994,21 @@ class OutlookManager {
     return this.accounts().find((a) => Array.isArray(a.todoSelected) && a.todoSelected.includes(listId)) || null;
   }
 
+  // Zet een Graph-dueDateTime om naar de lokale kalenderdag. Graph geeft het
+  // veld (zonder Prefer-header) geregeld in UTC terug; botweg de eerste tien
+  // tekens pakken verschuift dan rond middernacht een dag — "vandaag" uit
+  // Reminders (lokale middernacht = 22:00 UTC de dag ervoor) werd "gisteren".
+  // Niet-UTC-waarden zijn wall-clock in die zone: daar ís de datumtekst de dag.
+  todoDueToLocalISO(dd) {
+    if (!dd || typeof dd.dateTime !== 'string') return null;
+    const raw = dd.dateTime.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    if (String(dd.timeZone || '').toUpperCase() !== 'UTC') return raw;
+    const clean = dd.dateTime.replace(/\.\d+/, '').replace(/Z$/, '');
+    const d = new Date(clean + 'Z');
+    return isNaN(d) ? raw : isoFromDate(d);
+  }
+
   // ---- Stappen (checklistItems) van een To Do-taak -------------------------
   // Subtaken reizen mee bij het koppelen (import én export) en de afvinkstatus
   // van gekoppelde stappen synct in beide richtingen. Later toegevoegde
@@ -4170,14 +4185,12 @@ class OutlookManager {
         readLists.add(listId);
         for (const it of items) {
           if (!it || !it.id) continue;
-          const rawDue = it.dueDateTime && typeof it.dueDateTime.dateTime === 'string'
-            ? it.dueDateTime.dateTime.slice(0, 10) : null;
           remote.set(`${listId}:${it.id}`, {
             acc, listId, id: it.id,
             // %% kan niet in de titel blijven staan: dat zou de marker-parse breken.
             title: String(it.title || '').replace(/[\r\n]+/g, ' ').replace(/%%/g, '').replace(/\s+/g, ' ').trim(),
             status: it.status || 'notStarted',
-            due: rawDue && /^\d{4}-\d{2}-\d{2}$/.test(rawDue) ? rawDue : null,
+            due: this.todoDueToLocalISO(it.dueDateTime),
             recurring: !!it.recurrence, // herhalende To Do-taak: Microsoft is de motor
             client: this.todoClientForList(acc, listId),
           });
