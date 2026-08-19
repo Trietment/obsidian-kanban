@@ -1101,6 +1101,26 @@ module.exports = class KanbanPlugin extends Plugin {
     // gelijk aan de throttle wees de klok net té vaak "299,9s verstreken" en
     // verdubbelde de effectieve cadans naar ~10 minuten.
     this.registerInterval(window.setInterval(() => this.outlook.maybeSyncTodoTasks(), 60 * 1000));
+
+    // Middernacht-rollover: een kalenderweergave die op "vandaag" stond schuift
+    // mee naar de nieuwe dag; wie bewust op een andere dag/week/maand staat,
+    // blijft daar (alleen het vandaag-accent verspringt). Het bord rendert
+    // opnieuw zodat due-kleuren en de virtuele Bezig-kolom de nieuwe dag volgen.
+    this.lastKnownToday = todayISO();
+    this.registerInterval(window.setInterval(() => {
+      const now = todayISO();
+      if (now === this.lastKnownToday) return;
+      const prev = this.lastKnownToday;
+      this.lastKnownToday = now;
+      this.app.workspace.getLeavesOfType(VIEW_TYPE_CALENDAR).forEach((leaf) => {
+        if (!(leaf.view instanceof CalendarView)) return;
+        if (isoFromDate(leaf.view.anchor) === prev) leaf.view.goToday();
+        else leaf.view.render();
+      });
+      this.app.workspace.getLeavesOfType(VIEW_TYPE_KANBAN).forEach((leaf) => {
+        if (leaf.view instanceof KanbanView) leaf.view.render();
+      });
+    }, 60 * 1000));
   }
 
   onunload() {
