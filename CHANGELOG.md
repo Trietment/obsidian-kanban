@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.19.0
+
+**Due dates of linked cards now sync both ways**
+
+- **Change a date on the board, and Microsoft follows within seconds.** Changing (or clearing) the due date of a linked card pushes the change straight to To Do — and via Exchange to Apple Reminders. A user action has an unambiguous direction, so this is as safe as completing a card.
+- **Change a date in Reminders or To Do, and the board follows.** Because board edits now push immediately, a date difference at reconciliation can only mean Microsoft changed — so open linked cards follow the remote due date, for every linked task instead of only recurring ones. This supersedes 1.18.1's "board dates stay yours": a linked card's due date is now shared state, kept identical on both sides. One honest residual: a board edit made while your desktop happens to be offline can be reverted once by the next reconciliation; your next edit wins again. Cards without a link marker are untouched, as always.
+- **UTC dates no longer shift a day.** Graph returns due dates in UTC; taking the date characters as-is turned a Reminders "today" (local midnight = 22:00 UTC the previous day) into "yesterday", and "tomorrow" into "today". UTC values are now converted to your local calendar day; wall-clock values keep their date. Cards that landed on a shifted day correct themselves on the first sync after updating — no need to touch the dates again.
+
+---
+
+### Nederlands
+
+**Due dates van gekoppelde kaarten syncen nu in beide richtingen**
+
+- **Wijzig een datum op het bord, en Microsoft volgt binnen seconden.** De due date van een gekoppelde kaart wijzigen (of wissen) duwt de wijziging direct naar To Do — en via Exchange naar Apple Reminders. Een gebruikersactie heeft een ondubbelzinnige richting, dus dit is net zo veilig als afvinken.
+- **Wijzig een datum in Reminders of To Do, en het bord volgt.** Doordat bord-wijzigingen nu direct gepusht worden, kan een datumverschil bij de reconciliatie alleen betekenen dat Microsoft gewijzigd is — dus volgen open gekoppelde kaarten de remote due date, voor élke gekoppelde taak in plaats van alleen herhalende. Dit vervangt de belofte uit 1.18.1 ("bord-datums blijven van jou"): de due date van een gekoppelde kaart is nu gedeelde staat, aan beide kanten gelijk gehouden. Eén eerlijke restwaarschuwing: een bord-wijziging terwijl je desktop toevallig offline is kan eenmalig door de eerstvolgende reconciliatie worden teruggezet; je volgende wijziging wint weer. Kaarten zonder koppelmarker blijven zoals altijd onaangeroerd.
+- **UTC-datums verschuiven geen dag meer.** Graph geeft due dates in UTC terug; botweg de datumtekens nemen maakte van een Reminders-"vandaag" (lokale middernacht = 22:00 UTC de dag ervoor) "gisteren", en van "morgen" "vandaag". UTC-waarden worden nu omgerekend naar jouw lokale kalenderdag; wall-clock-waarden houden hun datumtekst. Kaarten die op een verschoven dag terechtkwamen corrigeren zichzelf bij de eerste sync na het updaten — je hoeft de datums niet opnieuw aan te raken.
+
 ## 1.18.2
 
 **Phone completions now land on the board by themselves — reliably within five minutes**
