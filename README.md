@@ -15,12 +15,13 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
 <!-- LATEST-EN:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
-### New in 1.19.1
+### New in 1.19.2
 
-**The calendar rolls over at midnight**
+**Completing a recurring task on your phone completes the card again**
 
-- **A view left on "today" now follows the date change.** The calendar anchors on a date and only moved when you navigated or restarted — so an app left open overnight kept showing yesterday. A view standing on today now jumps to the new today the minute the date changes, in day, week and month mode alike. Were you deliberately on another day, week or month? Then you stay there; only the today highlight moves along.
-- **The board follows the new day too.** At the same moment the board re-renders, so due colors and the virtual In-progress column reflect the new day right away — tasks due from today are in place before the auto-move round has even written the tag.
+- **Completing a recurring task in Reminders or To Do now completes the card.** Completing a recurring linked task on your phone makes Microsoft roll the same task straight on to its next occurrence, so the board never saw a "completed" state — the open card only moved its due date along (1.18.1) and kept sitting in its column, typically In progress, now dated in the future. As if nothing had happened. The reconciliation now mirrors what already happened when you tick the card on the board: the card is checked off (it stays in Done as history) and unlinked, and the next sync run imports the new occurrence as a fresh card in the landing column — auto-move brings that one to In progress on the day itself. Nothing is pushed to Microsoft in the process, so the next occurrence is never accidentally completed along.
+- **Rescheduling to a later day pulls the card out of In progress.** Moving a linked task's due date to a later day in Reminders or To Do already updated the date on the board (1.19.0), but a card that had been moved to In progress stayed there — looking active while its due date is days away. Such a card now returns to the default column, and auto-move brings it back to In progress on the new due date. On hold and Done stay untouched: those columns are your choice, not the sync's.
+- **One honest note.** For a recurring task the sync cannot tell completing an occurrence apart from manually pushing its date forward — Microsoft rolls the same task on in both cases. Manually reschedule a recurring task to later, and the board records the current card as done and starts a fresh one on the new date; the end state matches Microsoft either way.
 <!-- LATEST-EN:END -->
 
 ## Features
@@ -163,12 +164,13 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
 <!-- LATEST-NL:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
-### Nieuw in 1.19.1
+### Nieuw in 1.19.2
 
-**De kalender slaat om bij middernacht**
+**Een herhalende taak afvinken op je telefoon vinkt de kaart weer af**
 
-- **Een weergave die op "vandaag" stond volgt nu de datumwisseling.** De kalender ankert op een datum en bewoog alleen bij navigeren of een herstart — dus een app die 's nachts open bleef staan toonde de volgende ochtend nog gisteren. Een weergave die op vandaag staat springt nu binnen een minuut na de datumwisseling naar de nieuwe vandaag, in dag-, week- én maandweergave. Stond je bewust op een andere dag, week of maand? Dan blijf je daar; alleen het vandaag-accent verspringt mee.
-- **Ook het bord volgt de nieuwe dag.** Op hetzelfde moment rendert het bord opnieuw, zodat due-kleuren en de virtuele Bezig-kolom direct de nieuwe dag weerspiegelen — taken die vanaf vandaag due zijn staan er al voordat de auto-verplaats-ronde de tag überhaupt geschreven heeft.
+- **Een herhalende taak afvinken in Reminders of To Do vinkt nu de kaart af.** Bij het afvinken op je telefoon schuift Microsoft dezelfde taak direct door naar de volgende occurrence, dus het bord zag nooit een "voltooid" — de open kaart schoof alleen zijn due date mee (1.18.1) en bleef in zijn kolom staan, meestal Bezig, voortaan met een datum in de toekomst. Alsof er niets gebeurd was. De reconciliatie spiegelt nu wat er al gebeurde bij afvinken óp het bord: de kaart wordt afgevinkt (blijft als historie in Klaar) en losgekoppeld, en de eerstvolgende sync-draai importeert de nieuwe occurrence als verse kaart in de landingskolom — de auto-move brengt die op de dag zelf naar Bezig. Er wordt daarbij niets naar Microsoft gepusht, dus de volgende occurrence wordt nooit per ongeluk mee-afgevinkt.
+- **Verzetten naar later haalt de kaart uit Bezig.** Een gekoppelde taak in Reminders of To Do naar een latere dag verzetten werkte al door in de datum op het bord (1.19.0), maar een kaart die naar Bezig was geschoven bleef daar staan — actief ogend terwijl de due date dagen weg is. Zo'n kaart gaat nu terug naar de standaardkolom, en de auto-move brengt hem op de nieuwe due date vanzelf weer naar Bezig. On hold en Klaar blijven onaangeroerd: die kolommen zijn jouw keuze, niet die van de sync.
+- **Eén eerlijke kanttekening.** Bij een herhalende taak kan de sync een afgeronde occurrence niet onderscheiden van een handmatig naar later verzette datum — Microsoft schuift in beide gevallen dezelfde taak door. Verzet je een herhalende taak handmatig naar later, dan boekt het bord de huidige kaart als afgerond en start een verse op de nieuwe datum; de eindstand klopt in beide gevallen met Microsoft.
 <!-- LATEST-NL:END -->
 
 ## Functies
@@ -299,6 +301,24 @@ Aanmeld-tokens worden per apparaat bewaard (in lokale opslag, niet in `data.json
 All changes per version, in English and Dutch — this is what you see on the plugin page in Obsidian. / Alle wijzigingen per versie, in het Engels en Nederlands — dit is wat je op de pluginpagina in Obsidian ziet.
 
 <!-- CHANGELOG:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
+## 1.19.2
+
+**Completing a recurring task on your phone completes the card again**
+
+- **Completing a recurring task in Reminders or To Do now completes the card.** Completing a recurring linked task on your phone makes Microsoft roll the same task straight on to its next occurrence, so the board never saw a "completed" state — the open card only moved its due date along (1.18.1) and kept sitting in its column, typically In progress, now dated in the future. As if nothing had happened. The reconciliation now mirrors what already happened when you tick the card on the board: the card is checked off (it stays in Done as history) and unlinked, and the next sync run imports the new occurrence as a fresh card in the landing column — auto-move brings that one to In progress on the day itself. Nothing is pushed to Microsoft in the process, so the next occurrence is never accidentally completed along.
+- **Rescheduling to a later day pulls the card out of In progress.** Moving a linked task's due date to a later day in Reminders or To Do already updated the date on the board (1.19.0), but a card that had been moved to In progress stayed there — looking active while its due date is days away. Such a card now returns to the default column, and auto-move brings it back to In progress on the new due date. On hold and Done stay untouched: those columns are your choice, not the sync's.
+- **One honest note.** For a recurring task the sync cannot tell completing an occurrence apart from manually pushing its date forward — Microsoft rolls the same task on in both cases. Manually reschedule a recurring task to later, and the board records the current card as done and starts a fresh one on the new date; the end state matches Microsoft either way.
+
+---
+
+### Nederlands
+
+**Een herhalende taak afvinken op je telefoon vinkt de kaart weer af**
+
+- **Een herhalende taak afvinken in Reminders of To Do vinkt nu de kaart af.** Bij het afvinken op je telefoon schuift Microsoft dezelfde taak direct door naar de volgende occurrence, dus het bord zag nooit een "voltooid" — de open kaart schoof alleen zijn due date mee (1.18.1) en bleef in zijn kolom staan, meestal Bezig, voortaan met een datum in de toekomst. Alsof er niets gebeurd was. De reconciliatie spiegelt nu wat er al gebeurde bij afvinken óp het bord: de kaart wordt afgevinkt (blijft als historie in Klaar) en losgekoppeld, en de eerstvolgende sync-draai importeert de nieuwe occurrence als verse kaart in de landingskolom — de auto-move brengt die op de dag zelf naar Bezig. Er wordt daarbij niets naar Microsoft gepusht, dus de volgende occurrence wordt nooit per ongeluk mee-afgevinkt.
+- **Verzetten naar later haalt de kaart uit Bezig.** Een gekoppelde taak in Reminders of To Do naar een latere dag verzetten werkte al door in de datum op het bord (1.19.0), maar een kaart die naar Bezig was geschoven bleef daar staan — actief ogend terwijl de due date dagen weg is. Zo'n kaart gaat nu terug naar de standaardkolom, en de auto-move brengt hem op de nieuwe due date vanzelf weer naar Bezig. On hold en Klaar blijven onaangeroerd: die kolommen zijn jouw keuze, niet die van de sync.
+- **Eén eerlijke kanttekening.** Bij een herhalende taak kan de sync een afgeronde occurrence niet onderscheiden van een handmatig naar later verzette datum — Microsoft schuift in beide gevallen dezelfde taak door. Verzet je een herhalende taak handmatig naar later, dan boekt het bord de huidige kaart als afgerond en start een verse op de nieuwe datum; de eindstand klopt in beide gevallen met Microsoft.
+
 ## 1.19.1
 
 **The calendar rolls over at midnight**
