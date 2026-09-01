@@ -4235,7 +4235,8 @@ class OutlookManager {
     const toPatch = [];  // markdown afgevinkt, To Do nog open → PATCH completed
     const toCheck = [];  // To Do completed, markdown open → regel afvinken
     const toRotate = []; // herhalende taak doorgeschoven → oude regel loskoppelen
-    const toRedate = []; // occurrence elders afgerond → open kaart volgt de nieuwe due date
+    const toComplete = []; // occurrence elders afgerond → regel afvinken + loskoppelen
+    const toRedate = []; // remote datum gewijzigd → open kaart volgt de nieuwe due date
     for (const [key, rt] of remote) {
       const lt = local.get(key);
       if (!lt) {
@@ -4255,14 +4256,22 @@ class OutlookManager {
         else toPatch.push(rt);
       }
       else if (!lt.done && remoteDone) toCheck.push(lt);
-      // Datumverschil op een open gekoppelde kaart → het bord volgt Microsoft.
-      // Dit dekt zowel doorgeschoven herhalingen (elders afgerond → zelfde
-      // taak, latere due) als handmatige datum-wijzigingen in Reminders/To Do.
-      // Veilig omdat bord-wijzigingen zelf direct gepusht worden (setDueDate →
-      // pushTodoDue): een verschil hier betekent dus dat MS is gewijzigd. Rest-
-      // risico: een offline mislukte bord-push kan door MS worden teruggezet.
       else if (!lt.done && !remoteDone && rt.due !== (lt.dueDate || null)) {
-        toRedate.push({ lt, due: rt.due });
+        // Herhalende taak waarvan de due naar láter schoof: dat is een elders
+        // (Reminders/To Do) afgeronde occurrence — hetzelfde taak-id schuift
+        // dan door naar de volgende. Alleen de datum bijschuiven zou de kaart
+        // onaangeroerd in zijn kolom laten staan terwijl de gebruiker hem
+        // juist afvinkte. Dus: spiegel van het bord-pad (toRotate) — regel
+        // afvinken + loskoppelen; de volgende draai importeert de nieuwe
+        // occurrence als verse kaart in de landingskolom.
+        if (rt.recurring && rt.due && lt.dueDate && rt.due > lt.dueDate) toComplete.push(lt);
+        // Overige datumverschillen op een open gekoppelde kaart → het bord
+        // volgt Microsoft (handmatige wijzigingen in Reminders/To Do). Veilig
+        // omdat bord-wijzigingen zelf direct gepusht worden (setDueDate →
+        // pushTodoDue): een verschil hier betekent dus dat MS is gewijzigd.
+        // Restrisico: een offline mislukte bord-push kan door MS worden
+        // teruggezet.
+        else toRedate.push({ lt, due: rt.due });
       }
     }
 
@@ -4275,8 +4284,8 @@ class OutlookManager {
     // c + e. Markdown-writes alleen als de vault in rust is; anders slaat deze
     // draai ze over — de volgende draai herstelt vanzelf (het is reconciliatie).
     const settled = plugin.vaultSettled();
-    let imported = 0, checked = 0, rotated = 0, redated = 0;
-    if ((toCreate.length || toCheck.length || toRotate.length || toRedate.length) && settled) {
+    let imported = 0, checked = 0, rotated = 0, redated = 0, completed = 0;
+    if ((toCreate.length || toCheck.length || toRotate.length || toComplete.length || toRedate.length) && settled) {
       const targetNote = (plugin.settings.todoTargetNote || '').trim() || 'MS To Do.md';
       const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
       // Doelkolom: standaard de standaardkolom (doet mee met auto-verplaatsen:
@@ -4306,21 +4315,39 @@ class OutlookManager {
       // Afvinken van hoog naar laag regelnummer per bestand: een herhaal-taak
       // voegt bij het afvinken een regel boven zichzelf in en zou anders de
       // posities van de nog af te vinken regels eronder laten verschuiven.
-      toCheck.sort((a, b) => (a.file === b.file ? b.line - a.line : (a.file < b.file ? -1 : 1)));
-      for (const lt of toCheck) {
+      // Elders afgeronde occurrences (toComplete) vinken in dezelfde pas af
+      // en worden daarna losgekoppeld.
+      const toTick = toCheck.map((lt) => ({ lt, unlink: false }))
+        .concat(toComplete.map((lt) => ({ lt, unlink: true })));
+      toTick.sort((a, b) => (a.lt.file === b.lt.file ? b.lt.line - a.lt.line : (a.lt.file < b.lt.file ? -1 : 1)));
+      for (const { lt, unlink } of toTick) {
         await plugin.toggleDone(lt, { skipTodoPush: true });
-        checked++;
+        if (!unlink) { checked++; continue; }
+        // Loskoppelen ná het afvinken. Mislukt dat (regel net verschoven),
+        // dan blijft een gekoppelde afgevinkte kaart over en herstelt de
+        // volgende draai hem via het gewone rotatie-pad (toRotate).
+        if (await this.rotateMarker(lt)) completed++;
       }
       // Doorgeschoven herhalingen: oude regel loskoppelen; de nieuwe
       // occurrence importeert bij de volgende draai als verse kaart.
       for (const lt of toRotate) {
         if (await this.rotateMarker(lt)) rotated++;
       }
-      // Open kaarten die Microsoft volgen: alleen de 📅 wordt herschreven, via
-      // het bestaande setDueDate-pad — mét skipTodoPush, anders zou het bord
-      // de datum die net uit MS kwam meteen weer terugduwen.
+      // Open kaarten die Microsoft volgen: de 📅 wordt herschreven via het
+      // bestaande setDueDate-pad — mét skipTodoPush, anders zou het bord de
+      // datum die net uit MS kwam meteen weer terugduwen.
       for (const { lt, due } of toRedate) {
         await plugin.setDueDate(lt, due, { skipTodoPush: true });
+        // Schoof de datum naar later terwijl de kaart in Bezig staat (bv. in
+        // Reminders "volgende week" gekozen)? Dan terug naar de standaard-
+        // kolom; de auto-move brengt hem op de nieuwe due date vanzelf weer
+        // naar Bezig. Andere kolommen (On hold, Klaar) zijn een bewuste keuze
+        // en blijven staan.
+        if (due && due > todayISO() && lt.column === plugin.settings.inProgressColumn) {
+          const backCol = plugin.settings.columns.includes(plugin.settings.defaultColumn)
+            ? plugin.settings.defaultColumn : 'inbox';
+          await plugin.moveTask(`${lt.file}::${lt.line}`, backCol);
+        }
         redated++;
       }
     }
@@ -4387,21 +4414,23 @@ class OutlookManager {
       }
     }
 
-    if (imported || checked || exported || stepsChecked || rotated || redated) plugin.scheduleRefresh();
+    if (imported || checked || completed || exported || stepsChecked || rotated || redated) plugin.scheduleRefresh();
     // Schrijfwerk blijven liggen door de rust-poort (bv. vlak na een herstart,
     // terwijl Obsidian Sync nog verbindt)? Meld het, zodat syncTodoTasks de
     // throttle terugdraait en de volgende trigger snel opnieuw probeert.
     const skippedWrites = !settled && (
-      toCreate.length > 0 || toCheck.length > 0 || toRotate.length > 0 || toRedate.length > 0 ||
+      toCreate.length > 0 || toCheck.length > 0 || toRotate.length > 0 || toComplete.length > 0 || toRedate.length > 0 ||
       (plugin.settings.todoExportEnabled && tasks.some((t) => !t.done && !t.todoId && t.client))
     );
-    return { imported, patched, checked, rotated, redated, exported, stepsPatched, stepsChecked, skippedWrites };
+    return { imported, patched, checked, completed, rotated, redated, exported, stepsPatched, stepsChecked, skippedWrites };
   }
 
   // Koppel een afgeronde occurrence van een herhalende taak los: %%td: wordt
-  // %%td-done: op precies die regel (raw-match). De regel blijft verder
-  // onaangeroerd als historie; de bestaanscheck ziet het inerte merkteken niet
-  // meer, dus de doorgeschoven taak importeert opnieuw als verse kaart.
+  // %%td-done: op precies die regel (raw-match; is de regel deze draai net
+  // afgevinkt, dan vindt het unieke merkteken hem alsnog). De regel blijft
+  // verder onaangeroerd als historie; de bestaanscheck ziet het inerte
+  // merkteken niet meer, dus de doorgeschoven taak importeert opnieuw als
+  // verse kaart.
   async rotateMarker(t) {
     const file = this.plugin.app.vault.getAbstractFileByPath(t.file);
     if (!(file instanceof TFile)) return false;
@@ -4409,7 +4438,11 @@ class OutlookManager {
     await this.plugin.app.vault.process(file, (data) => {
       ok = false;
       const lines = data.split('\n');
-      const idx = (t.line < lines.length && lines[t.line] === t.raw) ? t.line : lines.indexOf(t.raw);
+      let idx = (t.line < lines.length && lines[t.line] === t.raw) ? t.line : lines.indexOf(t.raw);
+      if (idx < 0 && t.todoList && t.todoId) {
+        const mark = `%%td:${t.todoList}:${t.todoId}%%`;
+        idx = lines.findIndex((l) => l.includes(mark));
+      }
       if (idx < 0) return data;
       lines[idx] = lines[idx].replace('%%td:', '%%td-done:');
       ok = true;
