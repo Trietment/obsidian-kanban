@@ -1287,10 +1287,12 @@ body.is-phone .tk-col-switch {
   gap: var(--size-4-2);
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
   padding: var(--size-4-1) 0 var(--size-4-2);
   background: var(--background-primary);
 }
+/* Scrollbalk verbergen via het WebKit-pseudo-element, niet via
+   scrollbar-width: die kent de Chromium van onze minAppVersion (1.4.5) nog
+   niet, terwijl dit pseudo-element op elke Obsidian-webview werkt. */
 body.is-phone .tk-col-switch::-webkit-scrollbar {
   display: none;
 }
