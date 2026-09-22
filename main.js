@@ -43,6 +43,90 @@ const DEFAULT_MS_CLIENT_ID = '9a17bc84-20cf-46e7-b761-d52aadcd92ac';
 // Eigen kleurenpalet voor gekoppelde agenda's (los van de projectkleuren).
 const OUTLOOK_PALETTE = ['#2563eb', '#0891b2', '#7c3aed', '#db2777', '#ca8a04', '#16a34a'];
 
+// -- GitHub Projects (v2) ---------------------------------------------------
+// Marker die een geïmporteerd Projects-item aan zijn bron koppelt:
+// %%gh:<projectId>:<itemId>%% — dezelfde vorm en dezelfde rol als %%td:...%%.
+// Beide id's zijn GitHub node-id's (PVT_… / PVTI_…), dus base64-achtig.
+const GH_MARKER_RE = /%%gh:([^\s:%]+):([^\s%]+)%%/;
+const GH_MARKER_RE_G = /%%gh[\w-]*:[^%]*%%/g;
+// Projects v2 bestaat uitsluitend in GraphQL; de REST API kent het niet.
+const GH_API = 'https://api.github.com/graphql';
+// Bord-trigger van de GitHub-sync: hooguit eens per 5 minuten (zie TD_SYNC_MIN_MS).
+const GH_SYNC_MIN_MS = 5 * 60 * 1000;
+// Statuswaarden die als "klaar" tellen zolang het item zelf nog open is. Een
+// gesloten of gemergede issue/PR telt sowieso als klaar, ongeacht de status.
+const GH_DONE_STATUS = new Set([
+  'done', 'klaar', 'closed', 'gesloten', 'complete', 'completed', 'afgerond', 'afgehandeld',
+]);
+// Eén item-pagina van een bord. fieldValueByName geeft null als het bord geen
+// Status-veld heeft; content is null bij een item zonder leesrechten (REDACTED).
+const GH_ITEMS_QUERY = `query($id: ID!, $cursor: String) {
+  node(id: $id) {
+    ... on ProjectV2 {
+      items(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id
+          isArchived
+          fieldValueByName(name: "Status") {
+            ... on ProjectV2ItemFieldSingleSelectValue { name }
+          }
+          content {
+            ... on Issue { number title state assignees(first: 20) { nodes { login } } }
+            ... on PullRequest { number title state assignees(first: 20) { nodes { login } } }
+            ... on DraftIssue { title assignees(first: 20) { nodes { login } } }
+          }
+        }
+      }
+    }
+  }
+}`;
+// Afsluiten in GitHub: één detailquery voor het afsluitscherm (het item én
+// het bord, in één keer), daarna hooguit drie mutaties.
+const GH_DETAIL_QUERY = `query($item: ID!, $project: ID!) {
+  item: node(id: $item) {
+    ... on ProjectV2Item {
+      id
+      type
+      isArchived
+      fieldValueByName(name: "Status") {
+        ... on ProjectV2ItemFieldSingleSelectValue { name optionId }
+      }
+      content {
+        ... on Issue { id number title state url repository { nameWithOwner } }
+        ... on PullRequest { id number title state url repository { nameWithOwner } }
+        ... on DraftIssue { id title }
+      }
+    }
+  }
+  project: node(id: $project) {
+    ... on ProjectV2 {
+      title
+      field(name: "Status") {
+        ... on ProjectV2SingleSelectField { id name options { id name } }
+      }
+    }
+  }
+}`;
+const GH_COMMENT_MUTATION = `mutation($id: ID!, $body: String!) {
+  addComment(input: { subjectId: $id, body: $body }) { clientMutationId }
+}`;
+const GH_CLOSE_ISSUE_MUTATION = `mutation($id: ID!, $reason: IssueClosedStateReason!) {
+  closeIssue(input: { issueId: $id, stateReason: $reason }) { issue { id state } }
+}`;
+const GH_CLOSE_PR_MUTATION = `mutation($id: ID!) {
+  closePullRequest(input: { pullRequestId: $id }) { pullRequest { id state } }
+}`;
+const GH_SET_STATUS_MUTATION = `mutation($project: ID!, $item: ID!, $field: ID!, $option: String!) {
+  updateProjectV2ItemFieldValue(input: {
+    projectId: $project, itemId: $item, fieldId: $field,
+    value: { singleSelectOptionId: $option }
+  }) { projectV2Item { id } }
+}`;
+// GitHub kent ook DUPLICATE als afsluitreden, maar die hoort bij een gekozen
+// duplicaat-issue (duplicateIssueId). Zonder die keuze bieden we hem niet aan.
+const GH_CLOSE_REASONS = ['COMPLETED', 'NOT_PLANNED'];
+
 const DEFAULT_SETTINGS = {
   columns: ['todo', 'doing', 'waiting', 'done'],
   columnLabels: { todo: 'Te doen', doing: 'Bezig', waiting: 'Wacht op reactie', done: 'Klaar' },
@@ -82,6 +166,17 @@ const DEFAULT_SETTINGS = {
   todoTargetNote: 'MS To Do.md',// doelnote waar nieuw geïmporteerde taken landen
   todoTargetColumn: '',         // kolom voor nieuwe imports: '' = standaardkolom, 'inbox' = zonder tag, anders kolom-id
   todoExportEnabled: false,     // Obsidian-taken met gekoppelde client naar hun To Do-lijst sturen
+
+  // GitHub Projects (v2)
+  githubImportEnabled: false,   // items uit de aangevinkte borden importeren (sync draait alleen op desktop)
+  githubTargetNote: 'GitHub.md',// doelnote waar nieuw geïmporteerde items landen
+  githubTargetColumn: '',       // kolom voor nieuwe imports: '' = standaardkolom, 'inbox' = zonder tag
+  githubProjects: [],           // [{ id, title, number, owner, selected, client }] — het token staat device-lokaal
+  githubCloseEnabled: false,    // kaart afvinken sluit het gekoppelde GitHub-item
+  githubCloseAsk: true,         // eerst het afsluitscherm tonen (uit = direct sluiten als "voltooid")
+  githubSkipped: [],            // items die je bewust niet in GitHub hebt afgesloten (geen herinnering meer)
+  githubAssignedOnly: false,    // alleen items importeren die aan jou zijn toegewezen
+  githubLogin: '',              // je GitHub-gebruikersnaam (voor dat filter); wordt bij het ophalen van de borden gevuld
 };
 
 // Engelse standaard-kolomlabels (alleen bij een verse installatie in het Engels).
@@ -203,6 +298,78 @@ const TRANSLATIONS = {
     td_sync_off: 'Zet eerst "Microsoft To Do-taken importeren" aan in de instellingen.',
     td_badge_tip: 'Gekoppeld aan Microsoft To Do',
     td_client_hint: 'Client geldt voor nieuw geïmporteerde taken uit die lijst: ze krijgen een #client/-tag (met kleur). Bestaande kaarten blijven ongemoeid.',
+    gh_section: 'GitHub Projects',
+    gh_help: 'Importeer items uit je GitHub Projects-borden als kaarten. Per bord kies je de klant die nieuwe kaarten meekrijgen. Lezen gaat één kant op: GitHub is de bron van de kaarten. Terug gaat alleen wat je hieronder zelf aanzet — een kaart afvinken kan het item in GitHub sluiten. Er verdwijnt nooit iets, aan geen van beide kanten.',
+    gh_token: 'GitHub-token',
+    gh_token_desc: 'Een classic personal access token. Scopes: read:project (borden lezen), read:org (ook de borden van je organisaties zien), repo (issues uit privérepos, en nodig om te kunnen afsluiten), en project in plaats van read:project als het afsluitscherm ook de status op het bord moet zetten. Blijft op dít apparaat staan en reist dus niet mee met Obsidian Sync.',
+    gh_import: 'GitHub Projects-items importeren',
+    gh_import_desc: 'Haal de items van de aangevinkte borden op en zet ze als taakregel in de doelnote. Al gesloten items worden nooit geïmporteerd.',
+    gh_target_note: 'Doelnote voor nieuwe items',
+    gh_target_note_desc: 'In deze note landen nieuw geïmporteerde GitHub-items.',
+    gh_target_column: 'Kolom voor nieuwe items',
+    gh_target_column_desc: 'Waar nieuw geïmporteerde items op het bord landen. Inbox = zonder kolom-tag (intake om zelf te sorteren).',
+    gh_mine_only: 'Alleen items die aan mij zijn toegewezen',
+    gh_mine_only_desc: 'Importeert alleen items met jou als assignee; items van iemand anders of zonder assignee worden overgeslagen. Het filter geldt alleen bij het importeren — kaarten die er al staan blijven staan, ook als het item later van je af gaat.',
+    gh_projects: 'Projectborden',
+    gh_projects_hint: 'Alleen aangevinkte borden worden gelezen. Niets aangevinkt = er wordt niets geïmporteerd.',
+    gh_client_hint: 'De klant geldt voor nieuw geïmporteerde items van dat bord: ze krijgen een #client/-tag (met kleur). Bestaande kaarten blijven ongemoeid.',
+    gh_no_projects: 'Nog geen borden opgehaald. Vul een token in en klik op Vernieuwen.',
+    gh_no_token: 'Vul eerst een GitHub-token in.',
+    gh_refresh: 'Projectborden ophalen',
+    gh_error: 'GitHub: {e}',
+    gh_err_auth: 'token geweigerd (verlopen of zonder project-scope)',
+    gh_err_network: 'geen verbinding',
+    gh_err_unknown: 'onbekende fout',
+    gh_mobile_note: 'Het importeren draait alleen op de desktop; dit apparaat toont het resultaat via Obsidian Sync. Afsluiten in GitHub werkt hier wél, zodra je hieronder een token invult — dat staat namelijk per apparaat.',
+    gh_sync_now: 'Synchroniseer GitHub Projects nu',
+    gh_sync_done: 'GitHub Projects gesynchroniseerd.',
+    gh_sync_report: 'GitHub: {b} bord(en) gelezen, {t} item(s) bruikbaar → {n} nieuwe kaart(en), {c} afgevinkt.',
+    gh_sync_skipped: 'Overgeslagen: {r} zonder leesrechten op het issue (scope repo ontbreekt?), {m} niet aan jou toegewezen.',
+    gh_sync_nothing: 'GitHub: er draaide niets — er liep al een synchronisatie, of dit apparaat synct niet.',
+    gh_sync_usable: 'Van de bruikbare items werden er {d} niet geïmporteerd omdat ze in GitHub al klaar zijn, en {k} omdat ze al in je vault stonden.',
+    gh_sync_postponed: 'Schrijven uitgesteld: de vault is nog niet in rust (Obsidian Sync bezig). De volgende draai pakt het op.',
+    gh_sync_result: 'GitHub: {n} nieuwe kaart(en).',
+    gh_remove_confirm: 'Bord "{board}" wordt niet meer gelezen. Ook de {n} kaart(en) van dít bord uit je vault verwijderen, waarvan {d} afgevinkt? Kaarten van andere borden blijven staan, en in GitHub verandert er niets. Dit kan niet ongedaan worden gemaakt.',
+    gh_removed: '{n} kaart(en) verwijderd.',
+    gh_sync_off: 'Zet eerst "GitHub Projects-items importeren" aan en vul een token in.',
+    gh_badge_tip: 'Gekoppeld aan GitHub Projects',
+    ghc_close: 'Kaart afvinken sluit het GitHub-item',
+    ghc_close_desc: 'Een gekoppelde kaart afvinken sluit het issue (of de pull request) in GitHub. Vereist een token met schrijfrechten: scope "repo" voor het sluiten zelf, en "project" in plaats van "read:project" als je ook de status op het bord wilt bijwerken. Het token staat per apparaat, dus vul het ook op je telefoon in als je daar afvinkt.',
+    ghc_ask: 'Vraag eerst om afsluitinfo',
+    ghc_ask_desc: 'Toont een scherm waarin je de afsluitreden, een afsluitreactie en de status op het bord kunt invullen. Uit = direct sluiten als "voltooid", zonder reactie. Meerdere kaarten in één keer verplaatsen slaat het scherm altijd over.',
+    ghc_title: 'GitHub-item afsluiten',
+    ghc_loading: 'Gegevens ophalen bij GitHub…',
+    ghc_unavailable: 'Kon het item niet ophalen bij GitHub: {e}',
+    ghc_board: 'Bord',
+    ghc_item: 'Item',
+    ghc_state: 'Huidige staat',
+    ghc_state_open: 'Open',
+    ghc_state_closed: 'Gesloten',
+    ghc_state_merged: 'Gemerged',
+    ghc_already_closed: 'Dit item is in GitHub al gesloten. Je kunt nog een reactie plaatsen of de status op het bord bijwerken.',
+    ghc_reason: 'Afsluitreden',
+    ghc_reason_desc: 'Zoals GitHub het bij het gesloten issue toont.',
+    ghc_reason_COMPLETED: 'Voltooid',
+    ghc_reason_NOT_PLANNED: 'Niet gepland',
+    ghc_comment: 'Afsluitreactie',
+    ghc_comment_desc: 'Optioneel. Wordt als reactie geplaatst vóór het sluiten — handig om te verwijzen naar een commit, PR of besluit.',
+    ghc_comment_ph: 'Wat is er af, en waar staat het?',
+    ghc_status: 'Status op het bord',
+    ghc_status_keep: '(niet wijzigen)',
+    ghc_status_none: 'Dit bord heeft geen Status-veld.',
+    ghc_draft_note: 'Een draft-item kan niet gesloten worden; alleen de status op het bord is bij te werken.',
+    ghc_submit: 'Afsluiten in GitHub',
+    ghc_skip: 'Alleen op het bord afvinken',
+    ghc_busy: 'Bezig…',
+    ghc_done: 'GitHub bijgewerkt.',
+    ghc_failed: 'Afsluiten mislukt: {e}',
+    ghc_bulk_done: '{n} GitHub-item(s) gesloten.',
+    ghc_bulk_failed: '{n} GitHub-item(s) konden niet gesloten worden.',
+    ghc_pending: '{n} afgevinkte kaart(en) hebben nog een open GitHub-item. Open de kaart en kies "Afsluiten in GitHub".',
+    ghc_edit_row: 'GitHub-item',
+    ghc_edit_desc: 'Deze kaart is gekoppeld aan een item op een Projects-bord.',
+    ghc_edit_btn: 'Afsluiten in GitHub…',
+    ghc_open_gh: 'Openen op GitHub',
     cmd_add_inbox: 'Voeg Kanban-taak toe (inbox)',
     cmd_add_current: 'Voeg Kanban-taak toe aan huidige note',
     open_note_first: 'Open eerst een note.',
@@ -495,6 +662,78 @@ const TRANSLATIONS = {
     td_sync_off: 'Enable "Import Microsoft To Do tasks" in settings first.',
     td_badge_tip: 'Linked to Microsoft To Do',
     td_client_hint: 'The client applies to newly imported tasks from that list: they get a #client/ tag (with a color). Existing cards are left untouched.',
+    gh_section: 'GitHub Projects',
+    gh_help: 'Import items from your GitHub Projects boards as cards. Per board you pick the client new cards get. Reading goes one way: GitHub is the source of the cards. The only thing that travels back is what you enable below — completing a card can close the item on GitHub. Nothing is ever deleted, on either side.',
+    gh_token: 'GitHub token',
+    gh_token_desc: 'A classic personal access token. Scopes: read:project (read boards), read:org (also see your organizations boards), repo (issues in private repos, and required for closing), and project instead of read:project if the close screen should also set the status on the board. Stays on this device, so it never travels with Obsidian Sync.',
+    gh_import: 'Import GitHub Projects items',
+    gh_import_desc: 'Fetch the items of the checked boards and add them as task lines to the target note. Items that are already closed are never imported.',
+    gh_target_note: 'Target note for new items',
+    gh_target_note_desc: 'Newly imported GitHub items land in this note.',
+    gh_target_column: 'Column for new items',
+    gh_target_column_desc: 'Where newly imported items land on the board. Inbox = no column tag (intake to sort yourself).',
+    gh_mine_only: 'Only items assigned to me',
+    gh_mine_only_desc: 'Only imports items with you as assignee; items assigned to someone else or to nobody are skipped. The filter applies at import time only — cards that already exist stay, even if the item is later unassigned from you.',
+    gh_projects: 'Project boards',
+    gh_projects_hint: 'Only checked boards are read. Nothing checked = nothing is imported.',
+    gh_client_hint: 'The client applies to newly imported items from that board: they get a #client/ tag (with a color). Existing cards are left untouched.',
+    gh_no_projects: 'No boards fetched yet. Enter a token and click Refresh.',
+    gh_no_token: 'Enter a GitHub token first.',
+    gh_refresh: 'Fetch project boards',
+    gh_error: 'GitHub: {e}',
+    gh_err_auth: 'token rejected (expired or without project scope)',
+    gh_err_network: 'no connection',
+    gh_err_unknown: 'unknown error',
+    gh_mobile_note: 'Importing only runs on desktop; this device shows the result via Obsidian Sync. Closing on GitHub does work here once you enter a token below — the token is stored per device.',
+    gh_sync_now: 'Sync GitHub Projects now',
+    gh_sync_done: 'GitHub Projects synced.',
+    gh_sync_report: 'GitHub: {b} board(s) read, {t} usable item(s) → {n} new card(s), {c} completed.',
+    gh_sync_skipped: 'Skipped: {r} without read access to the issue (missing repo scope?), {m} not assigned to you.',
+    gh_sync_nothing: 'GitHub: nothing ran — a sync was already in progress, or this device does not sync.',
+    gh_sync_usable: 'Of the usable items, {d} were not imported because they are already done on GitHub, and {k} because they were already in your vault.',
+    gh_sync_postponed: 'Writing postponed: the vault is not at rest yet (Obsidian Sync busy). The next run picks it up.',
+    gh_sync_result: 'GitHub: {n} new card(s).',
+    gh_remove_confirm: 'Board "{board}" will no longer be read. Also remove the {n} card(s) from this board from your vault, {d} of which are completed? Cards from other boards stay, and nothing changes on GitHub. This cannot be undone.',
+    gh_removed: '{n} card(s) removed.',
+    gh_sync_off: 'Enable "Import GitHub Projects items" and enter a token first.',
+    gh_badge_tip: 'Linked to GitHub Projects',
+    ghc_close: 'Completing a card closes the GitHub item',
+    ghc_close_desc: 'Completing a linked card closes the issue (or pull request) on GitHub. Requires a token with write access: scope "repo" for closing itself, and "project" instead of "read:project" if you also want to update the status on the board. The token is per device, so enter it on your phone too if you complete cards there.',
+    ghc_ask: 'Ask for closing details first',
+    ghc_ask_desc: 'Shows a screen where you fill in the close reason, a closing comment and the status on the board. Off = close straight away as "completed", without a comment. Moving several cards at once always skips the screen.',
+    ghc_title: 'Close GitHub item',
+    ghc_loading: 'Fetching details from GitHub…',
+    ghc_unavailable: 'Could not fetch the item from GitHub: {e}',
+    ghc_board: 'Board',
+    ghc_item: 'Item',
+    ghc_state: 'Current state',
+    ghc_state_open: 'Open',
+    ghc_state_closed: 'Closed',
+    ghc_state_merged: 'Merged',
+    ghc_already_closed: 'This item is already closed on GitHub. You can still add a comment or update the status on the board.',
+    ghc_reason: 'Close reason',
+    ghc_reason_desc: 'As GitHub shows it on the closed issue.',
+    ghc_reason_COMPLETED: 'Completed',
+    ghc_reason_NOT_PLANNED: 'Not planned',
+    ghc_comment: 'Closing comment',
+    ghc_comment_desc: 'Optional. Posted as a comment before closing — handy to point at a commit, PR or decision.',
+    ghc_comment_ph: 'What is done, and where does it live?',
+    ghc_status: 'Status on the board',
+    ghc_status_keep: '(leave unchanged)',
+    ghc_status_none: 'This board has no Status field.',
+    ghc_draft_note: 'A draft item cannot be closed; only the status on the board can be updated.',
+    ghc_submit: 'Close on GitHub',
+    ghc_skip: 'Only complete on the board',
+    ghc_busy: 'Working…',
+    ghc_done: 'GitHub updated.',
+    ghc_failed: 'Closing failed: {e}',
+    ghc_bulk_done: '{n} GitHub item(s) closed.',
+    ghc_bulk_failed: '{n} GitHub item(s) could not be closed.',
+    ghc_pending: '{n} completed card(s) still have an open GitHub item. Open the card and pick "Close on GitHub".',
+    ghc_edit_row: 'GitHub item',
+    ghc_edit_desc: 'This card is linked to an item on a Projects board.',
+    ghc_edit_btn: 'Close on GitHub…',
+    ghc_open_gh: 'Open on GitHub',
     cmd_add_inbox: 'Add Kanban task (inbox)',
     cmd_add_current: 'Add Kanban task to current note',
     open_note_first: 'Open a note first.',
@@ -908,6 +1147,11 @@ function parseTaskLine(line, filePath, lineNum) {
   const tdsMatch = rest.match(TDS_MARKER_RE);
   if (tdsMatch) todoStepId = tdsMatch[1];
 
+  // GitHub Projects-koppeling (zie GH_MARKER_RE bovenin).
+  let ghProject = null, ghItem = null;
+  const ghMatch = rest.match(GH_MARKER_RE);
+  if (ghMatch) { ghProject = ghMatch[1]; ghItem = ghMatch[2]; }
+
   let column = null;
   const colMatch = rest.match(/#kanban\/([\w-]+)/);
   if (colMatch) column = colMatch[1];
@@ -951,6 +1195,7 @@ function parseTaskLine(line, filePath, lineNum) {
   const text = restNoCover
     .replace(TD_MARKER_RE_G, '')
     .replace(TDS_MARKER_RE_G, '')
+    .replace(GH_MARKER_RE_G, '')
     .replace(/📅\s*\d{4}-\d{2}-\d{2}/g, '')
     .replace(/⏰\s*\d{1,2}:\d{2}/g, '')
     .replace(/🔁\s+every\s+(?:\d+\s+)?(?:days?|weeks?|months?|years?|daily|weekly|monthly|yearly)/gi, '')
@@ -966,6 +1211,7 @@ function parseTaskLine(line, filePath, lineNum) {
   return {
     text, dueDate, time, column, project, client, priority, recurrence, done, noteLink, cover,
     todoList, todoId, todoStepId,
+    ghProject, ghItem,
     file: filePath, line: lineNum, indent,
     raw: line, subtasks: [],
   };
@@ -987,6 +1233,7 @@ module.exports = class KanbanPlugin extends Plugin {
     await this.loadSettings();
 
     this.outlook = new OutlookManager(this);
+    this.github = new GitHubManager(this);
     this.outlook.migrateTokens(); // tokens uit data.json naar device-lokale opslag
     this.registerObsidianProtocolHandler(MS_AUTH_PROTOCOL, (params) => this.outlook.handleRedirect(params));
 
@@ -1078,6 +1325,31 @@ module.exports = class KanbanPlugin extends Plugin {
           new Notice(this.t('td_sync_done'));
         },
       });
+
+      this.addCommand({
+        id: 'sync-github',
+        name: this.t('gh_sync_now'),
+        callback: async () => {
+          if (!this.github.enabled()) { new Notice(this.t('gh_sync_off')); return; }
+          if (!this.vaultSettled()) new Notice(this.t('sync_busy'));
+          const res = await this.github.sync();
+          if (!res) { new Notice(this.t('gh_sync_nothing')); return; }
+          const s = res.stats || {};
+          new Notice(this.t('gh_sync_report', {
+            b: s.boards || 0, t: s.items || 0, n: res.imported || 0, c: res.checked || 0,
+          }));
+          // Overgeslagen items apart melden: dát is meestal het antwoord op
+          // "waarom staat er niets op mijn bord".
+          if ((s.redacted || 0) + (s.notMine || 0) > 0) {
+            new Notice(this.t('gh_sync_skipped', { r: s.redacted || 0, m: s.notMine || 0 }));
+          }
+          if ((s.alreadyDone || 0) + (s.known || 0) > 0) {
+            new Notice(this.t('gh_sync_usable', { d: s.alreadyDone || 0, k: s.known || 0 }));
+          }
+          if (res.skippedWrites) new Notice(this.t('gh_sync_postponed'));
+          if (this.github.lastError) new Notice(this.t('gh_error', { e: this.github.lastError }));
+        },
+      });
     }
 
     this.settingTab = new KanbanSettingTab(this.app, this);
@@ -1100,7 +1372,10 @@ module.exports = class KanbanPlugin extends Plugin {
     // Elke minuut kijken (een klokvergelijking, meer niet): met een interval
     // gelijk aan de throttle wees de klok net té vaak "299,9s verstreken" en
     // verdubbelde de effectieve cadans naar ~10 minuten.
-    this.registerInterval(window.setInterval(() => this.outlook.maybeSyncTodoTasks(), 60 * 1000));
+    this.registerInterval(window.setInterval(() => {
+      this.outlook.maybeSyncTodoTasks();
+      this.github.maybeSync();
+    }, 60 * 1000));
 
     // Middernacht-rollover: een kalenderweergave die op "vandaag" stond schuift
     // mee naar de nieuwe dag; wie bewust op een andere dag/week/maand staat,
@@ -1247,6 +1522,23 @@ module.exports = class KanbanPlugin extends Plugin {
       let content;
       try { content = await this.app.vault.cachedRead(file); } catch (_) { continue; }
       if (!content.includes('%%td:')) continue;
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(content))) keys.add(`${m[1]}:${m[2]}`);
+    }
+    return keys;
+  }
+
+  // Zelfde bestaanscheck voor GitHub: alle %%gh:...%%-markers in de vault,
+  // ook op regels die niet (meer) als taak parsen of in een uitgesloten map
+  // staan. Een item waarvan de marker al ergens staat importeert nooit opnieuw.
+  async scanGithubMarkers() {
+    const keys = new Set();
+    const re = new RegExp(GH_MARKER_RE.source, 'g');
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      let content;
+      try { content = await this.app.vault.cachedRead(file); } catch (_) { continue; }
+      if (!content.includes('%%gh:')) continue;
       re.lastIndex = 0;
       let m;
       while ((m = re.exec(content))) keys.add(`${m[1]}:${m[2]}`);
@@ -1541,6 +1833,8 @@ module.exports = class KanbanPlugin extends Plugin {
     if (task.column) line += ` #kanban/${task.column}`;
     // De To Do-marker altijd achteraan, zodat de koppeling een rewrite overleeft.
     if (task.todoList && task.todoId) line += ` %%td:${task.todoList}:${task.todoId}%%`;
+    // Idem voor de GitHub-marker: achteraan, na de To Do-marker.
+    if (task.ghProject && task.ghItem) line += ` %%gh:${task.ghProject}:${task.ghItem}%%`;
     return line;
   }
 
@@ -1859,6 +2153,10 @@ module.exports = class KanbanPlugin extends Plugin {
     }
 
     let moved = 0;
+    // Zojuist afgevinkte kaarten met GitHub-koppeling, over alle notities heen:
+    // één verzameling, zodat een bulk-verplaatsing niet per notitie een scherm
+    // opent.
+    const ghDone = [];
     for (const filePath of Object.keys(byFile)) {
       const file = this.app.vault.getAbstractFileByPath(filePath);
       if (!(file instanceof TFile)) continue;
@@ -1912,9 +2210,11 @@ module.exports = class KanbanPlugin extends Plugin {
       if (newColumn === this.settings.doneColumn) {
         for (const parsed of touched) {
           if (!parsed.done && parsed.todoId) this.outlook.pushTodoDone(parsed).catch(() => {});
+          if (!parsed.done && parsed.ghProject && parsed.ghItem) ghDone.push(parsed);
         }
       }
     }
+    if (ghDone.length) this.maybeCloseOnGithub(ghDone);
     return moved;
   }
 
@@ -2199,6 +2499,25 @@ module.exports = class KanbanPlugin extends Plugin {
     if (applied && !wasDone && task.todoId && !opts.skipTodoPush) {
       this.outlook.pushTodoDone(task).catch(() => {});
     }
+
+    // Een gekoppelde kaart afvinken sluit het GitHub-item — via het
+    // afsluitscherm, of direct als dat uitstaat. skipGithubClose komt van de
+    // reconciliatie: die vinkt juist af ómdat GitHub al klaar is.
+    if (applied && !wasDone && !opts.skipGithubClose) this.maybeCloseOnGithub([task]);
+  }
+
+  // Zojuist afgevinkte kaarten met een GitHub-koppeling. Eén kaart met het
+  // afsluitscherm aan → het scherm. Meerdere kaarten tegelijk is een bewust
+  // bulkgebaar: die gaan zonder scherm dicht, als "voltooid".
+  maybeCloseOnGithub(tasks) {
+    if (!this.github.closeEnabled()) return;
+    const linked = (tasks || []).filter((t) => t && t.ghProject && t.ghItem);
+    if (!linked.length) return;
+    if (linked.length === 1 && this.settings.githubCloseAsk) {
+      new GitHubCloseModal(this.app, this, linked[0]).open();
+      return;
+    }
+    this.github.closeLinked(linked).catch(() => {});
   }
 
   async setDueDate(task, newDate, opts = {}) {
@@ -2385,6 +2704,7 @@ class KanbanView extends ItemView {
     // gethrottled (max. eens per 5 min) en fire-and-forget, zodat het bord
     // nooit op het netwerk wacht. Draait alleen op desktop.
     this.plugin.outlook.maybeSyncTodoTasks();
+    this.plugin.github.maybeSync();
 
     const container = this.containerEl.children[1];
     // Scrollposities vasthouden vóór het leegmaken, zodat het bord na de
@@ -2516,6 +2836,8 @@ class KanbanView extends ItemView {
   captureScroll(container) {
     const state = {};
     if (!container) return state;
+    // De view zelf kan ook de scroller zijn (afhankelijk van thema/snippets).
+    if (container.scrollTop) state.view = container.scrollTop;
     const lanes = container.querySelector('.tk-lanes');
     if (lanes && lanes.scrollTop) state.lanes = lanes.scrollTop;
     const strip = container.querySelector('.tk-col-switch');
@@ -2533,23 +2855,37 @@ class KanbanView extends ItemView {
     return state;
   }
 
+  // Twee passes: meteen na de rebuild, en nog één op de volgende frame. Die
+  // tweede vangt het geval dat de hoogtes bij de eerste pass nog niet definitief
+  // waren — de browser klemt scrollTop dan op een te lage waarde en het bord
+  // staat ineens bovenaan. De herhaling stuurt alléén bij wat op 0 is blijven
+  // staan, zodat een scroll van de gebruiker zelf nooit wordt teruggedraaid.
   restoreScroll(container, state) {
     if (!state) return;
-    const lanes = container.querySelector('.tk-lanes');
-    if (lanes && state.lanes != null) lanes.scrollTop = state.lanes;
-    const strip = container.querySelector('.tk-col-switch');
-    if (strip && state.switch != null) strip.scrollLeft = state.switch;
-    container.querySelectorAll('.tk-board').forEach((el) => {
-      const v = state[`board:${this.scrollLaneOf(el)}`];
-      if (v != null) el.scrollLeft = v;
-      const vy = state[`boardY:${this.scrollLaneOf(el)}`];
-      if (vy != null) el.scrollTop = vy;
-    });
-    container.querySelectorAll('.tk-column').forEach((col) => {
-      const v = state[`cards:${this.scrollLaneOf(col)}:${col.dataset.column}`];
-      const cards = col.querySelector('.tk-cards');
-      if (cards && v != null) cards.scrollTop = v;
-    });
+    const top = (el, v, retry) => {
+      if (!el || v == null) return;
+      if (retry && el.scrollTop !== 0) return;
+      el.scrollTop = v;
+    };
+    const left = (el, v, retry) => {
+      if (!el || v == null) return;
+      if (retry && el.scrollLeft !== 0) return;
+      el.scrollLeft = v;
+    };
+    const pass = (retry) => {
+      top(container, state.view, retry);
+      top(container.querySelector('.tk-lanes'), state.lanes, retry);
+      left(container.querySelector('.tk-col-switch'), state.switch, retry);
+      container.querySelectorAll('.tk-board').forEach((el) => {
+        left(el, state[`board:${this.scrollLaneOf(el)}`], retry);
+        top(el, state[`boardY:${this.scrollLaneOf(el)}`], retry);
+      });
+      container.querySelectorAll('.tk-column').forEach((col) => {
+        top(col.querySelector('.tk-cards'), state[`cards:${this.scrollLaneOf(col)}:${col.dataset.column}`], retry);
+      });
+    };
+    pass(false);
+    window.requestAnimationFrame(() => pass(true));
   }
 
   renderBoard(container, scroll) {
@@ -3139,6 +3475,12 @@ class KanbanView extends ItemView {
       const td = meta.createSpan({ cls: 'tk-td-badge', text: 'To Do' });
       td.dataset.field = 'mstodo';
       td.setAttr('title', this.plugin.t('td_badge_tip'));
+    }
+    // Zelfde kenteken voor kaarten uit een GitHub Projects-bord.
+    if (task.ghItem) {
+      const gh = meta.createSpan({ cls: 'tk-td-badge', text: 'GitHub' });
+      gh.dataset.field = 'github';
+      gh.setAttr('title', this.plugin.t('gh_badge_tip'));
     }
 
     // Source link
@@ -4321,7 +4663,11 @@ class OutlookManager {
         .concat(toComplete.map((lt) => ({ lt, unlink: true })));
       toTick.sort((a, b) => (a.lt.file === b.lt.file ? b.lt.line - a.lt.line : (a.lt.file < b.lt.file ? -1 : 1)));
       for (const { lt, unlink } of toTick) {
-        await plugin.toggleDone(lt, { skipTodoPush: true });
+        // skipGithubClose: dit is een achtergrond-reconciliatie, en daar hoort
+        // geen afsluitscherm uit op te springen. Staat de kaart ook aan een
+        // GitHub-item, dan meldt de GitHub-sync hem daarna als "hier af, daar
+        // nog open".
+        await plugin.toggleDone(lt, { skipTodoPush: true, skipGithubClose: true });
         if (!unlink) { checked++; continue; }
         // Loskoppelen ná het afvinken. Mislukt dat (regel net verschoven),
         // dan blijft een gekoppelde afgevinkte kaart over en herstelt de
@@ -4469,6 +4815,533 @@ class OutlookManager {
     } catch (_) {
       return `HTTP ${res.status}`;
     }
+  }
+}
+
+// -- GitHub Projects --------------------------------------------------------
+// Spiegel van de To Do-koppeling, maar een stuk kleiner: GitHub heeft geen
+// OAuth-dans nodig (één token, geen refresh) en de koppeling is bewust
+// eenrichting. GitHub is de bron, het bord de weergave — er wordt nooit iets
+// naar GitHub geschreven en nooit iets uit de vault verwijderd.
+//
+// Projects v2 bestaat alleen in GraphQL, dus alles loopt via één POST naar
+// GH_API. requestUrl omzeilt CORS, dus dit zou ook op mobiel werken; we doen
+// het er bewust niet (één schrijver, net als bij To Do).
+
+class GitHubManager {
+  constructor(plugin) {
+    this.plugin = plugin;
+    this.lastSyncAt = 0;    // throttle voor de bord-trigger
+    this.syncBusy = false;  // re-entrancy-slot voor de reconciliatie
+    this.lastError = null;  // laatste API-fout, voor de statusregel in de instellingen
+    this.lastPendingCount = 0; // laatst gemelde aantal "hier af, daar open"-kaarten
+  }
+
+  t(key, vars) { return this.plugin.t(key, vars); }
+
+  // ---- Device-lokale tokenopslag ------------------------------------------
+  // Zelfde afweging als bij de Microsoft-tokens: een PAT is een wachtwoord en
+  // hoort niet in data.json, dat met Obsidian Sync meereist naar de telefoon.
+  tokenStoreKey() {
+    const vault = (this.plugin.app && this.plugin.app.appId) || 'vault';
+    return `trietment-kanban:github-token:${vault}`;
+  }
+  token() {
+    try { return window.localStorage.getItem(this.tokenStoreKey()) || ''; }
+    catch (_) { return ''; }
+  }
+  setToken(v) {
+    try {
+      if (v) window.localStorage.setItem(this.tokenStoreKey(), v);
+      else window.localStorage.removeItem(this.tokenStoreKey());
+    } catch (_) {}
+  }
+
+  isConfigured() { return !!this.token(); }
+  enabled() { return !!this.plugin.settings.githubImportEnabled && this.isConfigured(); }
+
+  // Afsluiten staat los van importeren: het is een voorgrond-actie op één
+  // kaart, dus hij mag ook op de telefoon (requestUrl kent geen CORS) en ook
+  // als je het importeren hebt uitgezet. Wel altijd met een expliciete keuze
+  // van de gebruiker als aanleiding — nooit vanuit de achtergrondsync.
+  closeEnabled() { return !!this.plugin.settings.githubCloseEnabled && this.isConfigured(); }
+
+  // Synct dít apparaat? Eén schrijver: alleen desktop praat met GitHub en
+  // schrijft markdown; telefoons krijgen het resultaat via Obsidian Sync.
+  syncsHere() { return Platform.isDesktop && !Platform.isMobile; }
+
+  projects() { return this.plugin.settings.githubProjects || []; }
+  selectedProjects() { return this.projects().filter((p) => p && p.selected); }
+
+  // Bord → klant, tag-veilig gemaakt: spaties → streepjes, alleen tekens die
+  // #client/[\w/-] aankan. Wordt alleen bij het importeren toegepast.
+  clientForProject(proj) {
+    const raw = proj && proj.client ? String(proj.client) : '';
+    const tag = raw.trim().replace(/\s+/g, '-').replace(/[^\w/-]/g, '').replace(/\/+/g, '/').replace(/^\/|\/$/g, '');
+    return tag || null;
+  }
+
+  // ---- GraphQL ------------------------------------------------------------
+  // null = niets bruikbaars terug (de aanroeper concludeert dan níéts, net als
+  // bij een onleesbare To Do-lijst). Een deel-antwoord (data én errors) komt
+  // voor zodra het token één van de gevraagde stukken niet mag zien; de data
+  // die er wél is, is bruikbaar.
+  async graphql(query, variables) {
+    const token = this.token();
+    if (!token) return null;
+    let res;
+    try {
+      res = await obsidian.requestUrl({
+        url: GH_API,
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          // GitHub weigert verzoeken zonder User-Agent.
+          'User-Agent': 'trietment-kanban',
+        },
+        body: JSON.stringify({ query, variables: variables || {} }),
+        throw: false,
+      });
+    } catch (_) {
+      this.lastError = this.t('gh_err_network');
+      return null;
+    }
+    if (res.status === 401 || res.status === 403) { this.lastError = this.t('gh_err_auth'); return null; }
+    if (res.status >= 400) { this.lastError = `HTTP ${res.status}`; return null; }
+    const j = res.json || {};
+    if (j.errors && j.errors.length) {
+      this.lastError = String((j.errors[0] && j.errors[0].message) || '').trim() || this.t('gh_err_unknown');
+      if (!j.data) return null;
+    } else {
+      this.lastError = null;
+    }
+    return j.data || null;
+  }
+
+  // Alle borden die dit token mag zien: die van de gebruiker zelf en die van
+  // hun organisaties. Bewust twee losse queries, zodat een token zónder
+  // read:org de eigen borden niet meesleurt in de fout.
+  async fetchProjects() {
+    const found = [];
+    const mine = await this.graphql(`query {
+      viewer { login projectsV2(first: 50) { nodes { id title number closed } } }
+    }`);
+    const mineOk = !!mine;
+    const login = (mine && mine.viewer && mine.viewer.login) || '';
+    // Je eigen gebruikersnaam onthouden: die heeft het assignee-filter nodig.
+    if (login) this.plugin.settings.githubLogin = login;
+    const mineNodes = (mine && mine.viewer && mine.viewer.projectsV2 && mine.viewer.projectsV2.nodes) || [];
+    for (const p of mineNodes) {
+      if (p && p.id && !p.closed) found.push({ id: p.id, title: String(p.title || ''), number: p.number, owner: login });
+    }
+
+    const orgs = await this.graphql(`query {
+      viewer {
+        organizations(first: 20) {
+          nodes { login projectsV2(first: 50) { nodes { id title number closed } } }
+        }
+      }
+    }`);
+    const orgsOk = !!orgs;
+    const orgNodes = (orgs && orgs.viewer && orgs.viewer.organizations && orgs.viewer.organizations.nodes) || [];
+    for (const org of orgNodes) {
+      if (!org) continue;
+      for (const p of ((org.projectsV2 && org.projectsV2.nodes) || [])) {
+        if (p && p.id && !p.closed) found.push({ id: p.id, title: String(p.title || ''), number: p.number, owner: String(org.login || '') });
+      }
+    }
+
+    // Keuzes (aangevinkt + klant) van bestaande borden overnemen.
+    const prev = new Map(this.projects().filter((p) => p && p.id).map((p) => [p.id, p]));
+    const seen = new Set();
+    const merged = [];
+    for (const p of found) {
+      if (seen.has(p.id)) continue; // een bord kan via beide queries binnenkomen
+      seen.add(p.id);
+      const old = prev.get(p.id) || {};
+      merged.push({ ...p, selected: !!old.selected, client: old.client || '' });
+    }
+    // Borden die dit token niet (meer) ziet, alleen opruimen als béíde queries
+    // gelukt zijn. Anders houdt één mislukte org-query (token zonder read:org,
+    // of even geen netwerk) je koppelingen overeind.
+    if (!(mineOk && orgsOk)) {
+      for (const p of prev.values()) if (!seen.has(p.id)) merged.push(p);
+    }
+    merged.sort((a, b) => (a.owner === b.owner
+      ? String(a.title).localeCompare(String(b.title))
+      : String(a.owner).localeCompare(String(b.owner))));
+    this.plugin.settings.githubProjects = merged;
+    await this.plugin.saveSettings();
+    return merged;
+  }
+
+  // De ingelogde gebruiker, voor het assignee-filter. Bij het ophalen van de
+  // borden wordt hij al vastgelegd; hier alsnog opgehaald als dat nooit
+  // gebeurde. Leeg = niet vast te stellen.
+  async viewerLogin() {
+    const known = String(this.plugin.settings.githubLogin || '').trim();
+    if (known) return known;
+    const data = await this.graphql('query { viewer { login } }');
+    const login = (data && data.viewer && data.viewer.login) || '';
+    if (login) {
+      this.plugin.settings.githubLogin = login;
+      await this.plugin.saveSettings();
+    }
+    return login;
+  }
+
+  // Alle items van één bord, gepagineerd. null = bord nu niet leesbaar
+  // (offline, token ingetrokken, bord verwijderd): dan telt dit bord deze
+  // draai niet mee en wordt er dus niets uit geconcludeerd.
+  async fetchItems(proj, stats) {
+    // Assignee-filter: zonder vastgestelde gebruikersnaam filteren we niet op
+    // goed geluk — dan telt dit bord deze draai gewoon niet mee.
+    const onlyMine = !!this.plugin.settings.githubAssignedOnly;
+    const me = onlyMine ? String(await this.viewerLogin() || '').toLowerCase() : '';
+    if (onlyMine && !me) return null;
+
+    const out = [];
+    let cursor = null;
+    let guard = 0;
+    while (guard++ < 20) {
+      const data = await this.graphql(GH_ITEMS_QUERY, { id: proj.id, cursor });
+      const node = data && data.node;
+      if (!node || !node.items) return out.length ? out : null;
+      for (const it of (node.items.nodes || [])) {
+        if (!it || !it.id || it.isArchived) continue;
+        const c = it.content || {};
+        // %% kan niet in de titel blijven staan: dat zou de marker-parse breken.
+        const title = String(c.title || '').replace(/[\r\n]+/g, ' ').replace(/%%/g, '').replace(/\s+/g, ' ').trim();
+        if (!title) {
+          // Geen inhoud: REDACTED (geen leesrechten op het issue) of een lege
+          // draft. Tellen, want dit is dé stille reden dat een bord niets
+          // oplevert terwijl hij vol staat.
+          if (stats) stats.redacted++;
+          continue;
+        }
+        if (onlyMine) {
+          const wie = ((c.assignees && c.assignees.nodes) || [])
+            .map((a) => String((a && a.login) || '').toLowerCase());
+          if (!wie.includes(me)) { if (stats) stats.notMine++; continue; }
+        }
+        const status = (it.fieldValueByName && it.fieldValueByName.name) ? String(it.fieldValueByName.name) : '';
+        if (stats) stats.items++;
+        out.push({
+          projectId: proj.id,
+          itemId: it.id,
+          // Het issue-nummer erbij: de kaarttekst is platte tekst, dus dit is
+          // het enige spoor terug naar GitHub dat leesbaar blijft.
+          title: c.number ? `${title} (#${c.number})` : title,
+          done: c.state === 'CLOSED' || c.state === 'MERGED' || GH_DONE_STATUS.has(status.toLowerCase()),
+        });
+      }
+      const pi = node.items.pageInfo || {};
+      if (!pi.hasNextPage) break;
+      cursor = pi.endCursor;
+    }
+    return out;
+  }
+
+  // ---- Opruimen -----------------------------------------------------------
+  // Alle kaarten die van dít bord komen: herkenbaar aan het projectId in de
+  // marker, waar ze ook in de vault staan — ook verplaatste en afgevinkte.
+  async cardsOfProject(projectId) {
+    if (!projectId) return [];
+    const tasks = await this.plugin.scanTasks();
+    return tasks.filter((t) => t.ghItem && t.ghProject === projectId);
+  }
+
+  // Die kaarten weghalen, gegroepeerd per notitie zodat het één schrijfactie
+  // per bestand is. Binnen een bestand van onder naar boven, anders schuiven de
+  // regelnummers van de nog te verwijderen kaarten op. De raw-check is dezelfde
+  // als in deleteTask: een regel die ondertussen verschoven is slaan we stil
+  // over in plaats van de verkeerde regel te wissen.
+  async removeCardsOfProject(projectId) {
+    const cards = await this.cardsOfProject(projectId);
+    const byFile = new Map();
+    for (const t of cards) {
+      if (!byFile.has(t.file)) byFile.set(t.file, []);
+      byFile.get(t.file).push(t);
+    }
+    let removed = 0;
+    for (const [path, list] of byFile) {
+      const file = this.plugin.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof TFile)) continue;
+      list.sort((a, b) => b.line - a.line);
+      let gone = 0;
+      await this.plugin.app.vault.process(file, (data) => {
+        // process kan deze callback opnieuw draaien als het bestand
+        // ondertussen wijzigde: elke poging begint met een schone telling.
+        gone = 0;
+        const lines = data.split('\n');
+        for (const t of list) {
+          if (t.line >= lines.length || lines[t.line] !== t.raw) continue;
+          const end = (t.subtasks && t.subtasks.length)
+            ? Math.max(t.line, ...t.subtasks.map((s) => s.line))
+            : t.line;
+          lines.splice(t.line, end - t.line + 1);
+          gone++;
+        }
+        return lines.join('\n');
+      });
+      removed += gone;
+    }
+    if (removed) this.plugin.scheduleRefresh();
+    return removed;
+  }
+
+  // ---- Afsluiten ----------------------------------------------------------
+  // Alles wat het afsluitscherm nodig heeft in één query: het item zelf (type,
+  // inhoud, huidige status) en het bord (titel + de opties van het Status-veld).
+  // null = niet op te halen; de aanroeper meldt dat en doet verder niets.
+  async fetchItemDetail(projectId, itemId) {
+    const data = await this.graphql(GH_DETAIL_QUERY, { item: itemId, project: projectId });
+    const item = data && data.item;
+    if (!item || !item.id) return null;
+    const c = item.content || {};
+    const proj = (data && data.project) || {};
+    const field = (proj.field && proj.field.id) ? proj.field : null;
+    return {
+      projectId,
+      itemId: item.id,
+      type: item.type || '',            // ISSUE | PULL_REQUEST | DRAFT_ISSUE | REDACTED
+      isArchived: !!item.isArchived,
+      contentId: c.id || null,
+      number: c.number || null,
+      title: String(c.title || ''),
+      url: c.url || '',
+      repo: (c.repository && c.repository.nameWithOwner) || '',
+      state: c.state || '',             // OPEN | CLOSED | MERGED (leeg bij een draft)
+      statusName: (item.fieldValueByName && item.fieldValueByName.name) || '',
+      statusOptionId: (item.fieldValueByName && item.fieldValueByName.optionId) || '',
+      projectTitle: String(proj.title || ''),
+      statusField: field
+        ? { id: field.id, options: (field.options || []).map((o) => ({ id: o.id, name: String(o.name || '') })) }
+        : null,
+    };
+  }
+
+  // De optie van het Status-veld die "klaar" betekent (Done, Klaar, …), als
+  // het bord er een heeft. Voorselectie in het afsluitscherm.
+  doneOptionId(detail) {
+    const opts = (detail && detail.statusField && detail.statusField.options) || [];
+    const hit = opts.find((o) => GH_DONE_STATUS.has(String(o.name || '').toLowerCase()));
+    return hit ? hit.id : '';
+  }
+
+  // Hooguit drie mutaties, in deze volgorde: reactie, sluiten, status. Een
+  // mislukte stap stopt de rest — zo raak je geen afsluitreactie kwijt aan een
+  // item dat daarna toch niet dichtging, en zegt het scherm eerlijk wat er wél
+  // gelukt is.
+  async closeItem(detail, opts = {}) {
+    const res = { commented: false, closed: false, statusSet: false, error: null };
+    if (!detail) { res.error = this.t('gh_err_unknown'); return res; }
+    const fail = () => { res.error = this.lastError || this.t('gh_err_unknown'); return res; };
+
+    const body = String(opts.comment || '').trim();
+    if (body && detail.contentId) {
+      if (!await this.graphql(GH_COMMENT_MUTATION, { id: detail.contentId, body })) return fail();
+      res.commented = true;
+    }
+
+    // Een draft-item heeft geen open/gesloten staat en kan dus niet dicht;
+    // daar blijft alleen de status op het bord over.
+    if (detail.contentId && detail.state === 'OPEN') {
+      if (detail.type === 'ISSUE') {
+        const reason = GH_CLOSE_REASONS.includes(opts.reason) ? opts.reason : 'COMPLETED';
+        if (!await this.graphql(GH_CLOSE_ISSUE_MUTATION, { id: detail.contentId, reason })) return fail();
+        res.closed = true;
+      } else if (detail.type === 'PULL_REQUEST') {
+        if (!await this.graphql(GH_CLOSE_PR_MUTATION, { id: detail.contentId })) return fail();
+        res.closed = true;
+      }
+    }
+
+    const optionId = String(opts.statusOptionId || '');
+    if (optionId && detail.statusField && optionId !== detail.statusOptionId) {
+      const vars = { project: detail.projectId, item: detail.itemId, field: detail.statusField.id, option: optionId };
+      if (!await this.graphql(GH_SET_STATUS_MUTATION, vars)) return fail();
+      res.statusSet = true;
+    }
+    return res;
+  }
+
+  // Zonder afsluitscherm: dichtzetten als "voltooid", zonder reactie. Het
+  // Status-veld blijft met rust — dat vraagt een breder token (scope project
+  // in plaats van read:project) en de meeste borden zetten een gesloten item
+  // zelf al op Klaar via hun ingebouwde workflow.
+  async closeLinked(tasks) {
+    let ok = 0, failed = 0;
+    for (const t of (tasks || [])) {
+      const detail = await this.fetchItemDetail(t.ghProject, t.ghItem);
+      if (!detail) { failed++; continue; }
+      if (detail.state !== 'OPEN') continue; // al dicht → niets te doen
+      const res = await this.closeItem(detail, { reason: 'COMPLETED' });
+      if (res.error || !res.closed) failed++; else ok++;
+    }
+    if (ok) new Notice(this.t('ghc_bulk_done', { n: ok }));
+    if (failed) new Notice(this.t('ghc_bulk_failed', { n: failed }));
+    return { ok, failed };
+  }
+
+  // ---- Sync ---------------------------------------------------------------
+  maybeSync() {
+    if (!this.syncsHere() || !this.enabled()) return;
+    if (Date.now() - this.lastSyncAt < GH_SYNC_MIN_MS) return;
+    this.sync().catch(() => {});
+  }
+
+  // Eén reconciliatie-draai; geen event-gedreven wachtrijen. Idempotent: twee
+  // keer draaien = de tweede keer niets doen.
+  async sync() {
+    if (!this.syncsHere() || !this.enabled()) return null;
+    if (this.syncBusy) return null;
+    this.syncBusy = true;
+    this.lastSyncAt = Date.now();
+    try {
+      const res = await this.reconcile();
+      // Bleef er schrijfwerk liggen door de rust-poort, wacht dan geen vol
+      // throttle-venster: de eerstvolgende trigger na ±30 s mag opnieuw.
+      if (res && res.skippedWrites) this.lastSyncAt = Date.now() - GH_SYNC_MIN_MS + 30 * 1000;
+      return res;
+    } catch (_) {
+      return null; // stil falen; de volgende draai herstelt
+    } finally {
+      this.syncBusy = false;
+    }
+  }
+
+  // Bewust asymmetrisch: open items worden kaarten, in GitHub afgeronde items
+  // worden afgevinkt. Verder niets — geen push terug, geen heropenen, geen
+  // verwijderen. Een kaart die je op het bord afvinkt blijft in GitHub open.
+  async reconcile() {
+    const plugin = this.plugin;
+
+    // a. Remote: alle items van de aangevinkte borden.
+    const remote = new Map(); // `${projectId}:${itemId}` -> item + client
+    // Tellers voor het rapport bij een handmatige draai: zonder deze cijfers is
+    // "er gebeurt niets" niet te onderscheiden van "er is niets te doen".
+    const stats = { boards: 0, items: 0, redacted: 0, notMine: 0, alreadyDone: 0, known: 0 };
+    let readBoards = 0;
+    for (const proj of this.selectedProjects()) {
+      const items = await this.fetchItems(proj, stats);
+      if (!items) continue;
+      readBoards++;
+      stats.boards++;
+      const client = this.clientForProject(proj);
+      for (const it of items) remote.set(`${it.projectId}:${it.itemId}`, { ...it, client });
+    }
+    // Geen enkel bord leesbaar → niets doen. (Een gelezen maar leeg bord telt wél.)
+    if (!readBoards) return { imported: 0, checked: 0, stats };
+
+    // b. Lokaal: kaarten met marker (voor de status) én alle markers waar dan
+    //    ook in de vault (voor de bestaanscheck).
+    const tasks = await plugin.scanTasks();
+    const local = new Map();
+    for (const t of tasks) {
+      if (t.ghProject && t.ghItem) local.set(`${t.ghProject}:${t.ghItem}`, t);
+    }
+    const existing = await plugin.scanGithubMarkers();
+
+    // c. Verschillen bepalen.
+    const toCreate = []; // open in GitHub, nog nergens in de vault → importeren
+    const toCheck = [];  // klaar in GitHub, kaart nog open → regel afvinken
+    const stillOpen = []; // kaart afgevinkt, GitHub-item nog open
+    for (const [key, rt] of remote) {
+      const lt = local.get(key);
+      if (!lt) {
+        // Niet importeren, en waaróm niet — anders blijft "0 nieuwe kaarten"
+        // een raadsel bij een bord dat vol staat.
+        if (rt.done) { stats.alreadyDone++; continue; }
+        if (existing.has(key)) { stats.known++; continue; }
+        toCreate.push(rt);
+        continue;
+      }
+      if (!lt.done && rt.done) toCheck.push(lt);
+      else if (lt.done && !rt.done) stillOpen.push(lt);
+    }
+
+    // Hier afgevinkt, in GitHub nog open — bijvoorbeeld afgevinkt op een
+    // telefoon zonder token. Met het afsluitscherm aan melden we het alleen:
+    // achter je rug om issues sluiten past niet bij "eerst vragen". Staat het
+    // scherm uit, dan is dichtzetten juist wat je gevraagd hebt.
+    const pending = await this.handleStillOpen(stillOpen);
+
+    if (!toCreate.length && !toCheck.length) return { imported: 0, checked: 0, pending, stats };
+
+    // d. Markdown-writes alleen als de vault in rust is; anders slaat deze
+    //    draai ze over — de volgende draai herstelt vanzelf.
+    if (!plugin.vaultSettled()) return { imported: 0, checked: 0, skippedWrites: true, stats };
+
+    const targetNote = (plugin.settings.githubTargetNote || '').trim() || 'GitHub.md';
+    const header = `# ${targetNote.split('/').pop().replace(/\.md$/, '')}\n\n`;
+    // Doelkolom: standaard de standaardkolom (doet mee met auto-verplaatsen);
+    // 'inbox' = bewust zonder tag. Een kolom-id dat niet (meer) bestaat valt
+    // terug op de standaardkolom.
+    const rawCol = plugin.settings.githubTargetColumn || '';
+    const targetColumn = rawCol === 'inbox' ? null
+      : (plugin.settings.columns.includes(rawCol) ? rawCol : plugin.settings.defaultColumn);
+
+    let imported = 0;
+    for (const rt of toCreate) {
+      // Met een bord→klant-koppeling krijgt de regel meteen de #client-tag
+      // (en de klant een kleur, net als bij handmatig toewijzen).
+      if (rt.client) await plugin.assignClientColor(rt.client);
+      await plugin.createTaskInFile(
+        { text: rt.title, client: rt.client, column: targetColumn, ghProject: rt.projectId, ghItem: rt.itemId },
+        targetNote,
+        { quiet: true, initialContent: header },
+      );
+      imported++;
+    }
+
+    // Afvinken van hoog naar laag regelnummer per bestand: toggleDone kan een
+    // regel invoegen (herhaaltaken) en zou anders de posities van de nog af te
+    // vinken regels eronder laten verschuiven.
+    let checked = 0;
+    toCheck.sort((a, b) => (a.file === b.file ? b.line - a.line : (a.file < b.file ? -1 : 1)));
+    // skipGithubClose: deze kaarten worden afgevinkt ómdat GitHub al klaar is;
+    // daar hoort geen afsluit-actie terug naar GitHub bij.
+    for (const lt of toCheck) { await plugin.toggleDone(lt, { skipGithubClose: true }); checked++; }
+
+    // Gedebouncet verversen, net als de To Do-reconciliatie.
+    if (imported || checked) plugin.scheduleRefresh();
+    return { imported, checked, pending, stats };
+  }
+
+  // "Alleen op het bord afvinken" onthouden: dit item hoort niet meer in de
+  // herinnering (en gaat ook in de stille modus niet alsnog dicht). Staat in
+  // de instellingen en reist dus mee naar je andere apparaten. Gedekseld op
+  // 200 items — het is een geheugensteun, geen archief.
+  async markSkipped(task) {
+    if (!task || !task.ghProject || !task.ghItem) return;
+    const key = `${task.ghProject}:${task.ghItem}`;
+    const list = (this.plugin.settings.githubSkipped || []).filter((k) => k !== key);
+    list.push(key);
+    this.plugin.settings.githubSkipped = list.slice(-200);
+    await this.plugin.saveSettings();
+  }
+
+  // Meldt (of sluit) kaarten die hier af zijn terwijl GitHub nog openstaat.
+  // De melding komt alleen als het aantal verandert: deze draai herhaalt zich
+  // elke vijf minuten en zou anders blijven zeuren.
+  async handleStillOpen(all) {
+    // Bewust overgeslagen items tellen niet mee: die keuze is al gemaakt.
+    const skipped = new Set(this.plugin.settings.githubSkipped || []);
+    const stillOpen = (all || []).filter((t) => !skipped.has(`${t.ghProject}:${t.ghItem}`));
+    if (!stillOpen.length) { this.lastPendingCount = 0; return 0; }
+    if (!this.closeEnabled()) return 0;
+    if (!this.plugin.settings.githubCloseAsk) {
+      await this.closeLinked(stillOpen);
+      this.lastPendingCount = 0;
+      return 0;
+    }
+    if (stillOpen.length !== this.lastPendingCount) {
+      this.lastPendingCount = stillOpen.length;
+      new Notice(this.t('ghc_pending', { n: stillOpen.length }));
+    }
+    return stillOpen.length;
   }
 }
 
@@ -4959,6 +5832,18 @@ class EditTaskModal extends Modal {
     };
     renderSubs();
 
+    // Gekoppeld GitHub-item: hier kun je het alsnog netjes afsluiten — handig
+    // als de kaart op je telefoon is afgevinkt, of als het eerder misging.
+    if (this.task.ghProject && this.task.ghItem && this.plugin.github.closeEnabled()) {
+      new Setting(contentEl)
+        .setName(t('ghc_edit_row'))
+        .setDesc(t('ghc_edit_desc'))
+        .addButton((b) => b.setButtonText(t('ghc_edit_btn')).onClick(() => {
+          this.close();
+          new GitHubCloseModal(this.app, this.plugin, this.task).open();
+        }));
+    }
+
     new Setting(contentEl)
       .addButton((b) => b.setButtonText(t('open_in_note')).onClick(async () => {
         const file = this.app.vault.getAbstractFileByPath(this.task.file);
@@ -5054,6 +5939,147 @@ class ConfirmModal extends Modal {
   }
 
   onClose() { this.contentEl.empty(); }
+}
+
+// -- GitHub-afsluitscherm ---------------------------------------------------
+// Verschijnt als je een gekoppelde kaart afvinkt en "vraag eerst om
+// afsluitinfo" aanstaat. Haalt de actuele gegevens bij GitHub op, zodat je ziet
+// wát je afsluit en het netjes kunt doen: reden, afsluitreactie en de status op
+// het bord. De kaart is op dat moment al afgevinkt; dit scherm gaat alleen over
+// wat er in GitHub gebeurt — je kunt het dus zonder schade wegklikken.
+
+class GitHubCloseModal extends Modal {
+  constructor(app, plugin, task) {
+    super(app);
+    this.plugin = plugin;
+    this.task = task;
+    this.detail = null;
+    this.reason = 'COMPLETED';
+    this.comment = '';
+    this.statusOptionId = '';
+    this.closed = false;
+  }
+
+  t(key, vars) { return this.plugin.t(key, vars); }
+
+  async onOpen() {
+    const { contentEl } = this;
+    installIosKeyboardFix(this);
+    contentEl.empty();
+    contentEl.addClass('tk-modal');
+    contentEl.createEl('h2', { text: this.t('ghc_title') });
+    const body = contentEl.createDiv();
+    body.createEl('p', { cls: 'tk-help-line', text: this.t('ghc_loading') });
+
+    const detail = await this.plugin.github.fetchItemDetail(this.task.ghProject, this.task.ghItem);
+    if (this.closed) return; // scherm alweer weg: niets meer tekenen
+    this.detail = detail;
+    body.empty();
+    if (!detail) {
+      body.createEl('p', {
+        cls: 'tk-help-line tk-client-status-warn',
+        text: this.t('ghc_unavailable', { e: this.plugin.github.lastError || this.t('gh_err_unknown') }),
+      });
+      new Setting(body).addButton((b) => b.setButtonText(this.t('cancel')).onClick(() => this.close()));
+      return;
+    }
+    this.statusOptionId = this.plugin.github.doneOptionId(detail);
+    this.render(body);
+  }
+
+  render(body) {
+    const t = (k, v) => this.t(k, v);
+    const d = this.detail;
+
+    // Wat je afsluit: bord, repo, itemtitel en de staat zoals GitHub hem nu kent.
+    body.createDiv({ cls: 'tk-modal-sub', text: [d.projectTitle, d.repo].filter(Boolean).join(' · ') });
+    body.createEl('p', { text: d.number ? `#${d.number} — ${d.title}` : d.title });
+
+    const stateLabel = d.state === 'CLOSED' ? t('ghc_state_closed')
+      : d.state === 'MERGED' ? t('ghc_state_merged')
+      : d.state === 'OPEN' ? t('ghc_state_open') : '—';
+    const stateRow = new Setting(body).setName(t('ghc_state')).setDesc(stateLabel);
+    if (d.url) {
+      stateRow.addButton((b) => b.setButtonText(t('ghc_open_gh')).onClick(() => window.open(d.url, '_blank')));
+    }
+    if (d.state && d.state !== 'OPEN') {
+      body.createEl('p', { cls: 'tk-help-line', text: t('ghc_already_closed') });
+    }
+    if (d.type === 'DRAFT_ISSUE') {
+      body.createEl('p', { cls: 'tk-help-line', text: t('ghc_draft_note') });
+    }
+
+    // Afsluitreden: alleen zinvol voor een issue dat nu nog openstaat.
+    if (d.type === 'ISSUE' && d.state === 'OPEN') {
+      new Setting(body)
+        .setName(t('ghc_reason'))
+        .setDesc(t('ghc_reason_desc'))
+        .addDropdown((dd) => {
+          for (const r of GH_CLOSE_REASONS) dd.addOption(r, t('ghc_reason_' + r));
+          dd.setValue(this.reason);
+          dd.onChange((v) => { this.reason = v; });
+        });
+    }
+
+    // Afsluitreactie: wordt als comment geplaatst vóór het sluiten.
+    if (d.contentId) {
+      new Setting(body)
+        .setName(t('ghc_comment'))
+        .setDesc(t('ghc_comment_desc'))
+        .setClass('tk-modal-stack')
+        .addTextArea((ta) => {
+          ta.setPlaceholder(t('ghc_comment_ph'));
+          ta.setValue(this.comment);
+          ta.onChange((v) => { this.comment = v; });
+          ta.inputEl.rows = 4;
+          ta.inputEl.addClass('tk-modal-textarea');
+        });
+    }
+
+    // Status op het bord: voorgeselecteerd op de "klaar"-optie van dit bord.
+    if (d.statusField && d.statusField.options.length) {
+      new Setting(body)
+        .setName(t('ghc_status'))
+        .setDesc(d.statusName || '—')
+        .addDropdown((dd) => {
+          dd.addOption('', t('ghc_status_keep'));
+          for (const o of d.statusField.options) dd.addOption(o.id, o.name);
+          dd.setValue(this.statusOptionId);
+          dd.onChange((v) => { this.statusOptionId = v; });
+        });
+    } else {
+      body.createEl('p', { cls: 'tk-help-line', text: t('ghc_status_none') });
+    }
+
+    const row = new Setting(body);
+    row.addButton((b) => b.setButtonText(t('ghc_skip')).onClick(async () => {
+      // Keuze onthouden, zodat de sync er niet later alsnog over begint.
+      await this.plugin.github.markSkipped(this.task);
+      this.close();
+    }));
+    row.addButton((b) => b
+      .setButtonText(t('ghc_submit'))
+      .setCta()
+      .onClick(async () => {
+        b.setDisabled(true).setButtonText(t('ghc_busy'));
+        const res = await this.plugin.github.closeItem(this.detail, {
+          reason: this.reason,
+          comment: this.comment,
+          statusOptionId: this.statusOptionId,
+        });
+        if (res.error) {
+          // Scherm open laten: een getypte afsluitreactie mag niet verdampen
+          // omdat het netwerk even wegviel.
+          new Notice(t('ghc_failed', { e: res.error }));
+          b.setDisabled(false).setButtonText(t('ghc_submit'));
+          return;
+        }
+        new Notice(t('ghc_done'));
+        this.close();
+      }));
+  }
+
+  onClose() { this.closed = true; this.contentEl.empty(); }
 }
 
 // -- Settings Tab -----------------------------------------------------------
@@ -5891,6 +6917,186 @@ class KanbanSettingTab extends PluginSettingTab {
         .setButtonText(t('ol_connect'))
         .setCta()
         .onClick(() => this.plugin.outlook.startAuth()));
+
+    // -- GitHub Projects -----------------------------------------------
+    new Setting(containerEl).setName(t('gh_section')).setHeading();
+    containerEl.createEl('p', { cls: 'tk-help-line', text: t('gh_help') });
+    // Net als bij To Do: op mobiel draait de sync niet; dit apparaat toont
+    // alleen wat Obsidian Sync aanlevert (de instellingen syncen wél mee).
+    if (!Platform.isDesktop || Platform.isMobile) {
+      containerEl.createEl('p', { cls: 'tk-help-line', text: t('gh_mobile_note') });
+    }
+
+    new Setting(containerEl)
+      .setName(t('gh_token'))
+      .setDesc(t('gh_token_desc'))
+      .addText((text) => {
+        text.inputEl.type = 'password';
+        text.setPlaceholder('github_pat_… / ghp_…')
+          .setValue(this.plugin.github.token())
+          .onChange((v) => {
+            // Device-lokaal, dus geen saveSettings: het token hoort niet in
+            // data.json. Niet opnieuw tekenen — dat zou het veld per aanslag
+            // opbouwen en de cursor laten springen.
+            this.plugin.github.setToken(v.trim());
+            this.plugin.github.lastError = null;
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(t('gh_import'))
+      .setDesc(t('gh_import_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(!!this.plugin.settings.githubImportEnabled)
+        .onChange(async (v) => {
+          this.plugin.settings.githubImportEnabled = v;
+          await this.plugin.saveSettings();
+          this.display(); // bordenkiezer tonen/verbergen
+        }));
+
+    new Setting(containerEl)
+      .setName(t('ghc_close'))
+      .setDesc(t('ghc_close_desc'))
+      .addToggle((toggle) => toggle
+        .setValue(!!this.plugin.settings.githubCloseEnabled)
+        .onChange(async (v) => {
+          this.plugin.settings.githubCloseEnabled = v;
+          await this.plugin.saveSettings();
+          this.display(); // vervolgvraag tonen/verbergen
+        }));
+
+    if (this.plugin.settings.githubCloseEnabled) {
+      new Setting(containerEl)
+        .setName(t('ghc_ask'))
+        .setDesc(t('ghc_ask_desc'))
+        .addToggle((toggle) => toggle
+          .setValue(!!this.plugin.settings.githubCloseAsk)
+          .onChange(async (v) => {
+            this.plugin.settings.githubCloseAsk = v;
+            await this.plugin.saveSettings();
+          }));
+    }
+
+    if (this.plugin.settings.githubImportEnabled) {
+      new Setting(containerEl)
+        .setName(t('gh_mine_only'))
+        .setDesc(t('gh_mine_only_desc'))
+        .addToggle((toggle) => toggle
+          .setValue(!!this.plugin.settings.githubAssignedOnly)
+          .onChange(async (v) => {
+            this.plugin.settings.githubAssignedOnly = v;
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(t('gh_target_note'))
+        .setDesc(t('gh_target_note_desc'))
+        .addText((text) => text
+          .setPlaceholder('GitHub.md')
+          .setValue(this.plugin.settings.githubTargetNote || '')
+          .onChange(async (v) => {
+            this.plugin.settings.githubTargetNote = v.trim();
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(t('gh_target_column'))
+        .setDesc(t('gh_target_column_desc'))
+        .addDropdown((dd) => {
+          dd.addOption('', t('td_target_column_default'));
+          dd.addOption('inbox', t('inbox'));
+          for (const col of this.plugin.settings.columns) {
+            // De done-kolom uitsluiten: een import hoort nooit afgevinkt te landen.
+            if (col === this.plugin.settings.doneColumn) continue;
+            dd.addOption(col, this.plugin.settings.columnLabels[col] || col);
+          }
+          dd.setValue(this.plugin.settings.githubTargetColumn || '');
+          dd.onChange(async (v) => {
+            this.plugin.settings.githubTargetColumn = v;
+            await this.plugin.saveSettings();
+          });
+        });
+
+      // Bordenkiezer, spiegel van de To Do-lijstenkiezer: per bord een klant
+      // en een aan/uit. Keuzes staan in settings.githubProjects en syncen dus
+      // wél mee naar je andere apparaten (alleen het token blijft lokaal).
+      const group = containerEl.createDiv({ cls: 'tk-account-group' });
+      group.createEl('p', { cls: 'tk-help-line', text: t('gh_projects') });
+      if (!this.plugin.github.isConfigured()) {
+        group.createEl('p', { cls: 'tk-help-line', text: t('gh_no_token') });
+      } else if (!this.plugin.github.projects().length) {
+        group.createEl('p', { cls: 'tk-help-line', text: t('gh_no_projects') });
+      } else {
+        for (const proj of this.plugin.github.projects()) {
+          const row = new Setting(group)
+            .setName(proj.title || `#${proj.number}`)
+            .setDesc([proj.owner, proj.number ? `#${proj.number}` : ''].filter(Boolean).join(' · '))
+            .setClass('tk-setting-child');
+          // Bord→klant: nieuw geïmporteerde items van dit bord krijgen deze
+          // klant als #client/-tag mee. Een keuzelijst van bestaande klanten —
+          // geen vrij typwerk, dus ook geen tikfout-tags.
+          row.addDropdown((dd) => {
+            const known = this.plugin.getClients();
+            dd.addOption('', t('none_paren'));
+            for (const c of known) dd.addOption(c, c);
+            const cur = proj.client || '';
+            if (cur && !known.includes(cur)) dd.addOption(cur, cur);
+            dd.setValue(cur);
+            dd.onChange(async (v) => {
+              proj.client = v;
+              await this.plugin.saveSettings();
+            });
+          });
+          row.addToggle((tg) => tg
+            .setValue(!!proj.selected)
+            .onChange(async (v) => {
+              proj.selected = v;
+              await this.plugin.saveSettings();
+              // Uitvinken stopt het lezen van dit bord. De kaarten die er al
+              // van staan mag je meteen opruimen — met een telling vooraf,
+              // want dit is de enige plek waar de plugin zelf regels uit je
+              // vault haalt. Afbreken laat ze staan; het bord blijft uit.
+              if (!v) {
+                const cards = await this.plugin.github.cardsOfProject(proj.id);
+                if (!cards.length) return;
+                const bord = proj.title || `#${proj.number}`;
+                const d = cards.filter((c) => c.done).length;
+                new ConfirmModal(
+                  this.app, this.plugin,
+                  t('gh_remove_confirm', { board: bord, n: cards.length, d }),
+                  async () => {
+                    const weg = await this.plugin.github.removeCardsOfProject(proj.id);
+                    new Notice(t('gh_removed', { n: weg }));
+                  },
+                ).open();
+                return;
+              }
+              // Aanvinken is "ik wil dit nu zien": meteen een draai, langs de
+              // throttle heen. Niet awaiten, zodat het schakelaartje niet op
+              // het netwerk staat te wachten.
+              this.plugin.github.sync().then((res) => {
+                if (res) new Notice(t('gh_sync_result', { n: res.imported || 0 }));
+              }).catch(() => {});
+            }));
+        }
+        group.createEl('p', { cls: 'tk-help-line', text: t('gh_projects_hint') });
+        group.createEl('p', { cls: 'tk-help-line', text: t('gh_client_hint') });
+      }
+      if (this.plugin.github.lastError) {
+        group.createEl('p', {
+          cls: 'tk-help-line tk-client-status-warn',
+          text: t('gh_error', { e: this.plugin.github.lastError }),
+        });
+      }
+      new Setting(group)
+        .setName(t('gh_refresh'))
+        .addButton((b) => b
+          .setButtonText(t('refresh'))
+          .onClick(async () => {
+            await this.plugin.github.fetchProjects();
+            this.display();
+          }));
+    }
 
     // -- Help ----------------------------------------------------------
     new Setting(containerEl).setName(t('sec_help')).setHeading();

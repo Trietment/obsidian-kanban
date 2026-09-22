@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.20.0
+
+**GitHub Projects on your board**
+
+- **Your GitHub Projects boards become cards.** Paste a personal access token, pick which project boards to read, and their items land as task lines in a note of your choosing, in the column you pick. Items that are already closed are never imported, and nothing is ever deleted — on either side. Reading runs on the desktop only, at most once every five minutes; a board you tick on is read immediately. A classic token with `read:project`, `read:org` (to see your organizations' boards) and `repo` (for issues in private repos, and to close them) covers everything.
+- **A client per board.** Every board gets its own client picker, and items imported from that board carry `#client/<name>` with a color from the moment they land — so lanes, filters and per-client boards work on them right away. The mapping applies at import time: cards already on your board are left alone, and a client you change by hand is never overwritten.
+- **Only the items assigned to you.** An optional filter that skips items assigned to someone else or to nobody. It applies at import time too, so a card stays on your board even if the item is later unassigned from you.
+- **Completing a card can close the issue on GitHub.** Off until you turn it on, and never from a background sync — only when you complete a card yourself. Ticking a card opens a close screen showing what you are about to close: board, repo, issue number, title, current state and its Status on the board, with a button to open it on GitHub.
+- **Finish it properly from that screen.** Pick a close reason (completed or not planned), write a closing comment that is posted before the close, and set the Status field on the project board — preselected on that board's own "done" option. The three steps run in that order and stop at the first failure, so a typed comment is never lost to a dropped connection and the screen stays open with your text in it. Drafts cannot be closed and say so; pull requests close as pull requests; an item that is already closed still takes a comment or a status change. Choosing "only complete on the board" is remembered, so the sync never brings that item up again. Moving several cards to Done at once skips the screen and closes them as completed.
+- **Unticking a board offers to clean up.** Unticking stops reading that board; if cards from it are still in your vault, you are asked — with a count, and how many of them are completed — whether to remove them. Only that board's cards, wherever they ended up in your vault, and nothing changes on GitHub.
+- **The sync says what it saw.** Running it by hand now reports how many boards were read, how many items were usable, and how many cards were added or completed — plus why the rest was skipped: no read access to the issue (a missing `repo` scope), not assigned to you, already done on GitHub, or already in your vault. A board that stays empty now tells you why instead of failing silently.
+- **The board no longer jumps to the top.** Restoring your scroll position after a refresh takes a second pass on the next frame, correcting only what stayed at zero because the heights were not final yet — so ticking a card leaves you where you were.
+
+---
+
+### Nederlands
+
+**GitHub Projects op je bord**
+
+- **Je GitHub Projects-borden worden kaarten.** Plak een personal access token, kies welke projectborden gelezen worden, en hun items landen als taakregels in een note naar keuze, in de kolom die jij kiest. Al gesloten items worden nooit geïmporteerd, en er verdwijnt nooit iets — aan geen van beide kanten. Lezen gebeurt alleen op de desktop, hooguit eens per vijf minuten; een bord dat je aanvinkt wordt meteen gelezen. Een classic token met `read:project`, `read:org` (om de borden van je organisaties te zien) en `repo` (voor issues in privérepos, en om ze te kunnen sluiten) dekt alles.
+- **Een klant per bord.** Elk bord krijgt zijn eigen klantenkiezer, en items van dat bord dragen vanaf het moment dat ze landen `#client/<naam>` met een kleur — zo werken je banen, filters en klantborden er meteen op. De koppeling geldt bij het importeren: kaarten die al op je bord staan blijven ongemoeid, en een klant die je zelf wijzigt wordt nooit overschreven.
+- **Alleen wat aan jou is toegewezen.** Een optioneel filter dat items van iemand anders of zonder assignee overslaat. Ook dit geldt bij het importeren, dus een kaart blijft staan als het item later van je af gaat.
+- **Een kaart afvinken kan het issue in GitHub sluiten.** Uit tot je het aanzet, en nooit vanuit een achtergrondsync — alleen als je zelf een kaart afvinkt. Bij het afvinken verschijnt een afsluitscherm dat laat zien wát je gaat sluiten: bord, repo, issuenummer, titel, huidige staat en de Status op het bord, met een knop om het item in GitHub te openen.
+- **Vanuit dat scherm sluit je het netjes af.** Kies een afsluitreden (voltooid of niet gepland), schrijf een afsluitreactie die vóór het sluiten geplaatst wordt, en zet het Status-veld op het projectbord — voorgeselecteerd op de "klaar"-optie van dát bord. De drie stappen lopen in die volgorde en stoppen bij de eerste fout, zodat een getypte reactie nooit verdampt door een wegvallende verbinding en het scherm met jouw tekst open blijft staan. Een draft-item kan niet gesloten worden en zegt dat; een pull request sluit als pull request; een al gesloten item neemt nog een reactie of statuswijziging aan. Kies je "alleen op het bord afvinken", dan wordt dat onthouden en begint de sync er niet meer over. Meerdere kaarten tegelijk naar Klaar verplaatsen slaat het scherm over en sluit ze als voltooid.
+- **Een bord uitvinken biedt aan op te ruimen.** Uitvinken stopt het lezen van dat bord; staan er nog kaarten van in je vault, dan wordt gevraagd — met een telling, en hoeveel daarvan afgevinkt zijn — of die weg mogen. Alleen de kaarten van dát bord, waar ze ook terechtgekomen zijn, en in GitHub verandert er niets.
+- **De sync vertelt wat hij zag.** Handmatig draaien meldt nu hoeveel borden gelezen zijn, hoeveel items bruikbaar waren en hoeveel kaarten erbij kwamen of afgevinkt werden — plus waarom de rest oversloeg: geen leesrechten op het issue (ontbrekende `repo`-scope), niet aan jou toegewezen, in GitHub al klaar, of al in je vault. Een bord dat leeg blijft vertelt nu waarom, in plaats van stil te falen.
+- **Het bord springt niet meer naar boven.** Het herstellen van je scrollpositie na een verversing doet een tweede pass op de volgende frame, en corrigeert alleen wat op nul bleef staan doordat de hoogtes nog niet definitief waren — zo blijf je bij het afvinken van een kaart gewoon staan waar je was.
+
 ## 1.19.2
 
 **Completing a recurring task on your phone completes the card again**
