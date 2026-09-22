@@ -464,8 +464,8 @@
   padding-left: 20px;
 }
 
-/* Subtiel kenteken voor kaarten die uit Microsoft To Do komen — alleen
-   bestaande themavariabelen, geen eigen kleuren. */
+/* Subtiel kenteken voor kaarten uit een gekoppelde bron (Microsoft To Do,
+   GitHub Projects) — alleen bestaande themavariabelen, geen eigen kleuren. */
 .tk-card-meta .tk-td-badge {
   font-size: 0.85em;
   color: var(--text-faint);
@@ -664,6 +664,22 @@
 }
 
 /* -- Subtaken in de edit-modal -------------------------------------------- */
+/* Afsluitreactie in het GitHub-scherm: een comment schrijf je niet in een
+   smal veldje naast het label, dus deze rij stapelt en het veld vult de rij. */
+.tk-modal .setting-item.tk-modal-stack {
+  display: block;
+}
+.tk-modal .setting-item.tk-modal-stack .setting-item-control {
+  width: 100%;
+  padding-top: 6px;
+  justify-content: flex-start;
+}
+.tk-modal .tk-modal-textarea {
+  width: 100%;
+  min-height: 5em;
+  resize: vertical;
+}
+
 .tk-modal-subtasks {
   margin: 4px 0 14px;
 }
