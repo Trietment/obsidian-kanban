@@ -14,21 +14,12 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
-### New in 1.20.1
+### New in 1.20.2
 
-**Dates you change on your phone stick**
+**README tidy-up**
 
-- **A date you change on your phone now reaches Microsoft.** Phones never talk to Microsoft themselves — the desktop runs the To Do sync. Until now the desktop could not tell which side had changed a date, so it always followed Microsoft: a due date you moved on your phone's board quietly jumped back at the next sync. The desktop now remembers, per linked card, the last date both sides agreed on. Has only the board moved away from it — on your phone, by editing the note by hand, or because a push from the desktop failed while it was offline — then the date goes to Microsoft. Has only Microsoft changed it, in Reminders or To Do? Then the board follows, as before. Changed on both sides between two syncs? Then Microsoft wins, as before.
-- **A recurring card moved to an earlier day stays put.** Moving a linked recurring card to an earlier date on your phone looked like an occurrence completed elsewhere: the card was ticked, unlinked and imported again as a new card with the old date. The new date now simply goes to Microsoft. And if you also ticked such a card on your phone, that completion now reaches Microsoft too — it used to get lost, after which the task came back as a fresh card.
-- **A date Microsoft refuses is put back.** To Do does not accept every change — clearing the date of a recurring task, for example. The board then takes Microsoft's date again instead of the two sides staying different forever, and the card stays in its column.
-- **Only the desktop needs this update.** Nothing changes on your phones. The first sync after updating starts without remembered dates, so for a card that differs at that moment Microsoft wins one last time.
-
-**Housekeeping**
-
-- **Network use is described in the README.** Which services the plugin talks to, when and why — and that there is no telemetry.
-- **README cleanup.** The syntax table now shows a real cover example.
-- **No more partially supported CSS.** The column chips on a phone hid their scrollbar with `scrollbar-width` as well, which older Obsidian versions only partly support. The `::-webkit-scrollbar` rule that does the work in Obsidian stays — the same way Obsidian hides the scrollbar of its own toolbars.
-- **The export setting tells the truth again.** Its description still said the due date only travels at creation; since 1.19.0 it stays the same on both sides.
+- **Cleaner README.** The changelog in the README is now kept up to date by its headings, without extra HTML in the file, and the 1.20.1 notes are shorter.
+- **Concrete examples.** The task syntax table and the examples use real values instead of generic names, so you can copy them as they are.
 
 ## Features
 
@@ -180,21 +171,12 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
-### Nieuw in 1.20.1
+### Nieuw in 1.20.2
 
-**Datums die je op je telefoon verzet blijven staan**
+**README opgeruimd**
 
-- **Een datum die je op je telefoon wijzigt, komt nu aan bij Microsoft.** Telefoons praten zelf nooit met Microsoft — de desktop doet de To Do-sync. Tot nu toe kon de desktop niet zien welke kant een datum had gewijzigd, dus volgde hij altijd Microsoft: een due date die je op het bord van je telefoon verzette, sprong bij de volgende sync stilletjes terug. De desktop onthoudt nu per gekoppelde kaart de laatste datum waarover beide kanten het eens waren. Week alleen het bord daarvan af — op je telefoon, doordat je de note met de hand bewerkte, of doordat een push vanaf de desktop mislukte terwijl die offline was — dan gaat de datum naar Microsoft. Wijzigde alleen Microsoft hem, in Reminders of To Do? Dan volgt het bord, zoals voorheen. Aan beide kanten gewijzigd tussen twee syncs? Dan wint Microsoft, zoals voorheen.
-- **Een herhalende kaart die je naar eerder verzet, blijft staan.** Een gekoppelde herhalende kaart op je telefoon naar een eerdere datum zetten leek op een elders afgeronde occurrence: de kaart werd afgevinkt, losgekoppeld en opnieuw geïmporteerd als nieuwe kaart met de oude datum. De nieuwe datum gaat nu gewoon naar Microsoft. En vinkte je zo'n kaart op je telefoon ook af, dan komt ook dat afvinken nu aan bij Microsoft — dat ging verloren, waarna de taak terugkwam als verse kaart.
-- **Een datum die Microsoft weigert, wordt teruggezet.** To Do accepteert niet elke wijziging — de datum van een herhalende taak wissen bijvoorbeeld. Het bord neemt dan de datum van Microsoft weer over in plaats van dat beide kanten eeuwig blijven verschillen, en de kaart blijft in zijn kolom staan.
-- **Alleen de desktop heeft deze update nodig.** Op je telefoons verandert niets. De eerste sync na het updaten begint zonder onthouden datums, dus bij een kaart die op dat moment verschilt, wint Microsoft nog één keer.
-
-**Onderhoud**
-
-- **Netwerkgebruik staat in de README.** Met welke diensten de plugin praat, wanneer en waarom — en dat er geen telemetrie is.
-- **README opgeschoond.** De syntaxtabel toont nu een echt cover-voorbeeld.
-- **Geen gedeeltelijk ondersteunde CSS meer.** De kolomchips op een telefoon verborgen hun scrollbalk ook met `scrollbar-width`, dat oudere Obsidian-versies maar deels ondersteunen. De `::-webkit-scrollbar`-regel die in Obsidian het werk doet blijft — op dezelfde manier waarop Obsidian de scrollbalk van zijn eigen werkbalken verbergt.
-- **De exportinstelling vertelt weer de waarheid.** De beschrijving zei nog dat de due date alleen bij het aanmaken meereist; sinds 1.19.0 blijft hij aan beide kanten gelijk.
+- **Schonere README.** De changelog in de README wordt nu bijgehouden aan de hand van de koppen, zonder extra HTML in het bestand, en de notes van 1.20.1 zijn korter.
+- **Concrete voorbeelden.** De taaksyntaxtabel en de voorbeelden gebruiken echte waarden in plaats van algemene namen, zodat je ze zo kunt overnemen.
 
 ## Functies
 
@@ -333,6 +315,22 @@ Er is geen telemetrie en geen analytics. Inlogtokens blijven op het apparaat waa
 # Changelog / Wijzigingen
 
 All changes per version, in English and Dutch — this is what you see on the plugin page in Obsidian. / Alle wijzigingen per versie, in het Engels en Nederlands — dit is wat je op de pluginpagina in Obsidian ziet.
+
+## 1.20.2
+
+**README tidy-up**
+
+- **Cleaner README.** The changelog in the README is now kept up to date by its headings, without extra HTML in the file, and the 1.20.1 notes are shorter.
+- **Concrete examples.** The task syntax table and the examples use real values instead of generic names, so you can copy them as they are.
+
+---
+
+### Nederlands
+
+**README opgeruimd**
+
+- **Schonere README.** De changelog in de README wordt nu bijgehouden aan de hand van de koppen, zonder extra HTML in het bestand, en de notes van 1.20.1 zijn korter.
+- **Concrete voorbeelden.** De taaksyntaxtabel en de voorbeelden gebruiken echte waarden in plaats van algemene namen, zodat je ze zo kunt overnemen.
 
 ## 1.20.1
 
