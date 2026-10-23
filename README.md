@@ -15,18 +15,21 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
 <!-- LATEST-EN:BEGIN -->
-### New in 1.20.0
+### New in 1.20.1
 
-**GitHub Projects on your board**
+**Dates you change on your phone stick**
 
-- **Your GitHub Projects boards become cards.** Paste a personal access token, pick which project boards to read, and their items land as task lines in a note of your choosing, in the column you pick. Items that are already closed are never imported, and nothing is ever deleted — on either side. Reading runs on the desktop only, at most once every five minutes; a board you tick on is read immediately. A classic token with `read:project`, `read:org` (to see your organizations' boards) and `repo` (for issues in private repos, and to close them) covers everything.
-- **A client per board.** Every board gets its own client picker, and items imported from that board carry `#client/<name>` with a color from the moment they land — so lanes, filters and per-client boards work on them right away. The mapping applies at import time: cards already on your board are left alone, and a client you change by hand is never overwritten.
-- **Only the items assigned to you.** An optional filter that skips items assigned to someone else or to nobody. It applies at import time too, so a card stays on your board even if the item is later unassigned from you.
-- **Completing a card can close the issue on GitHub.** Off until you turn it on, and never from a background sync — only when you complete a card yourself. Ticking a card opens a close screen showing what you are about to close: board, repo, issue number, title, current state and its Status on the board, with a button to open it on GitHub.
-- **Finish it properly from that screen.** Pick a close reason (completed or not planned), write a closing comment that is posted before the close, and set the Status field on the project board — preselected on that board's own "done" option. The three steps run in that order and stop at the first failure, so a typed comment is never lost to a dropped connection and the screen stays open with your text in it. Drafts cannot be closed and say so; pull requests close as pull requests; an item that is already closed still takes a comment or a status change. Choosing "only complete on the board" is remembered, so the sync never brings that item up again. Moving several cards to Done at once skips the screen and closes them as completed.
-- **Unticking a board offers to clean up.** Unticking stops reading that board; if cards from it are still in your vault, you are asked — with a count, and how many of them are completed — whether to remove them. Only that board's cards, wherever they ended up in your vault, and nothing changes on GitHub.
-- **The sync says what it saw.** Running it by hand now reports how many boards were read, how many items were usable, and how many cards were added or completed — plus why the rest was skipped: no read access to the issue (a missing `repo` scope), not assigned to you, already done on GitHub, or already in your vault. A board that stays empty now tells you why instead of failing silently.
-- **The board no longer jumps to the top.** Restoring your scroll position after a refresh takes a second pass on the next frame, correcting only what stayed at zero because the heights were not final yet — so ticking a card leaves you where you were.
+- **A date you change on your phone now reaches Microsoft.** Phones never talk to Microsoft themselves — the desktop runs the To Do sync. Until now the desktop could not tell which side had changed a date, so it always followed Microsoft: a due date you moved on your phone's board quietly jumped back at the next sync. The desktop now remembers, per linked card, the last date both sides agreed on. Has only the board moved away from it — on your phone, by editing the note by hand, or because a push from the desktop failed while it was offline — then the date goes to Microsoft. Has only Microsoft changed it, in Reminders or To Do? Then the board follows, as before. Changed on both sides between two syncs? Then Microsoft wins, as before.
+- **A recurring card moved to an earlier day stays put.** Moving a linked recurring card to an earlier date on your phone looked like an occurrence completed elsewhere: the card was ticked, unlinked and imported again as a new card with the old date. The new date now simply goes to Microsoft. And if you also ticked such a card on your phone, that completion now reaches Microsoft too — it used to get lost, after which the task came back as a fresh card.
+- **A date Microsoft refuses is put back.** To Do does not accept every change — clearing the date of a recurring task, for example. The board then takes Microsoft's date again instead of the two sides staying different forever, and the card stays in its column.
+- **Only the desktop needs this update.** Nothing changes on your phones. The first sync after updating starts without remembered dates, so for a card that differs at that moment Microsoft wins one last time.
+
+**Housekeeping**
+
+- **Network use is described in the README.** Which services the plugin talks to, when and why — and that there is no telemetry.
+- **README cleanup.** The syntax table showed the cover syntax with an ellipsis as its value, which automated checks mistook for text still to be filled in; it now shows a real example. The markers the release script uses are plain markers now.
+- **No more partially supported CSS.** The column chips on a phone hid their scrollbar with `scrollbar-width` as well, which older Obsidian versions only partly support. The `::-webkit-scrollbar` rule that does the work in Obsidian stays — the same way Obsidian hides the scrollbar of its own toolbars.
+- **The export setting tells the truth again.** Its description still said the due date only travels at creation; since 1.19.0 it stays the same on both sides.
 <!-- LATEST-EN:END -->
 
 ## Features
@@ -180,18 +183,21 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
 <!-- LATEST-NL:BEGIN -->
-### Nieuw in 1.20.0
+### Nieuw in 1.20.1
 
-**GitHub Projects op je bord**
+**Datums die je op je telefoon verzet blijven staan**
 
-- **Je GitHub Projects-borden worden kaarten.** Plak een personal access token, kies welke projectborden gelezen worden, en hun items landen als taakregels in een note naar keuze, in de kolom die jij kiest. Al gesloten items worden nooit geïmporteerd, en er verdwijnt nooit iets — aan geen van beide kanten. Lezen gebeurt alleen op de desktop, hooguit eens per vijf minuten; een bord dat je aanvinkt wordt meteen gelezen. Een classic token met `read:project`, `read:org` (om de borden van je organisaties te zien) en `repo` (voor issues in privérepos, en om ze te kunnen sluiten) dekt alles.
-- **Een klant per bord.** Elk bord krijgt zijn eigen klantenkiezer, en items van dat bord dragen vanaf het moment dat ze landen `#client/<naam>` met een kleur — zo werken je banen, filters en klantborden er meteen op. De koppeling geldt bij het importeren: kaarten die al op je bord staan blijven ongemoeid, en een klant die je zelf wijzigt wordt nooit overschreven.
-- **Alleen wat aan jou is toegewezen.** Een optioneel filter dat items van iemand anders of zonder assignee overslaat. Ook dit geldt bij het importeren, dus een kaart blijft staan als het item later van je af gaat.
-- **Een kaart afvinken kan het issue in GitHub sluiten.** Uit tot je het aanzet, en nooit vanuit een achtergrondsync — alleen als je zelf een kaart afvinkt. Bij het afvinken verschijnt een afsluitscherm dat laat zien wát je gaat sluiten: bord, repo, issuenummer, titel, huidige staat en de Status op het bord, met een knop om het item in GitHub te openen.
-- **Vanuit dat scherm sluit je het netjes af.** Kies een afsluitreden (voltooid of niet gepland), schrijf een afsluitreactie die vóór het sluiten geplaatst wordt, en zet het Status-veld op het projectbord — voorgeselecteerd op de "klaar"-optie van dát bord. De drie stappen lopen in die volgorde en stoppen bij de eerste fout, zodat een getypte reactie nooit verdampt door een wegvallende verbinding en het scherm met jouw tekst open blijft staan. Een draft-item kan niet gesloten worden en zegt dat; een pull request sluit als pull request; een al gesloten item neemt nog een reactie of statuswijziging aan. Kies je "alleen op het bord afvinken", dan wordt dat onthouden en begint de sync er niet meer over. Meerdere kaarten tegelijk naar Klaar verplaatsen slaat het scherm over en sluit ze als voltooid.
-- **Een bord uitvinken biedt aan op te ruimen.** Uitvinken stopt het lezen van dat bord; staan er nog kaarten van in je vault, dan wordt gevraagd — met een telling, en hoeveel daarvan afgevinkt zijn — of die weg mogen. Alleen de kaarten van dát bord, waar ze ook terechtgekomen zijn, en in GitHub verandert er niets.
-- **De sync vertelt wat hij zag.** Handmatig draaien meldt nu hoeveel borden gelezen zijn, hoeveel items bruikbaar waren en hoeveel kaarten erbij kwamen of afgevinkt werden — plus waarom de rest oversloeg: geen leesrechten op het issue (ontbrekende `repo`-scope), niet aan jou toegewezen, in GitHub al klaar, of al in je vault. Een bord dat leeg blijft vertelt nu waarom, in plaats van stil te falen.
-- **Het bord springt niet meer naar boven.** Het herstellen van je scrollpositie na een verversing doet een tweede pass op de volgende frame, en corrigeert alleen wat op nul bleef staan doordat de hoogtes nog niet definitief waren — zo blijf je bij het afvinken van een kaart gewoon staan waar je was.
+- **Een datum die je op je telefoon wijzigt, komt nu aan bij Microsoft.** Telefoons praten zelf nooit met Microsoft — de desktop doet de To Do-sync. Tot nu toe kon de desktop niet zien welke kant een datum had gewijzigd, dus volgde hij altijd Microsoft: een due date die je op het bord van je telefoon verzette, sprong bij de volgende sync stilletjes terug. De desktop onthoudt nu per gekoppelde kaart de laatste datum waarover beide kanten het eens waren. Week alleen het bord daarvan af — op je telefoon, doordat je de note met de hand bewerkte, of doordat een push vanaf de desktop mislukte terwijl die offline was — dan gaat de datum naar Microsoft. Wijzigde alleen Microsoft hem, in Reminders of To Do? Dan volgt het bord, zoals voorheen. Aan beide kanten gewijzigd tussen twee syncs? Dan wint Microsoft, zoals voorheen.
+- **Een herhalende kaart die je naar eerder verzet, blijft staan.** Een gekoppelde herhalende kaart op je telefoon naar een eerdere datum zetten leek op een elders afgeronde occurrence: de kaart werd afgevinkt, losgekoppeld en opnieuw geïmporteerd als nieuwe kaart met de oude datum. De nieuwe datum gaat nu gewoon naar Microsoft. En vinkte je zo'n kaart op je telefoon ook af, dan komt ook dat afvinken nu aan bij Microsoft — dat ging verloren, waarna de taak terugkwam als verse kaart.
+- **Een datum die Microsoft weigert, wordt teruggezet.** To Do accepteert niet elke wijziging — de datum van een herhalende taak wissen bijvoorbeeld. Het bord neemt dan de datum van Microsoft weer over in plaats van dat beide kanten eeuwig blijven verschillen, en de kaart blijft in zijn kolom staan.
+- **Alleen de desktop heeft deze update nodig.** Op je telefoons verandert niets. De eerste sync na het updaten begint zonder onthouden datums, dus bij een kaart die op dat moment verschilt, wint Microsoft nog één keer.
+
+**Onderhoud**
+
+- **Netwerkgebruik staat in de README.** Met welke diensten de plugin praat, wanneer en waarom — en dat er geen telemetrie is.
+- **README opgeschoond.** De syntaxtabel toonde de cover-syntax met een beletselteken als waarde, wat geautomatiseerde checks aanzagen voor nog in te vullen tekst; er staat nu een echt voorbeeld. De markers van het release-script zijn nu kale markers.
+- **Geen gedeeltelijk ondersteunde CSS meer.** De kolomchips op een telefoon verborgen hun scrollbalk ook met `scrollbar-width`, dat oudere Obsidian-versies maar deels ondersteunen. De `::-webkit-scrollbar`-regel die in Obsidian het werk doet blijft — op dezelfde manier waarop Obsidian de scrollbalk van zijn eigen werkbalken verbergt.
+- **De exportinstelling vertelt weer de waarheid.** De beschrijving zei nog dat de due date alleen bij het aanmaken meereist; sinds 1.19.0 blijft hij aan beide kanten gelijk.
 <!-- LATEST-NL:END -->
 
 ## Functies
@@ -333,6 +339,40 @@ Er is geen telemetrie en geen analytics. Inlogtokens blijven op het apparaat waa
 All changes per version, in English and Dutch — this is what you see on the plugin page in Obsidian. / Alle wijzigingen per versie, in het Engels en Nederlands — dit is wat je op de pluginpagina in Obsidian ziet.
 
 <!-- CHANGELOG:BEGIN -->
+## 1.20.1
+
+**Dates you change on your phone stick**
+
+- **A date you change on your phone now reaches Microsoft.** Phones never talk to Microsoft themselves — the desktop runs the To Do sync. Until now the desktop could not tell which side had changed a date, so it always followed Microsoft: a due date you moved on your phone's board quietly jumped back at the next sync. The desktop now remembers, per linked card, the last date both sides agreed on. Has only the board moved away from it — on your phone, by editing the note by hand, or because a push from the desktop failed while it was offline — then the date goes to Microsoft. Has only Microsoft changed it, in Reminders or To Do? Then the board follows, as before. Changed on both sides between two syncs? Then Microsoft wins, as before.
+- **A recurring card moved to an earlier day stays put.** Moving a linked recurring card to an earlier date on your phone looked like an occurrence completed elsewhere: the card was ticked, unlinked and imported again as a new card with the old date. The new date now simply goes to Microsoft. And if you also ticked such a card on your phone, that completion now reaches Microsoft too — it used to get lost, after which the task came back as a fresh card.
+- **A date Microsoft refuses is put back.** To Do does not accept every change — clearing the date of a recurring task, for example. The board then takes Microsoft's date again instead of the two sides staying different forever, and the card stays in its column.
+- **Only the desktop needs this update.** Nothing changes on your phones. The first sync after updating starts without remembered dates, so for a card that differs at that moment Microsoft wins one last time.
+
+**Housekeeping**
+
+- **Network use is described in the README.** Which services the plugin talks to, when and why — and that there is no telemetry.
+- **README cleanup.** The syntax table showed the cover syntax with an ellipsis as its value, which automated checks mistook for text still to be filled in; it now shows a real example. The markers the release script uses are plain markers now.
+- **No more partially supported CSS.** The column chips on a phone hid their scrollbar with `scrollbar-width` as well, which older Obsidian versions only partly support. The `::-webkit-scrollbar` rule that does the work in Obsidian stays — the same way Obsidian hides the scrollbar of its own toolbars.
+- **The export setting tells the truth again.** Its description still said the due date only travels at creation; since 1.19.0 it stays the same on both sides.
+
+---
+
+### Nederlands
+
+**Datums die je op je telefoon verzet blijven staan**
+
+- **Een datum die je op je telefoon wijzigt, komt nu aan bij Microsoft.** Telefoons praten zelf nooit met Microsoft — de desktop doet de To Do-sync. Tot nu toe kon de desktop niet zien welke kant een datum had gewijzigd, dus volgde hij altijd Microsoft: een due date die je op het bord van je telefoon verzette, sprong bij de volgende sync stilletjes terug. De desktop onthoudt nu per gekoppelde kaart de laatste datum waarover beide kanten het eens waren. Week alleen het bord daarvan af — op je telefoon, doordat je de note met de hand bewerkte, of doordat een push vanaf de desktop mislukte terwijl die offline was — dan gaat de datum naar Microsoft. Wijzigde alleen Microsoft hem, in Reminders of To Do? Dan volgt het bord, zoals voorheen. Aan beide kanten gewijzigd tussen twee syncs? Dan wint Microsoft, zoals voorheen.
+- **Een herhalende kaart die je naar eerder verzet, blijft staan.** Een gekoppelde herhalende kaart op je telefoon naar een eerdere datum zetten leek op een elders afgeronde occurrence: de kaart werd afgevinkt, losgekoppeld en opnieuw geïmporteerd als nieuwe kaart met de oude datum. De nieuwe datum gaat nu gewoon naar Microsoft. En vinkte je zo'n kaart op je telefoon ook af, dan komt ook dat afvinken nu aan bij Microsoft — dat ging verloren, waarna de taak terugkwam als verse kaart.
+- **Een datum die Microsoft weigert, wordt teruggezet.** To Do accepteert niet elke wijziging — de datum van een herhalende taak wissen bijvoorbeeld. Het bord neemt dan de datum van Microsoft weer over in plaats van dat beide kanten eeuwig blijven verschillen, en de kaart blijft in zijn kolom staan.
+- **Alleen de desktop heeft deze update nodig.** Op je telefoons verandert niets. De eerste sync na het updaten begint zonder onthouden datums, dus bij een kaart die op dat moment verschilt, wint Microsoft nog één keer.
+
+**Onderhoud**
+
+- **Netwerkgebruik staat in de README.** Met welke diensten de plugin praat, wanneer en waarom — en dat er geen telemetrie is.
+- **README opgeschoond.** De syntaxtabel toonde de cover-syntax met een beletselteken als waarde, wat geautomatiseerde checks aanzagen voor nog in te vullen tekst; er staat nu een echt voorbeeld. De markers van het release-script zijn nu kale markers.
+- **Geen gedeeltelijk ondersteunde CSS meer.** De kolomchips op een telefoon verborgen hun scrollbalk ook met `scrollbar-width`, dat oudere Obsidian-versies maar deels ondersteunen. De `::-webkit-scrollbar`-regel die in Obsidian het werk doet blijft — op dezelfde manier waarop Obsidian de scrollbalk van zijn eigen werkbalken verbergt.
+- **De exportinstelling vertelt weer de waarheid.** De beschrijving zei nog dat de due date alleen bij het aanmaken meereist; sinds 1.19.0 blijft hij aan beide kanten gelijk.
+
 ## 1.20.0
 
 **GitHub Projects on your board**
