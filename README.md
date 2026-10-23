@@ -14,7 +14,6 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
-<!-- LATEST-EN:BEGIN -->
 ### New in 1.20.1
 
 **Dates you change on your phone stick**
@@ -27,10 +26,9 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 **Housekeeping**
 
 - **Network use is described in the README.** Which services the plugin talks to, when and why — and that there is no telemetry.
-- **README cleanup.** The syntax table showed the cover syntax with an ellipsis as its value, which automated checks mistook for text still to be filled in; it now shows a real example. The markers the release script uses are plain markers now.
+- **README cleanup.** The syntax table now shows a real cover example.
 - **No more partially supported CSS.** The column chips on a phone hid their scrollbar with `scrollbar-width` as well, which older Obsidian versions only partly support. The `::-webkit-scrollbar` rule that does the work in Obsidian stays — the same way Obsidian hides the scrollbar of its own toolbars.
 - **The export setting tells the truth again.** Its description still said the due date only travels at creation; since 1.19.0 it stays the same on both sides.
-<!-- LATEST-EN:END -->
 
 ## Features
 
@@ -182,7 +180,6 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
-<!-- LATEST-NL:BEGIN -->
 ### Nieuw in 1.20.1
 
 **Datums die je op je telefoon verzet blijven staan**
@@ -195,10 +192,9 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 **Onderhoud**
 
 - **Netwerkgebruik staat in de README.** Met welke diensten de plugin praat, wanneer en waarom — en dat er geen telemetrie is.
-- **README opgeschoond.** De syntaxtabel toonde de cover-syntax met een beletselteken als waarde, wat geautomatiseerde checks aanzagen voor nog in te vullen tekst; er staat nu een echt voorbeeld. De markers van het release-script zijn nu kale markers.
+- **README opgeschoond.** De syntaxtabel toont nu een echt cover-voorbeeld.
 - **Geen gedeeltelijk ondersteunde CSS meer.** De kolomchips op een telefoon verborgen hun scrollbalk ook met `scrollbar-width`, dat oudere Obsidian-versies maar deels ondersteunen. De `::-webkit-scrollbar`-regel die in Obsidian het werk doet blijft — op dezelfde manier waarop Obsidian de scrollbalk van zijn eigen werkbalken verbergt.
 - **De exportinstelling vertelt weer de waarheid.** De beschrijving zei nog dat de due date alleen bij het aanmaken meereist; sinds 1.19.0 blijft hij aan beide kanten gelijk.
-<!-- LATEST-NL:END -->
 
 ## Functies
 
@@ -338,7 +334,6 @@ Er is geen telemetrie en geen analytics. Inlogtokens blijven op het apparaat waa
 
 All changes per version, in English and Dutch — this is what you see on the plugin page in Obsidian. / Alle wijzigingen per versie, in het Engels en Nederlands — dit is wat je op de pluginpagina in Obsidian ziet.
 
-<!-- CHANGELOG:BEGIN -->
 ## 1.20.1
 
 **Dates you change on your phone stick**
@@ -351,7 +346,7 @@ All changes per version, in English and Dutch — this is what you see on the pl
 **Housekeeping**
 
 - **Network use is described in the README.** Which services the plugin talks to, when and why — and that there is no telemetry.
-- **README cleanup.** The syntax table showed the cover syntax with an ellipsis as its value, which automated checks mistook for text still to be filled in; it now shows a real example. The markers the release script uses are plain markers now.
+- **README cleanup.** The syntax table now shows a real cover example.
 - **No more partially supported CSS.** The column chips on a phone hid their scrollbar with `scrollbar-width` as well, which older Obsidian versions only partly support. The `::-webkit-scrollbar` rule that does the work in Obsidian stays — the same way Obsidian hides the scrollbar of its own toolbars.
 - **The export setting tells the truth again.** Its description still said the due date only travels at creation; since 1.19.0 it stays the same on both sides.
 
@@ -369,7 +364,7 @@ All changes per version, in English and Dutch — this is what you see on the pl
 **Onderhoud**
 
 - **Netwerkgebruik staat in de README.** Met welke diensten de plugin praat, wanneer en waarom — en dat er geen telemetrie is.
-- **README opgeschoond.** De syntaxtabel toonde de cover-syntax met een beletselteken als waarde, wat geautomatiseerde checks aanzagen voor nog in te vullen tekst; er staat nu een echt voorbeeld. De markers van het release-script zijn nu kale markers.
+- **README opgeschoond.** De syntaxtabel toont nu een echt cover-voorbeeld.
 - **Geen gedeeltelijk ondersteunde CSS meer.** De kolomchips op een telefoon verborgen hun scrollbalk ook met `scrollbar-width`, dat oudere Obsidian-versies maar deels ondersteunen. De `::-webkit-scrollbar`-regel die in Obsidian het werk doet blijft — op dezelfde manier waarop Obsidian de scrollbalk van zijn eigen werkbalken verbergt.
 - **De exportinstelling vertelt weer de waarheid.** De beschrijving zei nog dat de due date alleen bij het aanmaken meereist; sinds 1.19.0 blijft hij aan beide kanten gelijk.
 
@@ -786,7 +781,7 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 ## 1.10.1
 
 - **Rename connected accounts** — give each Outlook account a recognizable name in settings, so it is clear which account is which.
-- **Better automatic names** — added the `User.Read` permission so the account name and email are filled in automatically on connect. Existing connections show "Account" until you reconnect (or just type your own name).
+- **Better automatic names** — added the `User.Read` permission so the account name and email appear automatically on connect. Existing connections show "Account" until you reconnect (or just type your own name).
 
 > NL: Outlook-accounts hernoemen — geef elk account een herkenbare naam in de instellingen. Daarnaast worden naam en e-mail voortaan automatisch ingevuld (`User.Read`); bestaande koppelingen tonen "Account" tot je opnieuw koppelt of zelf een naam typt.
 
@@ -813,4 +808,3 @@ See the README ("Outlook calendar setup") for the one-time Azure app registratio
 - **Geen setup om aan te melden** — een ingebouwd Client ID wordt meegeleverd, dus koppelen is alleen aanmelden. Eigen Client ID invullen kan ook.
 
 Zie de README ("Outlook-agenda instellen") voor de eenmalige Azure-app-registratie.
-<!-- CHANGELOG:END -->

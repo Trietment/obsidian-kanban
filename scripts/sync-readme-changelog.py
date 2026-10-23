@@ -3,11 +3,17 @@
 
 De community-plugins-pagina in Obsidian toont de README van de repo — release
 notes en CHANGELOG.md verschijnen daar nooit. Dit script vult daarom drie
-marker-blokken in README.md:
+blokken in README.md, elk herkend aan zijn eigen kop:
 
-  LATEST-EN / LATEST-NL — de "New in x.y.z"-banners bovenaan beide taalhelften,
-                          met de kop en bullets van de nieuwste changelog-sectie;
-  CHANGELOG             — de volledige changelog onderaan de README.
+  "### New in x.y.z" / "### Nieuw in x.y.z" — de banners bovenaan beide
+      taalhelften, met de kop en bullets van de nieuwste changelog-sectie;
+      een banner loopt tot vlak vóór de volgende "## "-kop;
+  "# Changelog / Wijzigingen" — alles na de intro-regel daaronder is de
+      volledige changelog, tot het einde van het bestand.
+
+Bewust zonder HTML-commentaar als markers: de geautomatiseerde review van
+community.obsidian.md kan zulke commentaren aanzien voor achtergebleven
+sjabloontekst in de README.
 
 Draaien na elke wijziging aan CHANGELOG.md (zie RELEASING.md).
 """
@@ -37,16 +43,23 @@ nl_match = re.search(r'^### Nederlands\s*$(.*)', section, re.M | re.S)
 nl = (nl_match.group(1) if nl_match else section).strip('\n')
 
 
-def splice(text, tag, content):
-    pattern = re.compile(
-        r'(<!-- ' + tag + r':BEGIN[^>]*-->\n).*?(<!-- ' + tag + r':END -->)', re.S)
-    if not pattern.search(text):
-        raise SystemExit(f'Marker {tag} niet gevonden in README.md')
-    return pattern.sub(lambda mm: mm.group(1) + content.rstrip('\n') + '\n' + mm.group(2), text)
+def splice(text, pattern, content, what):
+    # Precies één treffer, anders stoppen: liever een duidelijke fout dan een
+    # banner die op de verkeerde plek belandt.
+    found = list(re.finditer(pattern, text, re.M | re.S))
+    if len(found) != 1:
+        raise SystemExit(f'{what}: {len(found)}x gevonden in README.md, verwacht precies 1')
+    return text[:found[0].start()] + content + text[found[0].end():]
 
 
-readme = splice(readme, 'LATEST-EN', f'### New in {version}\n\n{en}')
-readme = splice(readme, 'LATEST-NL', f'### Nieuw in {version}\n\n{nl}')
-readme = splice(readme, 'CHANGELOG', body)
+readme = splice(readme, r'^### New in .*?(?=^## )',
+                f'### New in {version}\n\n{en}\n\n', 'Banner "### New in"')
+readme = splice(readme, r'^### Nieuw in .*?(?=^## )',
+                f'### Nieuw in {version}\n\n{nl}\n\n', 'Banner "### Nieuw in"')
+# De changelog: alles na de intro-regel onder de kop, tot het einde.
+intro = re.search(r'^# Changelog / Wijzigingen\n\n[^\n]*\n\n', readme, re.M)
+if not intro:
+    raise SystemExit('Kop "# Changelog / Wijzigingen" met intro-regel niet gevonden in README.md')
+readme = readme[:intro.end()] + body + '\n'
 readme_path.write_text(readme, encoding='utf-8')
 print(f'README.md bijgewerkt vanuit CHANGELOG.md (nieuwste versie: {version})')
