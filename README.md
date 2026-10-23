@@ -14,7 +14,7 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 
 ![Trietment Kanban board — light theme](assets/board-preview-light.png)
 
-<!-- LATEST-EN:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
+<!-- LATEST-EN:BEGIN -->
 ### New in 1.20.0
 
 **GitHub Projects on your board**
@@ -89,7 +89,7 @@ A task is a plain markdown checkbox with optional metadata:
 | `🔁 every week` | Recurrence (`every day/week/month/year`, also `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Priority (highest → lowest) |
 | `[[Note]]` | Linked note |
-| `[cover:: …]` | Card cover — an image (`[[file]]` or URL) or plain text |
+| `[cover:: [[logo.png]]]` | Card cover — an image (a wikilink or URL) or plain text |
 | indented `- [ ]` | Subtask of the task above it |
 
 You can put tasks in **any** note in your vault — they are picked up automatically.
@@ -137,6 +137,17 @@ The Outlook integration uses OAuth 2.0 (Authorization Code + PKCE) and Microsoft
 
 Sign-in tokens are stored per device (in local storage, not in `data.json`), so they are never copied by Obsidian Sync — you sign in once per device. Work/school accounts may require admin consent depending on your organization.
 
+## Network use and privacy
+
+The board itself never goes online: it only reads and writes the notes in your vault. The plugin connects to the internet only for the optional integrations you switch on yourself, and only from a device where you connected them:
+
+- **Microsoft (Outlook calendar and To Do)** — `login.microsoftonline.com` to sign in (OAuth 2.0 with PKCE, so your password never passes through the plugin) and `graph.microsoft.com` to read your name and e-mail address (to label the account) and your calendars, and to read, create and update tasks in the To Do lists you picked. The To Do sync runs on desktop only.
+- **GitHub Projects** — `api.github.com`, with the personal access token you provide, to read the project boards you picked; and only when you complete a card yourself with closing switched on, to post your comment, set the Status and close the issue. The board sync runs on desktop only.
+- **Links you click** — buttons such as "☕ Buy me a coffee" and "Open on GitHub" open the page in your browser; the plugin itself sends nothing there.
+- **Card covers with a URL** — load that image from wherever the URL points, just like an image in a note.
+
+There is no telemetry and no analytics. Sign-in tokens stay on the device where you connected (in Obsidian's local storage) — not in `data.json` and not in your vault, so Obsidian Sync never copies them.
+
 ## Files
 
 - `main.js` — the plugin
@@ -168,7 +179,7 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 
 ![Trietment Kanban-bord — licht thema](assets/board-preview-light.png)
 
-<!-- LATEST-NL:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
+<!-- LATEST-NL:BEGIN -->
 ### Nieuw in 1.20.0
 
 **GitHub Projects op je bord**
@@ -243,7 +254,7 @@ Een taak is een gewone markdown-checkbox met optionele metadata:
 | `🔁 every week` | Herhaling (`every day/week/month/year`, ook `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Prioriteit (hoogst → laagst) |
 | `[[Notitie]]` | Gekoppelde notitie |
-| `[cover:: …]` | Kaart-cover — een afbeelding (`[[bestand]]` of URL) of platte tekst |
+| `[cover:: [[logo.png]]]` | Kaart-cover — een afbeelding (een wikilink of URL) of platte tekst |
 | ingesprongen `- [ ]` | Subtaak van de taak erboven |
 
 Je kunt taken in **elke** note van je vault zetten — ze worden vanzelf opgepikt.
@@ -291,6 +302,17 @@ De Outlook-koppeling gebruikt OAuth 2.0 (Authorization Code + PKCE) en Microsoft
 
 Aanmeld-tokens worden per apparaat bewaard (in lokale opslag, niet in `data.json`), zodat Obsidian Sync ze niet meeneemt — je meldt je één keer per apparaat aan. Werk-/schoolaccounts vereisen soms goedkeuring van de beheerder, afhankelijk van je organisatie.
 
+## Netwerkgebruik en privacy
+
+Het bord zelf gaat nooit online: het leest en schrijft alleen de notes in je vault. De plugin maakt alleen verbinding met internet voor de optionele koppelingen die je zelf aanzet, en alleen vanaf een apparaat waarop je ze hebt gekoppeld:
+
+- **Microsoft (Outlook-agenda en To Do)** — `login.microsoftonline.com` om in te loggen (OAuth 2.0 met PKCE, dus je wachtwoord gaat nooit door de plugin) en `graph.microsoft.com` om je naam en e-mailadres (voor het accountlabel) en je agenda's te lezen, en om taken te lezen, aan te maken en bij te werken in de To Do-lijsten die je koos. De To Do-sync draait alleen op desktop.
+- **GitHub Projects** — `api.github.com`, met het personal access token dat je opgeeft, om de projectborden te lezen die je koos; en alleen als je zelf een kaart afvinkt terwijl sluiten aanstaat, om je reactie te plaatsen, de Status te zetten en het issue te sluiten. De bordsync draait alleen op desktop.
+- **Links waarop je klikt** — knoppen zoals "☕ Trakteer me op een koffie" en "Openen op GitHub" openen de pagina in je browser; de plugin stuurt daar zelf niets naartoe.
+- **Kaart-covers met een URL** — laden die afbeelding van waar de URL naar wijst, net als een afbeelding in een note.
+
+Er is geen telemetrie en geen analytics. Inlogtokens blijven op het apparaat waarop je koppelde (in de lokale opslag van Obsidian) — niet in `data.json` en niet in je vault, dus Obsidian Sync neemt ze nooit mee.
+
 ## Bestanden
 
 - `main.js` — de plugin
@@ -310,7 +332,7 @@ Aanmeld-tokens worden per apparaat bewaard (in lokale opslag, niet in `data.json
 
 All changes per version, in English and Dutch — this is what you see on the plugin page in Obsidian. / Alle wijzigingen per versie, in het Engels en Nederlands — dit is wat je op de pluginpagina in Obsidian ziet.
 
-<!-- CHANGELOG:BEGIN — automatisch gevuld door scripts/sync-readme-changelog.py; niet met de hand bewerken -->
+<!-- CHANGELOG:BEGIN -->
 ## 1.20.0
 
 **GitHub Projects on your board**
@@ -664,7 +686,7 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 - **Edit the card title** in the edit dialog (full-width field); date/time/tags/priority/links preserved.
 - **Edit priority** while editing an existing card (not only on creation).
 - **Customizable priorities** — define your own priority list (name + color) in Settings → Priorities. Custom priorities are stored as `#priority/<name>`; the five built-ins keep their emoji (Tasks-plugin compatible); cards show a colored priority pill.
-- **Card covers** — `[cover:: …]` shows an image (vault `[[image]]` or URL) or a plain-text banner; add or upload a cover (uploads go to a configurable **Cover folder**, default `Kanban Notes/assets`).
+- **Card covers** — `[cover:: [[logo.png]]]` shows an image (from your vault or a URL) or a plain-text banner; add or upload a cover (uploads go to a configurable **Cover folder**, default `Kanban Notes/assets`).
 - **CSS-targetable cards** — metadata renders with `data-field`/`data-value`, and the card with `data-priority`/`data-project`/`data-client`/`data-column`, so values can be styled via a CSS snippet.
 - **Clients** — a second colored tag dimension `#client/name` alongside the project.
 - **Swimlanes** — group cards into horizontal lanes by project, client, priority or due date.
@@ -681,7 +703,7 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 - **Kaarttitel bewerken** in het bewerk-venster (veld over de volle breedte); datum/tijd/tags/prioriteit/koppelingen blijven behouden.
 - **Prioriteit bewerken** bij een bestaande kaart (niet alleen bij toevoegen).
 - **Aanpasbare prioriteiten** — eigen prioriteitenlijst (naam + kleur) bij Instellingen → Prioriteiten. Eigen prioriteiten als `#priority/<naam>`; de vijf standaard houden hun emoji (Tasks-compatibel); kaarten tonen een gekleurde prioriteit-pil.
-- **Kaart-covers** — `[cover:: …]` toont een afbeelding (vault-`[[afbeelding]]` of URL) of een platte-tekst-banner; toevoegen of uploaden (uploads in een instelbare **Cover-map**, standaard `Kanban Notes/assets`).
+- **Kaart-covers** — `[cover:: [[logo.png]]]` toont een afbeelding (uit je vault of een URL) of een platte-tekst-banner; toevoegen of uploaden (uploads in een instelbare **Cover-map**, standaard `Kanban Notes/assets`).
 - **CSS-targetbare kaarten** — metadata krijgt `data-field`/`data-value`, en de kaart `data-priority`/`data-project`/`data-client`/`data-column`, zodat je waarden met een CSS-snippet kunt stylen.
 - **Klanten** — een tweede gekleurde tag-dimensie `#client/naam` naast het project.
 - **Swimlanes** — kaarten in horizontale banen op project, klant, prioriteit of datum.
