@@ -36,8 +36,8 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 - **Dynamic columns** — defaults: To do / In progress / Waiting for response / Done. Add, rename, reorder or remove columns in the settings. Drag cards between columns (desktop), or use a card's ⋮ menu or the edit modal (phone).
 - **Made for phones** — on a phone the board shows one column at full width with a row of chips above it to switch columns (each with its card count), and every card gets a ⋮ menu to move or delete it without dragging. Tablets and desktop keep the multi-column grid.
 - **Bilingual (EN/NL)** — the whole interface is available in English and Dutch. By default the plugin follows the Obsidian language; you can also choose manually.
-- **Projects with colors** — group with `#project/name`, each with its own color and optional label. Subprojects (`#project/client/acme`) are supported.
-- **Clients** — a second colored tag dimension with `#client/name` alongside the project, so a card can carry both a client and a project.
+- **Projects with colors** — group with a project tag such as `#project/website`, each with its own color and optional label. Subprojects (`#project/client/beta`) are supported.
+- **Clients** — a second colored tag dimension such as `#client/beta` alongside the project, so a card can carry both a client and a project.
 - **Swimlanes** — group cards into horizontal lanes by project, client, priority or due date via the board header's "Group by" control.
 - **Multiple boards** — create named boards, each scoped to certain projects/clients with its own lane grouping; switch boards from the header.
 - **Card covers** — show an image (`[cover:: [[logo.png]]]` or a URL) or a plain-text banner on a card; upload an image with one click.
@@ -46,7 +46,7 @@ If you find this plugin useful, you can [buy me a coffee](https://buymeacoffee.c
 - **Outlook calendar (optional)** — connect one or more Microsoft/Outlook accounts via OAuth and see your appointments next to your tasks in the calendar view (read-only). Pick exactly which calendars to show per account, including shared calendars. See [Outlook setup](#outlook-calendar-setup).
 - **Customizable priorities** — define your own priority list (name + color) in the settings, or use the built-in `🔺 ⏫ 🔼 🔽 ⏬`. Cards show a colored priority pill.
 - **Subtasks** — indented checkboxes under a task. The board shows a `☑ 2/5` progress badge; add and check them in the edit modal.
-- **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a `[[wikilink]]` in the task line). If it already exists, the button opens it. Optionally, completing a card moves its note into a `0. archive` subfolder (and reopening moves it back).
+- **Linked note per card** — use the 📄 button to create a dedicated note for a task from a template (a wikilink in the task line). If it already exists, the button opens it. Optionally, completing a card moves its note into a `0. archive` subfolder (and reopening moves it back).
 - **Click = edit** — click a card for the edit modal: status/column, due date, project, recurrence, subtasks and note in one place.
 - **Automatic moving** — tasks due today (or overdue) move automatically to the In-progress column.
 - **Inbox** — quick entry of new tasks into a configurable inbox note.
@@ -64,7 +64,7 @@ Works the same on desktop and mobile. Obsidian offers updates automatically.
 
 ### Manually
 
-1. Create the folder `<vault>/.obsidian/plugins/trietment-kanban/`.
+1. In your vault, create the folder `.obsidian/plugins/trietment-kanban/`.
 2. Copy `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/Trietment/obsidian-kanban/releases) into it.
 3. Restart Obsidian and enable the plugin under Settings → Community plugins.
 
@@ -75,21 +75,21 @@ A task is a plain markdown checkbox with optional metadata:
 ```text
 - [ ] Draft quote 📅 2026-05-25 ⏰ 09:30 #project/aim #kanban/doing ⏫
     - [ ] Request figures
-    - [x] Pick template
-- [ ] Onboarding call [[Acme onboarding]] #project/client/acme #kanban/todo
+    - [x] Pick a date
+- [ ] Onboarding call [[Beta onboarding]] #project/client/beta #kanban/todo
 - [x] Mail sent #project/client/beta #kanban/done
 ```
 
 | Part | Meaning |
 |---|---|
-| `#kanban/<column>` | Which column the task is in (e.g. `#kanban/doing`) |
-| `#project/<name>` | Project; use `/` for subprojects (`#project/client/acme`) |
-| `#client/<name>` | Client — a second colored tag dimension shown alongside the project |
-| `📅 YYYY-MM-DD` | Due date |
-| `⏰ HH:mm` | Time of day (24h), shown on the calendar timeline |
+| `#kanban/doing` | Which column the task is in — the column's id, here In progress |
+| `#project/aim` | Project; use `/` for subprojects (`#project/client/beta`) |
+| `#client/beta` | Client — a second colored tag dimension shown alongside the project |
+| `📅 2026-05-25` | Due date (year-month-day) |
+| `⏰ 09:30` | Time of day (24h), shown on the calendar timeline |
 | `🔁 every week` | Recurrence (`every day/week/month/year`, also `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Priority (highest → lowest) |
-| `[[Note]]` | Linked note |
+| `[[Beta onboarding]]` | Linked note |
 | `[cover:: [[logo.png]]]` | Card cover — an image (a wikilink or URL) or plain text |
 | indented `- [ ]` | Subtask of the task above it |
 
@@ -202,8 +202,8 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 - **Dynamische kolommen** — standaard: Te doen / Bezig / Wacht op reactie / Klaar. Voeg in de instellingen zelf kolommen toe, hernoem ze, wijzig de volgorde of verwijder ze. Sleep kaarten tussen kolommen (desktop), of gebruik het ⋮-menu op een kaart of de edit-modal (telefoon).
 - **Gemaakt voor de telefoon** — op een telefoon toont het bord één kolom op volle breedte, met daarboven een rij chips om te wisselen (elk met het aantal kaarten), en heeft elke kaart een ⋮-menu om te verplaatsen of te verwijderen zonder slepen. Tablet en desktop houden het kolommenraster.
 - **Tweetalig (NL/EN)** — de hele interface is beschikbaar in het Nederlands en het Engels. Standaard volgt de plugin de taal van Obsidian; je kunt ook handmatig kiezen.
-- **Projecten met kleuren** — groepeer met `#project/naam`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/acme`) worden ondersteund.
-- **Klanten** — een tweede gekleurde tag-dimensie met `#client/naam` naast het project, zodat een kaart zowel een klant als een project kan dragen.
+- **Projecten met kleuren** — groepeer met een projecttag zoals `#project/website`, elk met eigen kleur en optioneel label. Subprojecten (`#project/klant/beta`) worden ondersteund.
+- **Klanten** — een tweede gekleurde tag-dimensie zoals `#client/beta` naast het project, zodat een kaart zowel een klant als een project kan dragen.
 - **Swimlanes** — groepeer kaarten in horizontale banen op project, klant, prioriteit of datum via de "Groeperen in banen"-keuze in de bordkop.
 - **Meerdere borden** — maak benoemde borden, elk afgebakend op bepaalde projecten/klanten met een eigen banen-groepering; wissel bovenaan het bord.
 - **Kaart-covers** — toon een afbeelding (`[cover:: [[logo.png]]]` of een URL) of platte tekst op een kaart; upload een afbeelding met één klik.
@@ -212,7 +212,7 @@ Vind je deze plugin handig? Je kunt me [een koffie trakteren](https://buymeacoff
 - **Outlook-agenda (optioneel)** — koppel een of meer Microsoft/Outlook-accounts via OAuth en zie je afspraken naast je taken in de kalenderweergave (alleen-lezen). Kies per account precies welke agenda's je toont, inclusief gedeelde agenda's. Zie [Outlook instellen](#outlook-agenda-instellen).
 - **Aanpasbare prioriteiten** — stel je eigen prioriteitenlijst in (naam + kleur) in de instellingen, of gebruik de ingebouwde `🔺 ⏫ 🔼 🔽 ⏬`. Kaarten tonen een gekleurde prioriteit-pil.
 - **Subtaken** — ingesprongen checkboxes onder een taak. Het bord toont een `☑ 2/5`-voortgangsbadge; toevoegen en afvinken doe je in de edit-modal.
-- **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een `[[wikilink]]` in de taakregel). Bestaat hij al, dan opent de knop hem. Optioneel verhuist het afronden van een kaart zijn notitie naar een submap `0. archive` (en bij heropenen weer terug).
+- **Gekoppelde notitie per kaart** — met de 📄-knop maak je uit een template een eigen notitie voor een taak (een wikilink in de taakregel). Bestaat hij al, dan opent de knop hem. Optioneel verhuist het afronden van een kaart zijn notitie naar een submap `0. archive` (en bij heropenen weer terug).
 - **Klik = bewerken** — klik op een kaart voor de edit-modal: status/kolom, due date, project, herhaling, subtaken en notitie op één plek.
 - **Automatisch verplaatsen** — taken die vandaag (of overdue) due zijn schuiven automatisch naar de Bezig-kolom.
 - **Inbox** — snelle invoer van nieuwe taken in een instelbare inbox-note.
@@ -230,7 +230,7 @@ Werkt hetzelfde op desktop en mobiel. Obsidian biedt updates automatisch aan.
 
 ### Handmatig
 
-1. Maak de map `<vault>/.obsidian/plugins/trietment-kanban/`.
+1. Maak in je vault de map `.obsidian/plugins/trietment-kanban/`.
 2. Kopieer daarin `main.js`, `manifest.json` en `styles.css` uit de [laatste release](https://github.com/Trietment/obsidian-kanban/releases).
 3. Herstart Obsidian en zet de plugin aan bij Instellingen → Community-plugins.
 
@@ -241,21 +241,21 @@ Een taak is een gewone markdown-checkbox met optionele metadata:
 ```text
 - [ ] Offerte uitwerken 📅 2026-05-25 ⏰ 09:30 #project/aim #kanban/doing ⏫
     - [ ] Cijfers opvragen
-    - [x] Template kiezen
-- [ ] Onboarding-call [[Acme onboarding]] #project/klant/acme #kanban/todo
+    - [x] Datum prikken
+- [ ] Onboarding-call [[Beta onboarding]] #project/klant/beta #kanban/todo
 - [x] Mail verstuurd #project/klant/beta #kanban/done
 ```
 
 | Onderdeel | Betekenis |
 |---|---|
-| `#kanban/<kolom>` | In welke kolom de taak staat (bv. `#kanban/doing`) |
-| `#project/<naam>` | Project; gebruik `/` voor subprojecten (`#project/klant/acme`) |
-| `#client/<naam>` | Klant — een tweede gekleurde tag-dimensie naast het project |
-| `📅 JJJJ-MM-DD` | Due date |
-| `⏰ UU:mm` | Tijdstip (24-uurs), getoond op de kalender-tijdlijn |
+| `#kanban/doing` | In welke kolom de taak staat — het id van de kolom, hier Bezig |
+| `#project/aim` | Project; gebruik `/` voor subprojecten (`#project/klant/beta`) |
+| `#client/beta` | Klant — een tweede gekleurde tag-dimensie naast het project |
+| `📅 2026-05-25` | Due date (jaar-maand-dag) |
+| `⏰ 09:30` | Tijdstip (24-uurs), getoond op de kalender-tijdlijn |
 | `🔁 every week` | Herhaling (`every day/week/month/year`, ook `every 2 weeks`) |
 | `🔺 ⏫ 🔼 🔽 ⏬` | Prioriteit (hoogst → laagst) |
-| `[[Notitie]]` | Gekoppelde notitie |
+| `[[Beta onboarding]]` | Gekoppelde notitie |
 | `[cover:: [[logo.png]]]` | Kaart-cover — een afbeelding (een wikilink of URL) of platte tekst |
 | ingesprongen `- [ ]` | Subtaak van de taak erboven |
 
@@ -373,7 +373,7 @@ All changes per version, in English and Dutch — this is what you see on the pl
 **GitHub Projects on your board**
 
 - **Your GitHub Projects boards become cards.** Paste a personal access token, pick which project boards to read, and their items land as task lines in a note of your choosing, in the column you pick. Items that are already closed are never imported, and nothing is ever deleted — on either side. Reading runs on the desktop only, at most once every five minutes; a board you tick on is read immediately. A classic token with `read:project`, `read:org` (to see your organizations' boards) and `repo` (for issues in private repos, and to close them) covers everything.
-- **A client per board.** Every board gets its own client picker, and items imported from that board carry `#client/<name>` with a color from the moment they land — so lanes, filters and per-client boards work on them right away. The mapping applies at import time: cards already on your board are left alone, and a client you change by hand is never overwritten.
+- **A client per board.** Every board gets its own client picker, and items imported from that board carry that board's `#client/` tag with a color from the moment they land — so lanes, filters and per-client boards work on them right away. The mapping applies at import time: cards already on your board are left alone, and a client you change by hand is never overwritten.
 - **Only the items assigned to you.** An optional filter that skips items assigned to someone else or to nobody. It applies at import time too, so a card stays on your board even if the item is later unassigned from you.
 - **Completing a card can close the issue on GitHub.** Off until you turn it on, and never from a background sync — only when you complete a card yourself. Ticking a card opens a close screen showing what you are about to close: board, repo, issue number, title, current state and its Status on the board, with a button to open it on GitHub.
 - **Finish it properly from that screen.** Pick a close reason (completed or not planned), write a closing comment that is posted before the close, and set the Status field on the project board — preselected on that board's own "done" option. The three steps run in that order and stop at the first failure, so a typed comment is never lost to a dropped connection and the screen stays open with your text in it. Drafts cannot be closed and say so; pull requests close as pull requests; an item that is already closed still takes a comment or a status change. Choosing "only complete on the board" is remembered, so the sync never brings that item up again. Moving several cards to Done at once skips the screen and closes them as completed.
@@ -388,7 +388,7 @@ All changes per version, in English and Dutch — this is what you see on the pl
 **GitHub Projects op je bord**
 
 - **Je GitHub Projects-borden worden kaarten.** Plak een personal access token, kies welke projectborden gelezen worden, en hun items landen als taakregels in een note naar keuze, in de kolom die jij kiest. Al gesloten items worden nooit geïmporteerd, en er verdwijnt nooit iets — aan geen van beide kanten. Lezen gebeurt alleen op de desktop, hooguit eens per vijf minuten; een bord dat je aanvinkt wordt meteen gelezen. Een classic token met `read:project`, `read:org` (om de borden van je organisaties te zien) en `repo` (voor issues in privérepos, en om ze te kunnen sluiten) dekt alles.
-- **Een klant per bord.** Elk bord krijgt zijn eigen klantenkiezer, en items van dat bord dragen vanaf het moment dat ze landen `#client/<naam>` met een kleur — zo werken je banen, filters en klantborden er meteen op. De koppeling geldt bij het importeren: kaarten die al op je bord staan blijven ongemoeid, en een klant die je zelf wijzigt wordt nooit overschreven.
+- **Een klant per bord.** Elk bord krijgt zijn eigen klantenkiezer, en items van dat bord dragen vanaf het moment dat ze landen de `#client/`-tag van dat bord, met een kleur — zo werken je banen, filters en klantborden er meteen op. De koppeling geldt bij het importeren: kaarten die al op je bord staan blijven ongemoeid, en een klant die je zelf wijzigt wordt nooit overschreven.
 - **Alleen wat aan jou is toegewezen.** Een optioneel filter dat items van iemand anders of zonder assignee overslaat. Ook dit geldt bij het importeren, dus een kaart blijft staan als het item later van je af gaat.
 - **Een kaart afvinken kan het issue in GitHub sluiten.** Uit tot je het aanzet, en nooit vanuit een achtergrondsync — alleen als je zelf een kaart afvinkt. Bij het afvinken verschijnt een afsluitscherm dat laat zien wát je gaat sluiten: bord, repo, issuenummer, titel, huidige staat en de Status op het bord, met een knop om het item in GitHub te openen.
 - **Vanuit dat scherm sluit je het netjes af.** Kies een afsluitreden (voltooid of niet gepland), schrijf een afsluitreactie die vóór het sluiten geplaatst wordt, en zet het Status-veld op het projectbord — voorgeselecteerd op de "klaar"-optie van dát bord. De drie stappen lopen in die volgorde en stoppen bij de eerste fout, zodat een getypte reactie nooit verdampt door een wegvallende verbinding en het scherm met jouw tekst open blijft staan. Een draft-item kan niet gesloten worden en zegt dat; een pull request sluit als pull request; een al gesloten item neemt nog een reactie of statuswijziging aan. Kies je "alleen op het bord afvinken", dan wordt dat onthouden en begint de sync er niet meer over. Meerdere kaarten tegelijk naar Klaar verplaatsen slaat het scherm over en sluit ze als voltooid.
@@ -591,7 +591,7 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 **New: a phone board you can actually use — and writes that survive sync**
 
 - **One column at a time on your phone.** Four columns side by side never fit on a phone screen. The board now shows one column at full width, with a scrollable row of chips above it to switch between them. Each chip names the column and how many cards are in it, following your filter and "hide done". The board remembers which column you were on, per board. Tablets and desktop keep the familiar column grid.
-- **Move cards without dragging.** Drag-and-drop has never worked in the iOS webview, so on iPhone a card could only be moved via selection mode. Every card now has a ⋮ button with "Move to …" for each other column, Inbox included — plus the same delete action as the × button. Long-press for multi-select still works alongside it.
+- **Move cards without dragging.** Drag-and-drop has never worked in the iOS webview, so on iPhone a card could only be moved via selection mode. Every card now has a ⋮ button with a "Move to" entry for each other column, Inbox included — plus the same delete action as the × button. Long-press for multi-select still works alongside it.
 - **No more edits lost to sync.** Every change to a note read the file and saved it back as two separate steps. If Obsidian Sync changed that same note in between, saving overwrote the synced change. Reading and writing now happen as one atomic step, so two devices working on the same note no longer overwrite each other. This covers every write: moving, bulk moving, auto-move, completing, subtasks, adding and deleting tasks, and every field in the edit dialog.
 - **Swimlanes are skipped on phones.** Lanes on top of a single column is too much for that screen, so the "Group by" control is hidden there. Tablet and desktop are unchanged.
 - **Now requires Obsidian 1.5 or newer** (was 1.4), for the atomic writes above.
@@ -603,7 +603,7 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 **Nieuw: een telefoonbord dat echt werkt — en schrijfacties die een sync overleven**
 
 - **Eén kolom tegelijk op je telefoon.** Vier kolommen naast elkaar passen nooit op een telefoonscherm. Het bord toont nu één kolom op volle breedte, met daarboven een scrollbare rij chips om te wisselen. Elke chip noemt de kolom en het aantal kaarten erin, en volgt je filter en "verberg klaar". Het bord onthoudt per bord welke kolom je open had staan. Tablet en desktop houden het vertrouwde kolommenraster.
-- **Kaarten verplaatsen zonder slepen.** Slepen heeft nooit gewerkt in de iOS-webview, dus op de iPhone kon een kaart alleen via de selectiemodus verplaatst worden. Elke kaart heeft nu een ⋮-knop met "Verplaats naar …" voor elke andere kolom, Inbox inbegrepen — plus dezelfde verwijderactie als de ×-knop. Lang indrukken voor meervoudige selectie blijft daarnaast gewoon werken.
+- **Kaarten verplaatsen zonder slepen.** Slepen heeft nooit gewerkt in de iOS-webview, dus op de iPhone kon een kaart alleen via de selectiemodus verplaatst worden. Elke kaart heeft nu een ⋮-knop met een "Verplaats naar"-optie voor elke andere kolom, Inbox inbegrepen — plus dezelfde verwijderactie als de ×-knop. Lang indrukken voor meervoudige selectie blijft daarnaast gewoon werken.
 - **Geen wijzigingen meer kwijt door sync.** Elke wijziging in een notitie las het bestand en schreef het in een aparte stap terug. Wijzigde Obsidian Sync diezelfde notitie ertussenin, dan overschreef het opslaan die sync-wijziging. Lezen en schrijven gebeuren nu als één ondeelbare stap, zodat twee apparaten in dezelfde notitie elkaar niet meer overschrijven. Dit geldt voor élke schrijfactie: verplaatsen, bulk verplaatsen, automatisch verplaatsen, afvinken, subtaken, taken toevoegen en verwijderen, en elk veld in het bewerkvenster.
 - **Banen worden overgeslagen op de telefoon.** Banen bovenop één kolom is te veel voor dat scherm, dus de keuze "Groeperen in banen" is daar verborgen. Tablet en desktop blijven ongewijzigd.
 - **Vraagt nu Obsidian 1.5 of nieuwer** (was 1.4), voor de atomaire schrijfacties hierboven.
@@ -720,13 +720,13 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 
 - **Edit the card title** in the edit dialog (full-width field); date/time/tags/priority/links preserved.
 - **Edit priority** while editing an existing card (not only on creation).
-- **Customizable priorities** — define your own priority list (name + color) in Settings → Priorities. Custom priorities are stored as `#priority/<name>`; the five built-ins keep their emoji (Tasks-plugin compatible); cards show a colored priority pill.
+- **Customizable priorities** — define your own priority list (name + color) in Settings → Priorities. Custom priorities are stored as `#priority/` tags; the five built-ins keep their emoji (Tasks-plugin compatible); cards show a colored priority pill.
 - **Card covers** — `[cover:: [[logo.png]]]` shows an image (from your vault or a URL) or a plain-text banner; add or upload a cover (uploads go to a configurable **Cover folder**, default `Kanban Notes/assets`).
 - **CSS-targetable cards** — metadata renders with `data-field`/`data-value`, and the card with `data-priority`/`data-project`/`data-client`/`data-column`, so values can be styled via a CSS snippet.
-- **Clients** — a second colored tag dimension `#client/name` alongside the project.
+- **Clients** — a second colored tag dimension (`#client/` tags) alongside the project.
 - **Swimlanes** — group cards into horizontal lanes by project, client, priority or due date.
 - **Multiple boards** — named boards, each scoped to projects/clients with its own grouping; switch from a header picker.
-- **Collect tasks from #kanban notes** — tag a note `#kanban` and all its tasks appear without per-task tags; the board is then scoped to your #kanban notes (open → Inbox, checked → done, explicit `#kanban/<column>` → that column).
+- **Collect tasks from #kanban notes** — tag a note `#kanban` and all its tasks appear without per-task tags; the board is then scoped to your #kanban notes (open → Inbox, checked → done, an explicit `#kanban/` tag → that column).
 - **Calendar remembers the last view** (Month/Week/Day).
 
 ---
@@ -737,13 +737,13 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 
 - **Kaarttitel bewerken** in het bewerk-venster (veld over de volle breedte); datum/tijd/tags/prioriteit/koppelingen blijven behouden.
 - **Prioriteit bewerken** bij een bestaande kaart (niet alleen bij toevoegen).
-- **Aanpasbare prioriteiten** — eigen prioriteitenlijst (naam + kleur) bij Instellingen → Prioriteiten. Eigen prioriteiten als `#priority/<naam>`; de vijf standaard houden hun emoji (Tasks-compatibel); kaarten tonen een gekleurde prioriteit-pil.
+- **Aanpasbare prioriteiten** — eigen prioriteitenlijst (naam + kleur) bij Instellingen → Prioriteiten. Eigen prioriteiten als `#priority/`-tags; de vijf standaard houden hun emoji (Tasks-compatibel); kaarten tonen een gekleurde prioriteit-pil.
 - **Kaart-covers** — `[cover:: [[logo.png]]]` toont een afbeelding (uit je vault of een URL) of een platte-tekst-banner; toevoegen of uploaden (uploads in een instelbare **Cover-map**, standaard `Kanban Notes/assets`).
 - **CSS-targetbare kaarten** — metadata krijgt `data-field`/`data-value`, en de kaart `data-priority`/`data-project`/`data-client`/`data-column`, zodat je waarden met een CSS-snippet kunt stylen.
-- **Klanten** — een tweede gekleurde tag-dimensie `#client/naam` naast het project.
+- **Klanten** — een tweede gekleurde tag-dimensie (`#client/`-tags) naast het project.
 - **Swimlanes** — kaarten in horizontale banen op project, klant, prioriteit of datum.
 - **Meerdere borden** — benoemde borden, elk afgebakend op projecten/klanten met eigen groepering; wissel via een kiezer in de kop.
-- **Taken uit #kanban-notities** — tag een notitie `#kanban` en al haar taken verschijnen zonder per-taak-tag; het bord is dan beperkt tot je #kanban-notities (open → Inbox, afgevinkt → afgerond, eigen `#kanban/<kolom>` → die kolom).
+- **Taken uit #kanban-notities** — tag een notitie `#kanban` en al haar taken verschijnen zonder per-taak-tag; het bord is dan beperkt tot je #kanban-notities (open → Inbox, afgevinkt → afgerond, een eigen `#kanban/`-tag → die kolom).
 - **Kalender onthoudt de laatste weergave** (Maand/Week/Dag).
 
 ## 1.11.1
