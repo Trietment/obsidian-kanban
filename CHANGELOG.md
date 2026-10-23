@@ -1,5 +1,39 @@
 # Changelog
 
+## 1.20.1
+
+**Dates you change on your phone stick**
+
+- **A date you change on your phone now reaches Microsoft.** Phones never talk to Microsoft themselves — the desktop runs the To Do sync. Until now the desktop could not tell which side had changed a date, so it always followed Microsoft: a due date you moved on your phone's board quietly jumped back at the next sync. The desktop now remembers, per linked card, the last date both sides agreed on. Has only the board moved away from it — on your phone, by editing the note by hand, or because a push from the desktop failed while it was offline — then the date goes to Microsoft. Has only Microsoft changed it, in Reminders or To Do? Then the board follows, as before. Changed on both sides between two syncs? Then Microsoft wins, as before.
+- **A recurring card moved to an earlier day stays put.** Moving a linked recurring card to an earlier date on your phone looked like an occurrence completed elsewhere: the card was ticked, unlinked and imported again as a new card with the old date. The new date now simply goes to Microsoft. And if you also ticked such a card on your phone, that completion now reaches Microsoft too — it used to get lost, after which the task came back as a fresh card.
+- **A date Microsoft refuses is put back.** To Do does not accept every change — clearing the date of a recurring task, for example. The board then takes Microsoft's date again instead of the two sides staying different forever, and the card stays in its column.
+- **Only the desktop needs this update.** Nothing changes on your phones. The first sync after updating starts without remembered dates, so for a card that differs at that moment Microsoft wins one last time.
+
+**Housekeeping**
+
+- **Network use is described in the README.** Which services the plugin talks to, when and why — and that there is no telemetry.
+- **README cleanup.** The syntax table showed the cover syntax with an ellipsis as its value, which automated checks mistook for text still to be filled in; it now shows a real example. The markers the release script uses are plain markers now.
+- **No more partially supported CSS.** The column chips on a phone hid their scrollbar with `scrollbar-width` as well, which older Obsidian versions only partly support. The `::-webkit-scrollbar` rule that does the work in Obsidian stays — the same way Obsidian hides the scrollbar of its own toolbars.
+- **The export setting tells the truth again.** Its description still said the due date only travels at creation; since 1.19.0 it stays the same on both sides.
+
+---
+
+### Nederlands
+
+**Datums die je op je telefoon verzet blijven staan**
+
+- **Een datum die je op je telefoon wijzigt, komt nu aan bij Microsoft.** Telefoons praten zelf nooit met Microsoft — de desktop doet de To Do-sync. Tot nu toe kon de desktop niet zien welke kant een datum had gewijzigd, dus volgde hij altijd Microsoft: een due date die je op het bord van je telefoon verzette, sprong bij de volgende sync stilletjes terug. De desktop onthoudt nu per gekoppelde kaart de laatste datum waarover beide kanten het eens waren. Week alleen het bord daarvan af — op je telefoon, doordat je de note met de hand bewerkte, of doordat een push vanaf de desktop mislukte terwijl die offline was — dan gaat de datum naar Microsoft. Wijzigde alleen Microsoft hem, in Reminders of To Do? Dan volgt het bord, zoals voorheen. Aan beide kanten gewijzigd tussen twee syncs? Dan wint Microsoft, zoals voorheen.
+- **Een herhalende kaart die je naar eerder verzet, blijft staan.** Een gekoppelde herhalende kaart op je telefoon naar een eerdere datum zetten leek op een elders afgeronde occurrence: de kaart werd afgevinkt, losgekoppeld en opnieuw geïmporteerd als nieuwe kaart met de oude datum. De nieuwe datum gaat nu gewoon naar Microsoft. En vinkte je zo'n kaart op je telefoon ook af, dan komt ook dat afvinken nu aan bij Microsoft — dat ging verloren, waarna de taak terugkwam als verse kaart.
+- **Een datum die Microsoft weigert, wordt teruggezet.** To Do accepteert niet elke wijziging — de datum van een herhalende taak wissen bijvoorbeeld. Het bord neemt dan de datum van Microsoft weer over in plaats van dat beide kanten eeuwig blijven verschillen, en de kaart blijft in zijn kolom staan.
+- **Alleen de desktop heeft deze update nodig.** Op je telefoons verandert niets. De eerste sync na het updaten begint zonder onthouden datums, dus bij een kaart die op dat moment verschilt, wint Microsoft nog één keer.
+
+**Onderhoud**
+
+- **Netwerkgebruik staat in de README.** Met welke diensten de plugin praat, wanneer en waarom — en dat er geen telemetrie is.
+- **README opgeschoond.** De syntaxtabel toonde de cover-syntax met een beletselteken als waarde, wat geautomatiseerde checks aanzagen voor nog in te vullen tekst; er staat nu een echt voorbeeld. De markers van het release-script zijn nu kale markers.
+- **Geen gedeeltelijk ondersteunde CSS meer.** De kolomchips op een telefoon verborgen hun scrollbalk ook met `scrollbar-width`, dat oudere Obsidian-versies maar deels ondersteunen. De `::-webkit-scrollbar`-regel die in Obsidian het werk doet blijft — op dezelfde manier waarop Obsidian de scrollbalk van zijn eigen werkbalken verbergt.
+- **De exportinstelling vertelt weer de waarheid.** De beschrijving zei nog dat de due date alleen bij het aanmaken meereist; sinds 1.19.0 blijft hij aan beide kanten gelijk.
+
 ## 1.20.0
 
 **GitHub Projects on your board**
@@ -353,7 +387,7 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 - **Edit the card title** in the edit dialog (full-width field); date/time/tags/priority/links preserved.
 - **Edit priority** while editing an existing card (not only on creation).
 - **Customizable priorities** — define your own priority list (name + color) in Settings → Priorities. Custom priorities are stored as `#priority/<name>`; the five built-ins keep their emoji (Tasks-plugin compatible); cards show a colored priority pill.
-- **Card covers** — `[cover:: …]` shows an image (vault `[[image]]` or URL) or a plain-text banner; add or upload a cover (uploads go to a configurable **Cover folder**, default `Kanban Notes/assets`).
+- **Card covers** — `[cover:: [[logo.png]]]` shows an image (from your vault or a URL) or a plain-text banner; add or upload a cover (uploads go to a configurable **Cover folder**, default `Kanban Notes/assets`).
 - **CSS-targetable cards** — metadata renders with `data-field`/`data-value`, and the card with `data-priority`/`data-project`/`data-client`/`data-column`, so values can be styled via a CSS snippet.
 - **Clients** — a second colored tag dimension `#client/name` alongside the project.
 - **Swimlanes** — group cards into horizontal lanes by project, client, priority or due date.
@@ -370,7 +404,7 @@ Het nieuwe zit in **1.16.0**, direct hieronder: één kolom tegelijk op je telef
 - **Kaarttitel bewerken** in het bewerk-venster (veld over de volle breedte); datum/tijd/tags/prioriteit/koppelingen blijven behouden.
 - **Prioriteit bewerken** bij een bestaande kaart (niet alleen bij toevoegen).
 - **Aanpasbare prioriteiten** — eigen prioriteitenlijst (naam + kleur) bij Instellingen → Prioriteiten. Eigen prioriteiten als `#priority/<naam>`; de vijf standaard houden hun emoji (Tasks-compatibel); kaarten tonen een gekleurde prioriteit-pil.
-- **Kaart-covers** — `[cover:: …]` toont een afbeelding (vault-`[[afbeelding]]` of URL) of een platte-tekst-banner; toevoegen of uploaden (uploads in een instelbare **Cover-map**, standaard `Kanban Notes/assets`).
+- **Kaart-covers** — `[cover:: [[logo.png]]]` toont een afbeelding (uit je vault of een URL) of een platte-tekst-banner; toevoegen of uploaden (uploads in een instelbare **Cover-map**, standaard `Kanban Notes/assets`).
 - **CSS-targetbare kaarten** — metadata krijgt `data-field`/`data-value`, en de kaart `data-priority`/`data-project`/`data-client`/`data-column`, zodat je waarden met een CSS-snippet kunt stylen.
 - **Klanten** — een tweede gekleurde tag-dimensie `#client/naam` naast het project.
 - **Swimlanes** — kaarten in horizontale banen op project, klant, prioriteit of datum.

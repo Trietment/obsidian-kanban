@@ -36,6 +36,9 @@ const TDS_MARKER_RE_G = /%%tds:[^\s:%]+%%/g;
 // Bord-trigger van de To Do-sync: hooguit eens per 5 minuten (zie eventCache
 // voor hetzelfde idee bij agenda-events, daar met een kortere horizon).
 const TD_SYNC_MIN_MS = 5 * 60 * 1000;
+// Afgestemde due date per gekoppelde taak (zie OutlookManager.loadTodoDueBase)
+// — device-lokaal via app.loadLocalStorage, net als de schrijfrol.
+const TD_DUE_BASE_KEY = 'trietment-kanban:todo-due-base';
 // Application (client) ID van de geregistreerde Azure-app, zodat de koppeling
 // voor álle gebruikers werkt zonder eigen registratie. Het Client ID is publiek
 // (geen geheim). Gebruikers kunnen dit desgewenst overschrijven in de instellingen.
@@ -286,7 +289,7 @@ const TRANSLATIONS = {
     td_target_column_desc: 'Waar nieuw geïmporteerde taken op het bord landen. In de standaardkolom doen ze mee met automatisch verplaatsen: due vandaag → Bezig. Inbox = zonder kolom-tag (intake om zelf te sorteren).',
     td_target_column_default: 'Standaardkolom',
     td_export: 'Obsidian-taken naar Microsoft To Do sturen',
-    td_export_desc: 'Open taken met een client die aan precies één aangevinkte lijst is gekoppeld, worden in die lijst aangemaakt en krijgen de koppelmarker op de regel — afvinken synchroniseert daarna in beide richtingen, en via Exchange verschijnen ze ook in Apple Reminders. Titel en due date reizen alleen bij het aanmaken mee; er wordt nooit iets verwijderd.',
+    td_export_desc: 'Open taken met een client die aan precies één aangevinkte lijst is gekoppeld, worden in die lijst aangemaakt en krijgen de koppelmarker op de regel — afvinken synchroniseert daarna in beide richtingen, en via Exchange verschijnen ze ook in Apple Reminders. De titel reist alleen bij het aanmaken mee; de due date blijft daarna aan beide kanten gelijk. Er wordt nooit iets verwijderd.',
     td_lists: 'To Do-lijsten',
     td_loading_lists: 'To Do-lijsten laden…',
     td_no_lists: 'Geen To Do-lijsten gevonden. Vernieuw, of koppel het account opnieuw (Tasks.ReadWrite vereist).',
@@ -650,7 +653,7 @@ const TRANSLATIONS = {
     td_target_column_desc: 'Where newly imported tasks land on the board. In the default column they join auto-move: due today → In progress. Inbox = no column tag (intake to sort yourself).',
     td_target_column_default: 'Default column',
     td_export: 'Send Obsidian tasks to Microsoft To Do',
-    td_export_desc: 'Open tasks with a client that is mapped to exactly one checked list are created in that list and get the link marker on their line — completing then syncs both ways, and via Exchange they appear in Apple Reminders too. Title and due date only travel at creation; nothing is ever deleted.',
+    td_export_desc: 'Open tasks with a client that is mapped to exactly one checked list are created in that list and get the link marker on their line — completing then syncs both ways, and via Exchange they appear in Apple Reminders too. The title only travels at creation; after that the due date stays the same on both sides. Nothing is ever deleted.',
     td_lists: 'To Do lists',
     td_loading_lists: 'Loading To Do lists…',
     td_no_lists: 'No To Do lists found. Refresh, or reconnect the account (Tasks.ReadWrite required).',
@@ -4296,9 +4299,12 @@ class OutlookManager {
     return out;
   }
 
-  async patchTodoDue(acc, listId, taskId, dueISO) {
+  // HTTP-status van de datum-PATCH; 0 = geen token of geen verbinding. De
+  // reconciliatie moet weten óf Microsoft een datum weigert (dan volgt het
+  // bord alsnog Microsoft); pushTodoDue wil alleen weten of het lukte.
+  async patchTodoDueStatus(acc, listId, taskId, dueISO) {
     const token = await this.validToken(acc);
-    if (!token) return false;
+    if (!token) return 0;
     const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
     try {
       const res = await obsidian.requestUrl({
@@ -4308,14 +4314,19 @@ class OutlookManager {
         body: JSON.stringify({ dueDateTime: dueISO ? { dateTime: `${dueISO}T00:00:00.0000000`, timeZone: tz } : null }),
         throw: false,
       });
-      if (res.status === 401 || res.status === 403) { await this.markReauth(acc); return false; }
-      return res.status < 400;
-    } catch (_) { return false; }
+      if (res.status === 401 || res.status === 403) await this.markReauth(acc);
+      return res.status;
+    } catch (_) { return 0; }
+  }
+
+  async patchTodoDue(acc, listId, taskId, dueISO) {
+    const status = await this.patchTodoDueStatus(acc, listId, taskId, dueISO);
+    return status > 0 && status < 400;
   }
 
   // Datum-wijziging op het bord naar de gekoppelde To Do-taak duwen (zie
-  // setDueDate). Fouten vallen stil; de reconciliatie merkt het verschil dan
-  // later gewoon weer op.
+  // setDueDate). Fouten vallen stil: de reconciliatie ziet daarna dat alleen
+  // het bord van de afgestemde datum afwijkt en duwt hem alsnog.
   async pushTodoDue(task, dueISO) {
     if (!this.todoSyncsHere() || !this.todoEnabled()) return;
     if (!task || !task.todoList || !task.todoId) return;
@@ -4504,6 +4515,28 @@ class OutlookManager {
     }
   }
 
+  // ---- Afgestemde due dates ------------------------------------------------
+  // Per gekoppelde taak de due date waarover bord en Microsoft het bij de
+  // vorige draai eens waren. Alleen daarmee is te zien wélke kant een
+  // datumverschil veroorzaakte: telefoons praten nooit met Microsoft (één
+  // schrijver), dus een datum die op de telefoon is verzet kwam hier binnen
+  // als een kaal verschil — en dan won Microsoft en sprong de kaart terug.
+  // Device-lokaal via app.loadLocalStorage, net als de schrijfrol: alleen
+  // desktop reconcilieert, en in data.json of de vault zou elke draai een
+  // schrijfactie opleveren die Obsidian Sync mee moet nemen. Kwijt (geleegde
+  // opslag, eerste draai na het updaten)? Dan geldt per taak het oude gedrag
+  // tot bord en Microsoft het weer eens zijn.
+  loadTodoDueBase() {
+    const app = this.plugin.app;
+    const saved = app && app.loadLocalStorage ? app.loadLocalStorage(TD_DUE_BASE_KEY) : null;
+    return saved && typeof saved === 'object' ? saved : {};
+  }
+
+  saveTodoDueBase(map) {
+    const app = this.plugin.app;
+    if (app && app.saveLocalStorage) app.saveLocalStorage(TD_DUE_BASE_KEY, map);
+  }
+
   // Bord-trigger: gethrottled en fire-and-forget, zodat het bord nooit wacht.
   maybeSyncTodoTasks() {
     if (!this.todoSyncsHere() || !this.todoEnabled()) return;
@@ -4572,6 +4605,16 @@ class OutlookManager {
     }
     const existing = await plugin.scanTodoMarkers();
 
+    // Afgestemde due dates van de vorige draai (zie loadTodoDueBase). De
+    // nieuwe baseline wordt onderweg opgebouwd uit wat beide kanten nu delen;
+    // lijsten die deze draai niet leesbaar waren houden hun oude waarden.
+    const base = this.loadTodoDueBase();
+    const hasBase = (key) => Object.prototype.hasOwnProperty.call(base, key);
+    const nextBase = {};
+    for (const [key, due] of Object.entries(base)) {
+      if (!readLists.has(key.slice(0, key.indexOf(':')))) nextBase[key] = due;
+    }
+
     // c–e. Verschillen bepalen.
     const toCreate = []; // in To Do open, nog nergens in de vault → importeren
     const toPatch = [];  // markdown afgevinkt, To Do nog open → PATCH completed
@@ -4579,6 +4622,7 @@ class OutlookManager {
     const toRotate = []; // herhalende taak doorgeschoven → oude regel loskoppelen
     const toComplete = []; // occurrence elders afgerond → regel afvinken + loskoppelen
     const toRedate = []; // remote datum gewijzigd → open kaart volgt de nieuwe due date
+    const toPush = [];   // alleen de datum op het bord gewijzigd → PATCH due date
     for (const [key, rt] of remote) {
       const lt = local.get(key);
       if (!lt) {
@@ -4586,19 +4630,35 @@ class OutlookManager {
         continue;
       }
       const remoteDone = rt.status === 'completed';
+      const localDue = lt.dueDate || null;
+      // "Schoof de remote due naar láter?" meten we vanaf de afgestemde
+      // datum: de datum op de regel kan op het bord verzet zijn zonder dat
+      // Microsoft iets deed. Zonder baseline de regel zelf, als vanouds.
+      const ref = hasBase(key) ? base[key] : localDue;
       if (lt.done && !remoteDone) {
         // Herhalende taak in To Do: afronden schuift dezelfde taak-id door
         // naar de volgende occurrence (open, latere due date). Dat is geen
         // "nog niet afgevinkt" — opnieuw PATCHen zou occurrence na occurrence
-        // opvreten. Herkenning: de remote due ligt ná de due op de afgevinkte
-        // regel. De oude regel wordt dan losgekoppeld (marker → %%td-done%%,
-        // kaart blijft afgevinkt als historie) zodat de nieuwe occurrence bij
-        // de volgende stap als verse kaart importeert.
-        if (rt.due && lt.dueDate && rt.due > lt.dueDate) toRotate.push(lt);
-        else toPatch.push(rt);
+        // opvreten. Herkenning: de remote due ligt ná de afgestemde due. De
+        // oude regel wordt dan losgekoppeld (marker → %%td-done%%, kaart
+        // blijft afgevinkt als historie) zodat de nieuwe occurrence bij de
+        // volgende stap als verse kaart importeert.
+        if (rt.due && ref && rt.due > ref) toRotate.push(lt);
+        else {
+          toPatch.push(rt);
+          // Baseline bewaren: na de PATCH schuift een herhalende taak door,
+          // en dát moet de volgende draai als rotatie herkennen.
+          if (hasBase(key)) nextBase[key] = base[key];
+        }
       }
       else if (!lt.done && remoteDone) toCheck.push(lt);
-      else if (!lt.done && !remoteDone && rt.due !== (lt.dueDate || null)) {
+      else if (!lt.done && !remoteDone) {
+        if (rt.due === localDue) nextBase[key] = localDue;
+        // Alleen het bord week af van de afgestemde datum: verzet op de
+        // telefoon (die praat nooit met Microsoft), met de hand in de
+        // notitie, of een directe push die op desktop mislukte → Microsoft
+        // volgt het bord.
+        else if (hasBase(key) && rt.due === base[key]) toPush.push({ key, lt, rt });
         // Herhalende taak waarvan de due naar láter schoof: dat is een elders
         // (Reminders/To Do) afgeronde occurrence — hetzelfde taak-id schuift
         // dan door naar de volgende. Alleen de datum bijschuiven zou de kaart
@@ -4606,13 +4666,10 @@ class OutlookManager {
         // juist afvinkte. Dus: spiegel van het bord-pad (toRotate) — regel
         // afvinken + loskoppelen; de volgende draai importeert de nieuwe
         // occurrence als verse kaart in de landingskolom.
-        if (rt.recurring && rt.due && lt.dueDate && rt.due > lt.dueDate) toComplete.push(lt);
-        // Overige datumverschillen op een open gekoppelde kaart → het bord
-        // volgt Microsoft (handmatige wijzigingen in Reminders/To Do). Veilig
-        // omdat bord-wijzigingen zelf direct gepusht worden (setDueDate →
-        // pushTodoDue): een verschil hier betekent dus dat MS is gewijzigd.
-        // Restrisico: een offline mislukte bord-push kan door MS worden
-        // teruggezet.
+        else if (rt.recurring && rt.due && ref && rt.due > ref) toComplete.push(lt);
+        // Overige datumverschillen: Microsoft week af van de afgestemde datum
+        // (handmatige wijziging in Reminders/To Do) → het bord volgt. Weken
+        // beide kanten af, of is er nog geen baseline, dan wint Microsoft ook.
         else toRedate.push({ lt, due: rt.due });
       }
     }
@@ -4621,6 +4678,19 @@ class OutlookManager {
     let patched = 0;
     for (const rt of toPatch) {
       if (await this.patchTodoCompleted(rt.acc, rt.listId, rt.id)) patched++;
+    }
+    // Bord-datums naar Microsoft. Weigert Microsoft de datum (een 4xx anders
+    // dan auth, een net verwijderde taak of throttling — bv. een herhalende
+    // taak zonder datum), dan volgt het bord alsnog Microsoft: anders blijven
+    // beide kanten verschillen en probeert elke draai het opnieuw. Bij een
+    // tijdelijke fout (offline, 5xx) blijft alles staan voor de volgende draai.
+    let pushed = 0;
+    for (const { key, lt, rt } of toPush) {
+      const due = lt.dueDate || null;
+      const status = await this.patchTodoDueStatus(rt.acc, rt.listId, rt.id, due);
+      if (status > 0 && status < 400) { nextBase[key] = due; pushed++; continue; }
+      nextBase[key] = base[key];
+      if (status >= 400 && status < 500 && ![401, 403, 404, 408, 429].includes(status)) toRedate.push({ lt, due: rt.due, restore: true });
     }
 
     // c + e. Markdown-writes alleen als de vault in rust is; anders slaat deze
@@ -4652,6 +4722,9 @@ class OutlookManager {
           targetNote,
           { quiet: true, initialContent: header, extraLines },
         );
+        // Net geïmporteerd = meteen afgestemd: een datum die je daarna op de
+        // telefoon verzet, gaat bij de volgende draai al naar Microsoft.
+        nextBase[`${rt.listId}:${rt.id}`] = rt.due;
         imported++;
       }
       // Afvinken van hoog naar laag regelnummer per bestand: een herhaal-taak
@@ -4682,14 +4755,15 @@ class OutlookManager {
       // Open kaarten die Microsoft volgen: de 📅 wordt herschreven via het
       // bestaande setDueDate-pad — mét skipTodoPush, anders zou het bord de
       // datum die net uit MS kwam meteen weer terugduwen.
-      for (const { lt, due } of toRedate) {
+      for (const { lt, due, restore } of toRedate) {
         await plugin.setDueDate(lt, due, { skipTodoPush: true });
         // Schoof de datum naar later terwijl de kaart in Bezig staat (bv. in
         // Reminders "volgende week" gekozen)? Dan terug naar de standaard-
         // kolom; de auto-move brengt hem op de nieuwe due date vanzelf weer
         // naar Bezig. Andere kolommen (On hold, Klaar) zijn een bewuste keuze
-        // en blijven staan.
-        if (due && due > todayISO() && lt.column === plugin.settings.inProgressColumn) {
+        // en blijven staan — net als de kolom bij een teruggezette, door
+        // Microsoft geweigerde bord-datum (restore): die is niet verzet.
+        if (!restore && due && due > todayISO() && lt.column === plugin.settings.inProgressColumn) {
           const backCol = plugin.settings.columns.includes(plugin.settings.defaultColumn)
             ? plugin.settings.defaultColumn : 'inbox';
           await plugin.moveTask(`${lt.file}::${lt.line}`, backCol);
@@ -4730,7 +4804,10 @@ class OutlookManager {
           const sid = await this.createChecklistItem(target.acc, target.listId, id, sub.text, sub.done);
           if (sid) stepMarks.push({ raw: sub.raw, id: sid });
         }
-        if (await this.markExportedLine(t, target.listId, id, stepMarks)) exported++;
+        if (await this.markExportedLine(t, target.listId, id, stepMarks)) {
+          nextBase[`${target.listId}:${id}`] = t.dueDate || null;
+          exported++;
+        }
       }
     }
 
@@ -4760,6 +4837,7 @@ class OutlookManager {
       }
     }
 
+    this.saveTodoDueBase(nextBase);
     if (imported || checked || completed || exported || stepsChecked || rotated || redated) plugin.scheduleRefresh();
     // Schrijfwerk blijven liggen door de rust-poort (bv. vlak na een herstart,
     // terwijl Obsidian Sync nog verbindt)? Meld het, zodat syncTodoTasks de
@@ -4768,7 +4846,7 @@ class OutlookManager {
       toCreate.length > 0 || toCheck.length > 0 || toRotate.length > 0 || toComplete.length > 0 || toRedate.length > 0 ||
       (plugin.settings.todoExportEnabled && tasks.some((t) => !t.done && !t.todoId && t.client))
     );
-    return { imported, patched, checked, completed, rotated, redated, exported, stepsPatched, stepsChecked, skippedWrites };
+    return { imported, patched, pushed, checked, completed, rotated, redated, exported, stepsPatched, stepsChecked, skippedWrites };
   }
 
   // Koppel een afgeronde occurrence van een herhalende taak los: %%td: wordt
